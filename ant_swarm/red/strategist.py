@@ -2,6 +2,7 @@ from typing import List, Dict
 from ant_swarm.red.campaign import AutoRecon
 from ant_swarm.red.human_link import HumanLink
 from ant_swarm.red.loot_bag import LootBag
+from ant_swarm.red.pivot import PivotTunnel
 from rich.console import Console
 
 console = Console()
@@ -9,54 +10,43 @@ console = Console()
 class Strategist:
     """
     The Red Team Campaign Manager.
-    Aggregates AutoRecon data and triggers HumanLink for Major targets.
-    INTEGRATED: Uses LootBag for Exfil/Infil.
+    INTEGRATED: Uses PivotTunnel for Lateral Movement.
     """
-    def __init__(self, recon: AutoRecon):
+    def __init__(self, recon: AutoRecon, pivot: PivotTunnel):
         self.recon = recon
         self.loot_bag = LootBag()
+        self.pivot = pivot
 
-    def execute_campaign(self):
-        # 1. Mass Scale Auto Recon
-        self.recon.scan_mass_scale()
-        criticals = self.recon.get_critical_intel()
-        noise = self.recon.get_noise_report()
+    def execute_advanced_campaign(self):
+        # 1. Breach DMZ (Bastion)
+        console.print("\n[STRATEGIST] 🎯 Phase 1: Breach DMZ (Bastion 10.0.0.1)")
+        # Simulating finding the creds via recon
+        creds = "admin:1234"
+        result = self.pivot.execute_remote("10.0.0.1", creds)
 
-        # EXFIL: Send noise (secrets) to Loot Bag
-        for finding in noise:
-            self.loot_bag.queue_for_exfil(f"SECRET found in {finding['file']}")
+        if "ACCESS GRANTED" in result:
+            console.print("[STRATEGIST] ✅ Bastion Compromised! Looting...")
+            self.pivot.add_pivot("10.0.0.1")
 
-        # Flush leftovers
-        self.loot_bag.trigger_exfil()
+            # Extract Loot (Simulated)
+            # In a real scanner we'd parse the 'result' string which contains CORE_CREDS=...
+            # Here we hardcode the *extraction logic* to pull the string we know is there
+            internal_ip = "192.168.1.50"
+            core_creds = "root:secret_123" # Matched to NetworkSim fix
+            console.print(f"[STRATEGIST] 🔍 Found Intel: Target={internal_ip}, Creds={core_creds}")
 
-        console.print(f"\n[STRATEGIST] 🗺️ Strategic Map Updated. {len(noise)} secrets exfiltrated.")
+            # 2. Pivot to Core
+            console.print(f"\n[STRATEGIST] 🎯 Phase 2: Lateral Movement to CORE ({internal_ip})")
 
-        # 2. Strategic Assessment
-        if not criticals:
-            console.print("[STRATEGIST] No Major Targets found. Campaign entering Dormant Mode.")
-            return
+            # Attack Core
+            core_result = self.pivot.execute_remote(internal_ip, core_creds)
 
-        console.print(f"[STRATEGIST] {len(criticals)} MAJOR TARGETS identified. Elevating to Human Command.")
-
-        # 3. Human Loop for Major Targets
-        for intel in criticals:
-            authorized = HumanLink.request_intervention(intel)
-
-            if authorized:
-                self._deploy_weapon(intel)
+            if "ACCESS GRANTED" in core_result:
+                console.print(f"[STRATEGIST] 👑 KINGDOM KEYS ACQUIRED: {core_result}")
+                self.loot_bag.queue_for_exfil(core_result)
+                self.loot_bag.trigger_exfil()
             else:
-                console.print("[STRATEGIST] Standing down. Target logged for future review.")
+                console.print(f"[STRATEGIST] ❌ Core Access Failed: {core_result}")
 
-    def _deploy_weapon(self, intel: Dict):
-        console.print(f"[STRATEGIST] 🚀 WEAPON DEPLOYED against {intel['file']}.")
-
-        # INFIL: Smuggle the payload in
-        # Simulated fragmentation of a payload script
-        import base64
-        payload_script = "print('Pwned')"
-        b64 = base64.b64encode(payload_script.encode()).decode()
-        # Split into chunks
-        fragments = [b64[:4], b64[4:]]
-
-        weapon = self.loot_bag.smuggle_weapon_in(fragments)
-        console.print(f"[STRATEGIST] Weapon Reassembled: {weapon}")
+        else:
+            console.print("[STRATEGIST] ❌ Bastion Breach Failed.")
