@@ -13,6 +13,7 @@ import uuid
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
+import signal
 
 # Configuration
 SWARM_GRP = '224.2.2.2'
@@ -21,11 +22,88 @@ AGENT_ID = str(uuid.uuid4())[:8]
 
 logger = utils.setup_logging(f"BlueSwarm-{AGENT_ID}", config.BLUE_LOG)
 
+class EDRMonitor:
+    """Host-Based EDR Capability."""
+    def scan_network(self):
+        """Scan /proc/net/tcp for unauthorized listeners."""
+        threats = []
+        try:
+            with open("/proc/net/tcp", "r") as f:
+                next(f)
+                for line in f:
+                    parts = line.strip().split()
+                    if not parts: continue
+                    if parts[3] == "0A": # LISTEN
+                        ip, port_hex = parts[1].split(':')
+                        port = int(port_hex, 16)
+                        # Detect Red Mesh Port
+                        if port == 5007:
+                            threats.append(parts[9]) # inode
+        except Exception: pass
+        return threats
+
+    def scan_processes(self):
+        """Scan process list for Red signatures."""
+        threat_pids = []
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit(): continue
+            try:
+                with open(f"/proc/{pid}/cmdline", 'rb') as f:
+                    cmd = f.read().replace(b'\0', b' ')
+                    if b"red_mesh_node" in cmd or b"red_node" in cmd:
+                        threat_pids.append(int(pid))
+            except Exception: pass
+        return threat_pids
+
+    def terminate(self, pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+            return True
+        except Exception: return False
+
+class SoarEngine:
+    """Decentralized SOAR Capability."""
+    def __init__(self, token):
+        self.lockdown_active = False
+        self.token = token
+
+    def evaluate(self, threat_level):
+        """Trigger playbooks based on threat level."""
+        if threat_level > 5 and not self.lockdown_active:
+            self.activate_lockdown()
+        elif threat_level < 2 and self.lockdown_active:
+            self.deactivate_lockdown()
+
+    def activate_lockdown(self):
+        self.lockdown_active = True
+        logger.warning("SOAR: 🔒 ACTIVATING ISOLATION PROTOCOL")
+        # Sim: Change dir permissions or block comms
+        # We simulate by creating a lock file that prevents Red from dropping payloads
+        try:
+            lock_file = os.path.join(config.SIMULATION_DATA_DIR, ".lockdown")
+            utils.secure_create(lock_file, "LOCKED", token=self.token)
+        except Exception: pass
+
+    def deactivate_lockdown(self):
+        self.lockdown_active = False
+        logger.info("SOAR: 🔓 DEACTIVATING ISOLATION PROTOCOL")
+        try:
+            lock_file = os.path.join(config.SIMULATION_DATA_DIR, ".lockdown")
+            if os.path.exists(lock_file): os.remove(lock_file)
+        except Exception: pass
+
 class BlueSwarmAgent:
     def __init__(self):
         self.immunity_db = set()
         self.trust_db = {} # {agent_id: score}
         self.running = True
+
+        # Auth
+        self.id_mgr = utils.IdentityManager(config.SESSION_DB)
+        self.token = self.id_mgr.login(f"BlueSwarm-{AGENT_ID}")
+
+        self.edr = EDRMonitor()
+        self.soar = SoarEngine(self.token)
 
         # Insider Threat Logic
         self.is_rogue = random.random() < 0.1 # 10% chance
@@ -128,6 +206,13 @@ class BlueSwarmAgent:
     def hunt(self):
         # Simulated Hunting Loop
         while self.running:
+            # 0. EDR: Process & Network Hunt
+            red_pids = self.edr.scan_processes()
+            for pid in red_pids:
+                if self.edr.terminate(pid):
+                    logger.critical(f"EDR: Terminated Red Node PID {pid}")
+                    self.share_intel(f"PROCESS_KILL_{pid}")
+
             # 1. Scan for Steganography
             import glob
             images = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, "*.jpg"))
@@ -163,6 +248,11 @@ class BlueSwarmAgent:
             if self.trust_db and random.random() > 0.7:
                 peer = random.choice(list(self.trust_db.keys()))
                 self.broadcast_vouch(peer)
+
+            # SOAR Evaluation
+            # Threat level = size of immunity db
+            threat_level = len(self.immunity_db)
+            self.soar.evaluate(threat_level)
 
             time.sleep(2)
 

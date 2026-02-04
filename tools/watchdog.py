@@ -72,7 +72,41 @@ class Watchdog:
     def cleanup_window(self):
         self.events_window = [t for t in self.events_window if t > time.time() - self.WINDOW_SIZE]
 
+class NetworkIDS:
+    """Traffic Analysis for Command Flooding."""
+    def __init__(self):
+        self.packet_count = 0
+        self.start_time = time.time()
+
+    def sniff(self):
+        # Simulating Multicast Sniffing
+        # In reality, we'd join the group.
+        # Here we check the network_bus directory or logs for 'Broadcast'
+        pass
+
+    def analyze_traffic(self):
+        # Scan log for broadcast rate
+        try:
+            with open(config.RED_LOG, 'r') as f:
+                lines = f.readlines()
+                # Count recent broadcasts
+                now = time.time()
+                recent = [l for l in lines[-50:] if "Broadcast" in l]
+                if len(recent) > 20:
+                    print(f"🚨 NIDS ALERT: Beacon Storm Detected ({len(recent)}/50 events)")
+                    utils.broadcast_alert("NIDS: BEACON STORM DETECTED")
+        except: pass
+
 if __name__ == "__main__":
     utils.check_root()
     w = Watchdog()
-    w.monitor()
+    nids = NetworkIDS()
+
+    # Run together
+    import threading
+    t = threading.Thread(target=w.monitor)
+    t.start()
+
+    while True:
+        nids.analyze_traffic()
+        time.sleep(5)
