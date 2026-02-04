@@ -7,12 +7,12 @@ import sys
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import manage_session
+from utils import manage_session, BASE_DIR
 
 class TestSessionManagement(unittest.TestCase):
     def setUp(self):
         self.session_id = "testsession123"
-        self.session_dir = "sessions"
+        self.session_dir = os.path.join(BASE_DIR, "sessions")
         self.session_file = os.path.join(self.session_dir, f"session_{self.session_id}.json")
         if os.path.exists(self.session_file):
             os.remove(self.session_file)
@@ -61,6 +61,45 @@ class TestSessionManagement(unittest.TestCase):
     def test_invalid_session_id(self):
         with self.assertRaises(ValueError):
             manage_session("invalid_session_id!") # Contains underscore and exclamation
+
+from utils import safe_file_write, safe_file_read, safe_json_write, safe_json_read
+
+class TestFileOperations(unittest.TestCase):
+    def setUp(self):
+        self.test_file = "test_file.txt"
+        self.test_json_file = "test_file.json"
+        if os.path.exists(self.test_file):
+            os.remove(self.test_file)
+        if os.path.exists(self.test_json_file):
+            os.remove(self.test_json_file)
+
+    def tearDown(self):
+        if os.path.exists(self.test_file):
+            os.remove(self.test_file)
+        if os.path.exists(self.test_json_file):
+            os.remove(self.test_json_file)
+
+    def test_safe_file_rw(self):
+        data = "Hello, World!"
+        safe_file_write(self.test_file, data)
+        read_data = safe_file_read(self.test_file)
+        self.assertEqual(data, read_data)
+
+    def test_safe_file_overwrite(self):
+        safe_file_write(self.test_file, "Initial")
+        safe_file_write(self.test_file, "Overwritten")
+        read_data = safe_file_read(self.test_file)
+        self.assertEqual("Overwritten", read_data)
+
+    def test_safe_json_rw(self):
+        data = {"key": "value", "list": [1, 2, 3]}
+        safe_json_write(self.test_json_file, data)
+        read_data = safe_json_read(self.test_json_file)
+        self.assertEqual(data, read_data)
+
+    def test_safe_json_read_missing(self):
+        read_data = safe_json_read("non_existent.json")
+        self.assertEqual(read_data, {})
 
 if __name__ == '__main__':
     unittest.main()

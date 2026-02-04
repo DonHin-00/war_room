@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -12,12 +11,25 @@ import time
 import json
 import random
 import math
+import sys
+
+# Import utils from current directory
+try:
+    import utils
+except ImportError:
+    # If running from a different directory, try to append current dir
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-WATCH_DIR = "/tmp"
+
+# Use a local directory for simulation instead of /tmp
+WATCH_DIR = os.path.join(BASE_DIR, "battlefield")
+if not os.path.exists(WATCH_DIR):
+    os.makedirs(WATCH_DIR, exist_ok=True)
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
@@ -50,25 +62,17 @@ def calculate_shannon_entropy(filepath):
         with open(filepath, 'rb') as f:
             data = f.read()
             if not data: return 0
-            entropy = 0
-            for x in range(256):
-                p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
-                if p_x > 0:
-                    entropy += - p_x * math.log(p_x, 2)
-            return entropy
-    except: return 0
+            return utils.calculate_entropy(data)
+    except Exception:
+        return 0
 
 def access_memory(filepath, data=None):
     """Atomic JSON I/O."""
     if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
+        utils.safe_json_write(filepath, data)
+
+    # safe_json_read handles empty/missing file
+    return utils.safe_json_read(filepath)
 
 # --- MAIN LOOP ---
 
@@ -151,9 +155,9 @@ def engage_defense():
 
         except KeyboardInterrupt:
             break
-        except Exception:
+        except Exception as e:
+            # print(f"Error: {e}")
             time.sleep(1)
 
 if __name__ == "__main__":
     engage_defense()
-EOF

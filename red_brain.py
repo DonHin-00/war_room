@@ -1,4 +1,3 @@
-cat > /root/war_room/red_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Red Team)
@@ -10,12 +9,25 @@ import os
 import time
 import json
 import random
+import sys
+
+# Import utils from current directory
+try:
+    import utils
+except ImportError:
+    # If running from a different directory, try to append current dir
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = "/tmp"
+
+# Use a local directory for simulation instead of /tmp
+TARGET_DIR = os.path.join(BASE_DIR, "battlefield")
+if not os.path.exists(TARGET_DIR):
+    os.makedirs(TARGET_DIR, exist_ok=True)
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
@@ -39,14 +51,8 @@ C_RESET = "\033[0m"
 # --- UTILITIES ---
 def access_memory(filepath, data=None):
     if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
+        utils.safe_json_write(filepath, data)
+    return utils.safe_json_read(filepath)
 
 # --- MAIN LOOP ---
 
@@ -134,4 +140,3 @@ def engage_offense():
 
 if __name__ == "__main__":
     engage_offense()
-EOF
