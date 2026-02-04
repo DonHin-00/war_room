@@ -70,37 +70,61 @@ class DatabaseManager:
 
         self.conn.commit()
 
+    def _execute_with_retry(self, query, params=(), commit=False):
+        """Execute a query with retry logic for locking errors."""
+        for i in range(5):
+            try:
+                self.cursor.execute(query, params)
+                if commit:
+                    self.conn.commit()
+                return self.cursor
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e):
+                    time.sleep(0.1 * (i + 1))
+                else:
+                    raise e
+            except Exception as e:
+                logging.error(f"DB Error: {e}")
+                break
+        return None
+
     # --- State Management ---
     def get_state(self, key, default=None):
         try:
-            self.cursor.execute("SELECT value FROM war_state WHERE key = ?", (key,))
-            row = self.cursor.fetchone()
-            if row:
-                return json.loads(row[0])
+            cursor = self._execute_with_retry("SELECT value FROM war_state WHERE key = ?", (key,))
+            if cursor:
+                row = cursor.fetchone()
+                if row:
+                    return json.loads(row[0])
             return default
         except Exception as e:
             logging.error(f"DB Read Error: {e}")
             return default
 
     def set_state(self, key, value):
-        try:
-            self.cursor.execute("INSERT OR REPLACE INTO war_state (key, value) VALUES (?, ?)",
-                               (key, json.dumps(value)))
-            self.conn.commit()
-        except Exception as e:
-            logging.error(f"DB Write Error: {e}")
+        self._execute_with_retry(
+            "INSERT OR REPLACE INTO war_state (key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
+            commit=True
+        )
 
     # --- Q-Learning ---
     def get_q_value(self, agent, state, action):
-        self.cursor.execute("SELECT value FROM q_tables WHERE agent=? AND state=? AND action=?",
-                           (agent, state, action))
-        row = self.cursor.fetchone()
-        return row[0] if row else 0.0
+        cursor = self._execute_with_retry(
+            "SELECT value FROM q_tables WHERE agent=? AND state=? AND action=?",
+            (agent, state, action)
+        )
+        if cursor:
+            row = cursor.fetchone()
+            return row[0] if row else 0.0
+        return 0.0
 
     def update_q_value(self, agent, state, action, value):
-        self.cursor.execute("INSERT OR REPLACE INTO q_tables (agent, state, action, value) VALUES (?, ?, ?, ?)",
-                           (agent, state, action, value))
-        self.conn.commit()
+        self._execute_with_retry(
+            "INSERT OR REPLACE INTO q_tables (agent, state, action, value) VALUES (?, ?, ?, ?)",
+            (agent, state, action, value),
+            commit=True
+        )
 
     def get_best_action(self, agent, state, actions):
         # Optimization: Let SQL do the sorting
@@ -111,49 +135,51 @@ class DatabaseManager:
             ORDER BY value DESC LIMIT 1
         '''
         params = [agent, state] + actions
-        self.cursor.execute(query, params)
-        row = self.cursor.fetchone()
 
-        # If we have a known best, return it
-        if row:
-            return row[0]
-        # Otherwise random (caller handles exploration, but here we return None or let caller decide)
+        cursor = self._execute_with_retry(query, params)
+        if cursor:
+            row = cursor.fetchone()
+            if row:
+                return row[0]
         return None
 
     # --- Threat Intel ---
     def add_threat(self, type_, value, source="simulation"):
-        try:
-            self.cursor.execute("INSERT OR IGNORE INTO threat_intel (type, value, source, added_at) VALUES (?, ?, ?, ?)",
-                               (type_, value, source, time.time()))
-            self.conn.commit()
-        except: pass
+        self._execute_with_retry(
+            "INSERT OR IGNORE INTO threat_intel (type, value, source, added_at) VALUES (?, ?, ?, ?)",
+            (type_, value, source, time.time()),
+            commit=True
+        )
 
     def is_threat(self, type_, value):
-        self.cursor.execute("SELECT 1 FROM threat_intel WHERE type=? AND value=?", (type_, value))
-        return self.cursor.fetchone() is not None
+        cursor = self._execute_with_retry(
+            "SELECT 1 FROM threat_intel WHERE type=? AND value=?",
+            (type_, value)
+        )
+        return cursor.fetchone() is not None if cursor else False
 
     def get_random_threat_filename(self):
-        self.cursor.execute("SELECT value FROM threat_intel WHERE type='filename' ORDER BY RANDOM() LIMIT 1")
-        row = self.cursor.fetchone()
-        return row[0] if row else None
+        cursor = self._execute_with_retry(
+            "SELECT value FROM threat_intel WHERE type='filename' ORDER BY RANDOM() LIMIT 1"
+        )
+        if cursor:
+            row = cursor.fetchone()
+            return row[0] if row else None
+        return None
 
     # --- Experience Replay ---
     def save_experience(self, agent, state, action, reward, next_state, source='real'):
-        self.cursor.execute('''
+        self._execute_with_retry('''
             INSERT INTO experience_replay (agent, state, action, reward, next_state, timestamp, source)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (agent, state, action, reward, next_state, time.time(), source))
-        # Keep buffer size manageable (e.g., last 1000)
-        # Note: Doing this every insert is slow, maybe optimize later or use a scheduled job
-        # For now, just let it grow, simulation is short.
-        self.conn.commit()
+        ''', (agent, state, action, reward, next_state, time.time(), source), commit=True)
 
     def sample_experience(self, agent, batch_size=10):
-        self.cursor.execute('''
+        cursor = self._execute_with_retry('''
             SELECT state, action, reward, next_state FROM experience_replay
             WHERE agent=? ORDER BY RANDOM() LIMIT ?
         ''', (agent, batch_size))
-        return self.cursor.fetchall()
+        return cursor.fetchall() if cursor else []
 
     def close(self):
         self.conn.close()
