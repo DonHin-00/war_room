@@ -9,6 +9,7 @@ import os
 import time
 import json
 import random
+from utils import atomic_json_io, atomic_json_update
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,18 +36,6 @@ MAX_ALERT = 5
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
-# --- UTILITIES ---
-def access_memory(filepath, data=None):
-    if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
-
 # --- MAIN LOOP ---
 
 def engage_offense(max_iterations=None):
@@ -54,7 +43,7 @@ def engage_offense(max_iterations=None):
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
     # Cache Q-Table in memory
-    q_table = access_memory(Q_TABLE_FILE)
+    q_table = atomic_json_io(Q_TABLE_FILE)
     steps_since_save = 0
     SAVE_INTERVAL = 10
 
@@ -66,7 +55,7 @@ def engage_offense(max_iterations=None):
             iteration += 1
             try:
                 # 1. RECON
-                war_state = access_memory(STATE_FILE)
+                war_state = atomic_json_io(STATE_FILE)
                 if not war_state: war_state = {'blue_alert_level': 1}
                 # q_table is cached
 
@@ -129,13 +118,15 @@ def engage_offense(max_iterations=None):
                 # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= SAVE_INTERVAL:
-                    access_memory(Q_TABLE_FILE, q_table)
+                    atomic_json_io(Q_TABLE_FILE, q_table)
                     steps_since_save = 0
 
                 # 6. TRIGGER ALERTS
                 if impact > 0 and random.random() > 0.5:
-                    war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                    access_memory(STATE_FILE, war_state)
+                    def update_state(state):
+                        state['blue_alert_level'] = min(MAX_ALERT, state.get('blue_alert_level', 1) + 1)
+                        return state
+                    atomic_json_update(STATE_FILE, update_state)
 
                 print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
 
@@ -147,7 +138,7 @@ def engage_offense(max_iterations=None):
         pass
     finally:
         # Always save on exit
-        access_memory(Q_TABLE_FILE, q_table)
+        atomic_json_io(Q_TABLE_FILE, q_table)
 
 if __name__ == "__main__":
     engage_offense()

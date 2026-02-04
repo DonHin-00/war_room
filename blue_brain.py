@@ -11,6 +11,7 @@ import time
 import json
 import random
 import math
+from utils import atomic_json_io, atomic_json_update, calculate_file_entropy
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,34 +42,6 @@ C_BLUE = "\033[94m"
 C_CYAN = "\033[96m"
 C_RESET = "\033[0m"
 
-# --- DEFENSIVE UTILITIES ---
-
-def calculate_shannon_entropy(filepath):
-    """Detects High Entropy (Encrypted/Obfuscated) files."""
-    try:
-        with open(filepath, 'rb') as f:
-            data = f.read()
-            if not data: return 0
-            entropy = 0
-            for x in range(256):
-                p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
-                if p_x > 0:
-                    entropy += - p_x * math.log(p_x, 2)
-            return entropy
-    except: return 0
-
-def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
-    if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
-
 # --- MAIN LOOP ---
 
 def engage_defense(max_iterations=None):
@@ -76,7 +49,7 @@ def engage_defense(max_iterations=None):
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
     
     # Cache Q-Table in memory
-    q_table = access_memory(Q_TABLE_FILE)
+    q_table = atomic_json_io(Q_TABLE_FILE)
     steps_since_save = 0
     SAVE_INTERVAL = 10
 
@@ -88,7 +61,7 @@ def engage_defense(max_iterations=None):
             iteration += 1
             try:
                 # 1. PREPARATION
-                war_state = access_memory(STATE_FILE)
+                war_state = atomic_json_io(STATE_FILE)
                 if not war_state: war_state = {'blue_alert_level': 1}
                 # q_table is now cached
 
@@ -123,7 +96,7 @@ def engage_defense(max_iterations=None):
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
                         # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                        if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                        if ".sys" in t or calculate_file_entropy(t) > 3.5:
                             try: os.remove(t); mitigated += 1
                             except: pass
 
@@ -146,16 +119,26 @@ def engage_defense(max_iterations=None):
                 # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= SAVE_INTERVAL:
-                    access_memory(Q_TABLE_FILE, q_table)
+                    atomic_json_io(Q_TABLE_FILE, q_table)
                     steps_since_save = 0
 
                 # 7. UPDATE WAR STATE
+                should_update = False
                 if mitigated > 0 and current_alert < MAX_ALERT:
-                    war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
+                    should_update = True
                 elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                    war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+                    should_update = True
 
-                access_memory(STATE_FILE, war_state)
+                if should_update:
+                    def update_state(state):
+                        level = state.get('blue_alert_level', 1)
+                        if mitigated > 0 and level < MAX_ALERT:
+                            state['blue_alert_level'] = min(MAX_ALERT, level + 1)
+                        elif mitigated == 0 and level > MIN_ALERT and action == "OBSERVE":
+                            state['blue_alert_level'] = max(MIN_ALERT, level - 1)
+                        return state
+
+                    atomic_json_update(STATE_FILE, update_state)
 
                 # LOG
                 icon = "🛡️" if mitigated == 0 else "⚔️"
@@ -169,7 +152,7 @@ def engage_defense(max_iterations=None):
         pass
     finally:
         # Always save on exit
-        access_memory(Q_TABLE_FILE, q_table)
+        atomic_json_io(Q_TABLE_FILE, q_table)
 
 if __name__ == "__main__":
     engage_defense()
