@@ -11,9 +11,16 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 THREAT_FEED_CACHE = os.path.join(BASE_DIR, "threat_feed_cache.json")
 
-# Threat Intelligence
-THREAT_FEED_URL_IPS = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
-THREAT_FEED_URL_URLS = "https://urlhaus.abuse.ch/downloads/csv_recent/"
+# Threat Intelligence Sources (Free, No API Key, Live)
+THREAT_FEEDS = {
+    "Feodo_Tracker": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
+    "CINS_Army": "http://cinsscore.com/list/ci-badguys.txt",
+    "GreenSnow": "https://blocklist.greensnow.co/greensnow.txt",
+    "Blocklist_DE": "https://lists.blocklist.de/lists/all.txt",
+    "DigitalSide": "https://osint.digitalside.it/Threat-Intel/lists/latestips.txt",
+    "EmergingThreats": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+    "BinaryDefense": "https://www.binarydefense.com/banlist.txt"
+}
 
 # AI Hyperparameters
 ALPHA = 0.4

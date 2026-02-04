@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Threat Intelligence Module
-Fetches and manages real-world threat data from Abuse.ch
+Fetches and manages real-world threat data from multiple free sources.
 """
 
 import json
@@ -17,7 +17,11 @@ try:
 except ImportError:
     # Fallback if config is not in python path
     class Config:
-        THREAT_FEED_URL_IPS = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
+        THREAT_FEEDS = {
+            "Feodo_Tracker": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
+            "CINS_Army": "http://cinsscore.com/list/ci-badguys.txt",
+            "GreenSnow": "https://blocklist.greensnow.co/greensnow.txt"
+        }
         THREAT_FEED_CACHE = "threat_feed_cache.json"
     config = Config()
 
@@ -25,7 +29,6 @@ class ThreatIntel:
     def __init__(self, cache_file=None):
         self.cache_file = cache_file or config.THREAT_FEED_CACHE
         self.ips = set()
-        self.raw_data = []
         self.last_updated = 0
         self.load_cache()
 
@@ -37,7 +40,6 @@ class ThreatIntel:
                     data = json.load(f)
                     self.ips = set(data.get('ips', []))
                     self.last_updated = data.get('last_updated', 0)
-                    self.raw_data = data.get('raw_data', [])
                 print(f"[ThreatIntel] Loaded {len(self.ips)} IOCs from cache.")
             except Exception as e:
                 print(f"[ThreatIntel] Cache load failed: {e}")
@@ -48,63 +50,86 @@ class ThreatIntel:
             with open(self.cache_file, 'w') as f:
                 json.dump({
                     'ips': list(self.ips),
-                    'last_updated': self.last_updated,
-                    'raw_data': self.raw_data
+                    'last_updated': self.last_updated
                 }, f)
         except Exception as e:
             print(f"[ThreatIntel] Cache save failed: {e}")
 
     def fetch_feed(self, force=False):
-        """Fetches the latest threat feed from Feodo Tracker."""
+        """Fetches the latest threat feeds."""
         # Update if cache is older than 24 hours or forced
         if not force and (time.time() - self.last_updated < 86400) and self.ips:
             return
 
-        print(f"[ThreatIntel] Fetching fresh threat feed from {config.THREAT_FEED_URL_IPS}...")
+        new_ips = set()
+
+        for name, url in config.THREAT_FEEDS.items():
+            print(f"[ThreatIntel] Fetching {name} from {url}...")
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={'User-Agent': 'WarRoom-Simulation/1.0'}
+                )
+                with urllib.request.urlopen(req) as response:
+                    content = response.read().decode('utf-8')
+                    if not content:
+                        print(f"[ThreatIntel] Empty response from {name}.")
+                        continue
+
+                    # Determine format and parse
+                    parsed_ips = set()
+                    if url.endswith('.json'):
+                        parsed_ips = self._parse_json(content)
+                    else:
+                        parsed_ips = self._parse_text(content)
+
+                    print(f"[ThreatIntel] {name}: Found {len(parsed_ips)} IPs.")
+                    new_ips.update(parsed_ips)
+
+            except urllib.error.URLError as e:
+                print(f"[ThreatIntel] Network error fetching {name}: {e}")
+            except Exception as e:
+                print(f"[ThreatIntel] Error processing {name}: {e}")
+
+        if new_ips:
+            self.ips = new_ips
+            self.last_updated = time.time()
+            self.save_cache()
+            print(f"[ThreatIntel] Total Unique IOCs: {len(self.ips)}")
+        else:
+            print("[ThreatIntel] Warning: No IPs found in any feed.")
+
+    def _parse_json(self, content):
+        """Parses JSON feeds (specifically Feodo Tracker style)."""
+        ips = set()
         try:
-            req = urllib.request.Request(
-                config.THREAT_FEED_URL_IPS,
-                headers={'User-Agent': 'WarRoom-Simulation/1.0'}
-            )
-            with urllib.request.urlopen(req) as response:
-                content = response.read().decode('utf-8')
-                if not content:
-                    print("[ThreatIntel] Empty response from feed.")
-                    return
+            data = json.loads(content)
+            if isinstance(data, list):
+                for entry in data:
+                    if isinstance(entry, dict):
+                        if 'ip_address' in entry:
+                            ips.add(entry['ip_address'])
+                        elif 'dst_ip' in entry:
+                            ips.add(entry['dst_ip'])
+        except json.JSONDecodeError:
+            pass
+        return ips
 
-                try:
-                    data = json.loads(content)
-                except json.JSONDecodeError:
-                    # Try line-by-line if JSON fails (some feeds are JSONL or CSV)
-                    print("[ThreatIntel] JSON decode failed, checking if raw text...")
-                    return
-
-                new_ips = set()
-                # Parse Feodo Tracker JSON format
-                # Expecting list of dicts with 'ip_address' or similar
-
-                self.raw_data = data # Store raw for metadata if needed
-
-                if isinstance(data, list):
-                    for entry in data:
-                        if isinstance(entry, dict):
-                            if 'ip_address' in entry:
-                                new_ips.add(entry['ip_address'])
-                            elif 'dst_ip' in entry: # Some feeds use different keys
-                                new_ips.add(entry['dst_ip'])
-
-                if new_ips:
-                    self.ips = new_ips
-                    self.last_updated = time.time()
-                    self.save_cache()
-                    print(f"[ThreatIntel] Updated. Total IOCs: {len(self.ips)}")
-                else:
-                    print("[ThreatIntel] Warning: No IPs found in feed.")
-
-        except urllib.error.URLError as e:
-            print(f"[ThreatIntel] Network error fetching feed: {e}")
-        except Exception as e:
-            print(f"[ThreatIntel] Unexpected error: {e}")
+    def _parse_text(self, content):
+        """Parses plain text feeds (one IP per line)."""
+        ips = set()
+        for line in content.splitlines():
+            line = line.strip()
+            # Ignore comments and empty lines
+            if not line or line.startswith('#') or line.startswith('//'):
+                continue
+            # Simple validation: looks like an IP (contains dots, numbers)
+            # We could use regex but simple checks suffice for speed
+            parts = line.split() # Sometimes feeds have "IP # comment"
+            potential_ip = parts[0]
+            if potential_ip.count('.') == 3 and all(c.isdigit() or c == '.' for c in potential_ip):
+                 ips.add(potential_ip)
+        return ips
 
     def is_malicious(self, ip):
         """Checks if an IP is in the threat feed."""
