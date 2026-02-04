@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import red_brain
 import blue_brain
+import utils
 
 class TestRedBrain(unittest.TestCase):
     def setUp(self):
@@ -97,12 +98,16 @@ class TestBlueBrain(unittest.TestCase):
         # Create a file with zero entropy (all A's)
         fpath = os.path.join(self.test_dir, "zero_entropy.txt")
         with open(fpath, 'wb') as f: f.write(b'A' * 100)
-        self.assertEqual(blue_brain.calculate_shannon_entropy(fpath), 0.0)
+        # Use utils.calculate_entropy since blue_brain uses it directly
+        with open(fpath, 'rb') as f:
+            data = f.read()
+            self.assertEqual(utils.calculate_entropy(data), 0.0)
 
         # High entropy (random)
         fpath2 = os.path.join(self.test_dir, "high_entropy.bin")
-        with open(fpath2, 'wb') as f: f.write(os.urandom(100))
-        self.assertGreater(blue_brain.calculate_shannon_entropy(fpath2), 3.0)
+        data_random = os.urandom(100)
+        with open(fpath2, 'wb') as f: f.write(data_random)
+        self.assertGreater(utils.calculate_entropy(data_random), 3.0)
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,19 +8,13 @@ Frameworks: NIST SP 800-61, MITRE Shield
 import glob
 import os
 import time
-import json
 import random
-import math
 import signal
 import sys
 import logging
 from typing import Dict, Any, List
 
-# Import shared utilities if available
-try:
-    import utils
-except ImportError:
-    utils = None
+import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,24 +48,10 @@ logger = logging.getLogger("BlueTeam")
 
 # --- DEFENSIVE UTILITIES ---
 
-def calculate_shannon_entropy(filepath):
-    """Detects High Entropy (Encrypted/Obfuscated) files."""
-    try:
-        if os.path.islink(filepath): return 0 # Symlink safety
-        with open(filepath, 'rb') as f:
-            data = f.read()
-            if not data: return 0
-            entropy = 0
-            for x in range(256):
-                p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
-                if p_x > 0:
-                    entropy += - p_x * math.log(p_x, 2)
-            return entropy
-    except Exception: return 0
-
 class StateManager:
     """
     Manages state persistence with caching and optimization.
+    Uses utils.py for safe file operations.
     """
     def __init__(self):
         self.state_cache: Dict[str, Any] = {}
@@ -79,32 +59,11 @@ class StateManager:
 
     def load_json(self, filepath: str) -> Dict[str, Any]:
         """Safely loads JSON data from a file."""
-        if not os.path.exists(filepath):
-            return {}
-        try:
-            with open(filepath, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.error(f"Failed to read {filepath}: {e}")
-            return {}
+        return utils.safe_json_read(filepath)
 
     def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
         """Safely saves JSON data to a file using atomic write patterns."""
-        if utils:
-            try:
-                utils.safe_file_write(filepath, json.dumps(data, indent=4))
-                return
-            except Exception: pass
-
-        try:
-            temp_path = filepath + ".tmp"
-            with open(temp_path, 'w') as f:
-                json.dump(data, f, indent=4)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(temp_path, filepath)
-        except IOError as e:
-            logger.error(f"Failed to write {filepath}: {e}")
+        utils.safe_json_write(filepath, data)
 
     def get_war_state(self) -> Dict[str, Any]:
         """Retrieves the shared war state with mtime caching."""
@@ -187,7 +146,7 @@ class BlueDefender:
                         if q > max_q:
                             max_q = q
                             best_action = a
-                    action = best_action
+                    action = best_action if best_action else random.choice(ACTIONS)
 
                 self.epsilon = max(MIN_EPSILON, self.epsilon * self.epsilon_decay)
                 self.alpha = max(0.1, self.alpha * self.alpha_decay)
@@ -201,7 +160,18 @@ class BlueDefender:
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
-                        if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                        entropy = 0.0
+                        try:
+                            # Read file content safely for entropy calculation
+                            # Note: t is a path, calculate_entropy expects data (str or bytes)
+                            if not os.path.islink(t):
+                                with open(t, 'rb') as f:
+                                    data = f.read()
+                                    entropy = utils.calculate_entropy(data)
+                        except Exception:
+                            entropy = 0.0
+
+                        if ".sys" in t or entropy > 3.5:
                             try: os.remove(t); mitigated += 1
                             except: pass
 
@@ -219,10 +189,11 @@ class BlueDefender:
                 for a in ACTIONS:
                     q = self.q_table.get(f"{state_key}_{a}", 0.0)
                     if q > next_max: next_max = q
+                if next_max == -float('inf'): next_max = 0.0
 
                 new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
                 self.q_table[current_q_key] = new_val
-                self.sync_memory() # Blue team can also benefit from periodic sync, but let's leave it safe for now.
+                self.sync_memory()
 
                 # 7. UPDATE WAR STATE
                 if mitigated > 0 and current_alert < MAX_ALERT:
