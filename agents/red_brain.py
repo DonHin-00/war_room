@@ -23,6 +23,7 @@ from utils import (
     is_honeypot,
     AuditLogger
 )
+from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
@@ -45,6 +46,7 @@ C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
 
+@trace_errors
 def engage_offense(max_iterations: Optional[int] = None) -> None:
     global EPSILON, ALPHA
 

@@ -19,6 +19,7 @@ from utils import (
     atomic_json_io,
     setup_logging
 )
+from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
@@ -31,6 +32,7 @@ C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
 
+@trace_errors
 def engage_force(max_iterations: Optional[int] = None) -> None:
 
     msg = f"[SYSTEM] Force Multiplier Initialized. Role: Dynamic Reinforcement"

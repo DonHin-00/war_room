@@ -25,6 +25,7 @@ from utils import (
     is_honeypot,
     AuditLogger
 )
+from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
@@ -63,6 +64,7 @@ def load_threat_feed() -> List[Dict[str, Any]]:
 
 # --- MAIN LOOP ---
 
+@trace_errors
 def engage_defense(max_iterations: Optional[int] = None) -> None:
     global EPSILON, ALPHA
 

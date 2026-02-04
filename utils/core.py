@@ -9,6 +9,10 @@ import threading
 import time
 from typing import Dict, Any, Optional, Callable, Union
 
+# Import trace logger
+# Now that we are inside the utils package, we can import relatively
+from .trace_logger import trace_errors
+
 # Utility functions
 
 def safe_file_write(file_path: str, data: str) -> None:
@@ -38,6 +42,7 @@ def safe_file_read(file_path: str) -> str:
         logging.error(f"Error reading from {file_path}: {e}")
         return ""
 
+@trace_errors
 def atomic_json_io(filepath: str, data: Optional[Union[Dict[str, Any], Any]] = None) -> Union[Dict[str, Any], Any]:
     """
     Read or write JSON data atomically using file locks.
@@ -73,6 +78,7 @@ def atomic_json_io(filepath: str, data: Optional[Union[Dict[str, Any], Any]] = N
             return {}
     return {}
 
+@trace_errors
 def atomic_json_update(filepath: str, update_func: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Dict[str, Any]:
     """
     Atomically update a JSON file using a callback function.

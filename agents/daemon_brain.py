@@ -17,6 +17,7 @@ from typing import Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import setup_logging
+from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
@@ -29,6 +30,7 @@ C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
 
+@trace_errors
 def engage_daemon(max_iterations: Optional[int] = None) -> None:
 
     msg = f"[SYSTEM] Daemon Agent Initialized. Role: Stress Tester"

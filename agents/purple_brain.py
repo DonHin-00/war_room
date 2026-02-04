@@ -21,6 +21,7 @@ from utils import (
     setup_logging,
     AuditLogger
 )
+from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
@@ -34,6 +35,7 @@ C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
 
+@trace_errors
 def engage_balance(max_iterations: Optional[int] = None) -> None:
 
     msg = f"[SYSTEM] Purple Team AI Initialized. Role: Integrator"
