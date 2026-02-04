@@ -57,7 +57,7 @@ def engage_offense():
             step_count += 1
             
             # 1. RECON
-            war_state = state_loader.load()
+            war_state, state_changed = state_loader.load()
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
             
@@ -65,7 +65,8 @@ def engage_offense():
             if _random() < EPSILON:
                 action = _choice(ACTIONS)
             else:
-                action = _max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0))
+                # Optimized: avoid f-string inside lambda
+                action = _max(ACTIONS, key=lambda a: q_table.get(state_key + "_" + a, 0))
                 
             EPSILON = _max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
             ALPHA = _max(0.1, ALPHA * ALPHA_DECAY)
@@ -108,11 +109,14 @@ def engage_offense():
             if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
             
             # 5. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = _max(q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS)
+            action_key = state_key + "_" + action
+            old_val = q_table.get(action_key, 0)
+
+            # Optimized: avoid f-string inside generator
+            next_max = _max(q_table.get(state_key + "_" + a, 0) for a in ACTIONS)
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
-            q_table[f"{state_key}_{action}"] = new_val
+            q_table[action_key] = new_val
 
             # Sync Q-Table periodically
             if step_count % SYNC_INTERVAL == 0:
@@ -125,7 +129,9 @@ def engage_offense():
             
             print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             
-            _sleep(random.uniform(0.5, 1.5))
+            # Adaptive sleep based on impact
+            activity = 1.0 if impact > 0 else 0.0
+            utils.adaptive_sleep(1.0, activity)
             
         except KeyboardInterrupt:
             break

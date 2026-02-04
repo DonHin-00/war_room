@@ -4,7 +4,7 @@ import logging
 import math
 import random
 import json
-import os
+import time
 
 # Utility functions
 
@@ -60,10 +60,15 @@ class SmartJSONLoader:
             if mtime > self.last_mtime:
                 self.cache = safe_json_read(self.filepath, self.default)
                 self.last_mtime = mtime
-
-            return self.cache
+                return self.cache, True # Changed: return tuple (data, changed)
+            return self.cache, False
         except:
-            return self.cache
+            return self.cache, False
+
+def adaptive_sleep(base_sleep, activity_factor, min_sleep=0.1):
+    """Sleep less if active, more if idle."""
+    sleep_time = max(min_sleep, base_sleep / (1 + activity_factor))
+    time.sleep(sleep_time)
 
 
 def scan_threats(watch_dir):
@@ -73,8 +78,10 @@ def scan_threats(watch_dir):
     try:
         with os.scandir(watch_dir) as entries:
             for entry in entries:
+                # Direct attribute access is slightly faster than method call
                 if entry.is_file():
                     name = entry.name
+                    # Check prefixes directly
                     if name.startswith('malware_'):
                         visible.append(entry.path)
                     elif name.startswith('.sys_'):

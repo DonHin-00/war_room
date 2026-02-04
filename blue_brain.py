@@ -72,7 +72,7 @@ def engage_defense():
             step_count += 1
 
             # 1. PREPARATION
-            war_state = state_loader.load()
+            war_state, state_changed = state_loader.load()
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
@@ -86,8 +86,8 @@ def engage_defense():
             if _random() < EPSILON:
                 action = _choice(ACTIONS)
             else:
-                # Optimized max() with generator expression
-                action = _max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0))
+                # Optimized max(): pre-construct keys to avoid repeated string formatting
+                action = _max(ACTIONS, key=lambda a: q_table.get(state_key + "_" + a, 0))
             
             EPSILON = _max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
             ALPHA = _max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
@@ -118,11 +118,14 @@ def engage_defense():
             if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
             
             # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            # Optimized max() with generator expression
-            next_max = _max(q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS)
+            # Pre-calculate common key prefix
+            action_key = state_key + "_" + action
+            old_val = q_table.get(action_key, 0)
+
+            # Optimized max(): pre-construct keys
+            next_max = _max(q_table.get(state_key + "_" + a, 0) for a in ACTIONS)
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
+            q_table[action_key] = new_val
 
             # Sync Q-Table periodically
             if step_count % SYNC_INTERVAL == 0:
@@ -144,7 +147,9 @@ def engage_defense():
             icon = "🛡️" if mitigated == 0 else "⚔️"
             print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
             
-            _sleep(0.5 if current_alert >= 4 else 1.0)
+            # Adaptive sleep based on threat level
+            activity = 1.0 if current_alert >= 4 else 0.0
+            utils.adaptive_sleep(1.0, activity)
 
         except KeyboardInterrupt:
             break
