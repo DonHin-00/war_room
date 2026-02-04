@@ -13,6 +13,7 @@ import urllib.parse
 import base64
 import string
 import logging
+import json
 
 class TrafficGenerator:
     USER_AGENTS = [

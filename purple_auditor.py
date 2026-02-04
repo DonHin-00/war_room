@@ -48,6 +48,17 @@ class PurpleAuditor:
         else:
             logging.info(f"Threat Intel Database Healthy: {count} IOCs.")
 
+    def audit_lab(self):
+        """Verifies Malware Lab Output."""
+        required = ["stix_synthetic_beacons.json", "stix_real_hashes.json"]
+        for f in required:
+            if not os.path.exists(f):
+                logging.warning(f"Lab Artifact Missing: {f}")
+            else:
+                size = os.path.getsize(f)
+                if size < 100:
+                    logging.warning(f"Lab Artifact Empty/Small: {f}")
+
     def enforce_safety(self):
         """Ensures no processes are escaping simulation constraints."""
         # Example: Check for fork bombs or excessive PIDs
@@ -59,18 +70,13 @@ class PurpleAuditor:
                 try: os.remove(os.path.join("/tmp", f))
                 except: pass
 
-    def balance_metrics(self):
-        """Reads event logs to check win/loss ratios."""
-        # Query recent events
-        # This requires the DB manager to support querying logs, or we assume access
-        pass
-
     def run(self):
         logging.info("Purple Auditor Active. Monitoring Simulation...")
         while self.running:
             try:
                 self.check_health()
                 self.audit_database()
+                self.audit_lab()
                 self.enforce_safety()
                 time.sleep(10)
             except KeyboardInterrupt:
