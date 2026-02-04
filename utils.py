@@ -5,10 +5,12 @@ import math
 import random
 import json
 import collections
+import threading
+from typing import Dict, Any, Optional, Callable, Union
 
 # Utility functions
 
-def safe_file_write(file_path, data):
+def safe_file_write(file_path: str, data: str) -> None:
     """Write data to a file safely using locks."""
     try:
         with open(file_path, 'a+') as file:
@@ -22,7 +24,7 @@ def safe_file_write(file_path, data):
     except Exception as e:
         logging.error(f"Error writing to {file_path}: {e}")
 
-def safe_file_read(file_path):
+def safe_file_read(file_path: str) -> str:
     """Read data from a file safely using locks."""
     try:
         with open(file_path, 'r') as file:
@@ -34,7 +36,7 @@ def safe_file_read(file_path):
         logging.error(f"Error reading from {file_path}: {e}")
         return ""
 
-def atomic_json_io(filepath, data=None):
+def atomic_json_io(filepath: str, data: Optional[Union[Dict[str, Any], Any]] = None) -> Union[Dict[str, Any], Any]:
     """
     Read or write JSON data atomically using file locks.
     WARNING: This does NOT prevent race conditions during Read-Modify-Write cycles.
@@ -69,7 +71,7 @@ def atomic_json_io(filepath, data=None):
             return {}
     return {}
 
-def atomic_json_update(filepath, update_func):
+def atomic_json_update(filepath: str, update_func: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Dict[str, Any]:
     """
     Atomically update a JSON file using a callback function.
     update_func(data) -> modified_data
@@ -105,12 +107,12 @@ def atomic_json_update(filepath, update_func):
         logging.error(f"Error atomic update {filepath}: {e}")
         return {}
 
-def atomic_json_merge(filepath, new_data):
+def atomic_json_merge(filepath: str, new_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Atomically merges new_data into the existing JSON file.
     This is a specialized version of atomic_json_update for merging dicts.
     """
-    def merge(existing_data):
+    def merge(existing_data: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(existing_data, dict):
             existing_data = {}
         existing_data.update(new_data)
@@ -118,10 +120,10 @@ def atomic_json_merge(filepath, new_data):
 
     return atomic_json_update(filepath, merge)
 
-def calculate_entropy(data):
+def calculate_entropy(data: bytes) -> float:
     """Calculate the entropy of a string of data (O(N) implementation)."""
     if not data:
-        return 0
+        return 0.0
 
     counts = collections.Counter(data)
     length = len(data)
@@ -134,7 +136,42 @@ def calculate_entropy(data):
 
     return entropy
 
-def calculate_file_entropy(filepath, chunk_size=65536):
+class EntropyCache:
+    """Thread-safe cache for file entropy calculations."""
+    def __init__(self):
+        self.cache: Dict[tuple, float] = {}
+        self.lock = threading.Lock()
+
+    def get(self, filepath: str) -> float:
+        try:
+            stat = os.stat(filepath)
+            key = (filepath, stat.st_mtime, stat.st_size)
+
+            with self.lock:
+                if key in self.cache:
+                    return self.cache[key]
+
+            # Not in cache, calculate
+            entropy = calculate_file_entropy_uncached(filepath)
+
+            with self.lock:
+                # Basic eviction policy if cache grows too large
+                if len(self.cache) > 1000:
+                    self.cache.clear()
+                self.cache[key] = entropy
+
+            return entropy
+        except FileNotFoundError:
+            return 0.0
+
+# Global cache instance
+_entropy_cache = EntropyCache()
+
+def calculate_file_entropy(filepath: str) -> float:
+    """Public wrapper to use the global cache."""
+    return _entropy_cache.get(filepath)
+
+def calculate_file_entropy_uncached(filepath: str, chunk_size: int = 65536) -> float:
     """
     Calculate entropy of a file's content reading in chunks.
     This is memory efficient for large files.
@@ -151,7 +188,7 @@ def calculate_file_entropy(filepath, chunk_size=65536):
                 total_len += len(chunk)
 
         if total_len == 0:
-            return 0
+            return 0.0
 
         entropy = 0.0
         for count in counts.values():
@@ -160,15 +197,15 @@ def calculate_file_entropy(filepath, chunk_size=65536):
                 entropy -= p_x * math.log2(p_x)
         return entropy
     except:
-        return 0
+        return 0.0
 
-def setup_logging(log_file_path):
+def setup_logging(log_file_path: str) -> None:
     """Set up logging to a specified file."""
     logging.basicConfig(filename=log_file_path,
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s:%(message)s')
 
-def manage_session(session_id):
+def manage_session(session_id: str) -> None:
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass

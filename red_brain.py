@@ -7,30 +7,30 @@ Frameworks: MITRE ATT&CK Matrix
 
 import os
 import time
-import json
 import random
-from utils import atomic_json_io, atomic_json_update, atomic_json_merge
+import logging
+from typing import Optional, List, Dict, Any
+
+from utils import (
+    atomic_json_io,
+    atomic_json_update,
+    atomic_json_merge,
+    setup_logging
+)
+import config
 
 # --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = "/tmp"
+setup_logging(config.file_paths['log_file'])
+logger = logging.getLogger("RedBrain")
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
-ALPHA = 0.4
-ALPHA_DECAY = 0.9999
-GAMMA = 0.9
-EPSILON = 0.3
-EPSILON_DECAY = 0.995
-MIN_EPSILON = 0.01
-
-# --- REWARD CONFIGURATION (ATTACKER PROFILE) ---
-R_IMPACT = 10           # Base points for successful drop
-R_STEALTH = 15          # Points for lurking when heat is high
-R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
-MAX_ALERT = 5
+ACTIONS: List[str] = config.red_actions
+ALPHA: float = config.hyperparameters['alpha']
+ALPHA_DECAY: float = config.hyperparameters['alpha_decay']
+GAMMA: float = config.hyperparameters['gamma']
+EPSILON: float = config.hyperparameters['epsilon']
+EPSILON_DECAY: float = config.hyperparameters['epsilon_decay']
+MIN_EPSILON: float = config.hyperparameters['min_epsilon']
 
 # --- VISUALS ---
 C_RED = "\033[91m"
@@ -38,14 +38,21 @@ C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
 
-def engage_offense(max_iterations=None):
+def engage_offense(max_iterations: Optional[int] = None) -> None:
     global EPSILON, ALPHA
-    print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
+    msg = f"[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE"
+    print(f"{C_RED}{msg}{C_RESET}")
+    logger.info(msg)
+
     # Cache Q-Table in memory
-    q_table = atomic_json_io(Q_TABLE_FILE)
+    q_table_path = config.file_paths['red_q_table']
+    q_table: Dict[str, float] = atomic_json_io(q_table_path)
+
     steps_since_save = 0
-    SAVE_INTERVAL = 10
+    save_interval = config.constraints['save_interval']
+    target_dir = config.file_paths['watch_dir']
+    state_file = config.file_paths['state_file']
 
     iteration = 0
     try:
@@ -55,19 +62,19 @@ def engage_offense(max_iterations=None):
             iteration += 1
             try:
                 # 1. RECON
-                war_state = atomic_json_io(STATE_FILE)
+                war_state: Dict[str, Any] = atomic_json_io(state_file)
                 if not war_state: war_state = {'blue_alert_level': 1}
-                # q_table is cached
 
                 current_alert = war_state.get('blue_alert_level', 1)
                 state_key = f"{current_alert}"
-                
+
                 # 2. STRATEGY
+                action: str = ""
                 if random.random() < EPSILON:
                     action = random.choice(ACTIONS)
                 else:
-                    known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                    action = max(known, key=known.get)
+                    # Optimized: Find best action without creating intermediate dict
+                    action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
 
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
                 ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
@@ -77,7 +84,7 @@ def engage_offense(max_iterations=None):
                 
                 if action == "T1046_RECON":
                     # Low Entropy Bait
-                    fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                    fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
                     try:
                         with open(fname, 'w') as f: f.write("echo 'scan'")
                         impact = 1
@@ -85,7 +92,7 @@ def engage_offense(max_iterations=None):
 
                 elif action == "T1027_OBFUSCATE":
                     # High Entropy Binary
-                    fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
+                    fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.bin")
                     try:
                         with open(fname, 'wb') as f: f.write(os.urandom(1024))
                         impact = 3
@@ -93,7 +100,7 @@ def engage_offense(max_iterations=None):
 
                 elif action == "T1003_ROOTKIT":
                     # Hidden File
-                    fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
+                    fname = os.path.join(target_dir, f".sys_shadow_{int(time.time())}")
                     try:
                         with open(fname, 'w') as f: f.write("uid=0(root)")
                         impact = 5
@@ -104,41 +111,50 @@ def engage_offense(max_iterations=None):
 
                 # 4. REWARDS
                 reward = 0
-                if impact > 0: reward = R_IMPACT
-                if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
-                if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
+                max_alert = config.constraints['max_alert']
+                if impact > 0:
+                    reward = config.red_rewards['impact']
+                if current_alert >= 4 and action == "T1589_LURK":
+                    reward = config.red_rewards['stealth']
+                if current_alert == max_alert and impact > 0:
+                    reward = config.red_rewards['critical']
                 
                 # 5. LEARN
-                old_val = q_table.get(f"{state_key}_{action}", 0)
-                next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+                old_val = q_table.get(f"{state_key}_{action}", 0.0)
+                # Optimized: Generator expression instead of list comprehension
+                next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
                 
                 q_table[f"{state_key}_{action}"] = new_val
 
                 # Periodic Persistence
                 steps_since_save += 1
-                if steps_since_save >= SAVE_INTERVAL:
-                    atomic_json_merge(Q_TABLE_FILE, q_table)
+                if steps_since_save >= save_interval:
+                    atomic_json_merge(q_table_path, q_table)
                     steps_since_save = 0
 
                 # 6. TRIGGER ALERTS
                 if impact > 0 and random.random() > 0.5:
                     def update_state(state):
-                        state['blue_alert_level'] = min(MAX_ALERT, state.get('blue_alert_level', 1) + 1)
+                        state['blue_alert_level'] = min(max_alert, state.get('blue_alert_level', 1) + 1)
                         return state
-                    atomic_json_update(STATE_FILE, update_state)
+                    atomic_json_update(state_file, update_state)
 
-                print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+                log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}"
+                print(f"{C_RED}[RED AI] {C_RESET} {log_msg}")
+                logger.info(log_msg)
 
                 time.sleep(random.uniform(0.5, 1.5))
 
-            except Exception:
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
                 time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
         # Always save on exit
-        atomic_json_merge(Q_TABLE_FILE, q_table)
+        atomic_json_merge(q_table_path, q_table)
+        logger.info("Red Team AI Shutting Down")
 
 if __name__ == "__main__":
     engage_offense()
