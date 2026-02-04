@@ -24,6 +24,7 @@ logger = utils.setup_logging(f"BlueSwarm-{AGENT_ID}", config.BLUE_LOG)
 class BlueSwarmAgent:
     def __init__(self):
         self.immunity_db = set()
+        self.trust_db = {} # {agent_id: score}
         self.running = True
 
         # Insider Threat Logic
@@ -86,13 +87,35 @@ class BlueSwarmAgent:
                 data, addr = self.sock.recvfrom(1024)
                 msg = json.loads(data.decode('utf-8'))
 
-                if msg.get('sender') == AGENT_ID: continue
+                sender = msg.get('sender')
+                if sender == AGENT_ID: continue
+
+                # Trust Logic
+                current_trust = self.trust_db.get(sender, 50) # Neutral start
 
                 if msg.get('type') == "IOC_Found":
                     ioc = msg.get('ioc')
-                    if ioc not in self.immunity_db:
-                        self.immunity_db.add(ioc)
-                        logger.info(f"Received Shared Immunity: {ioc}")
+
+                    # Rogue Detection: If IOC looks like obvious junk (e.g. "FALSE_FLAG"), penalize
+                    if "FALSE_FLAG" in ioc:
+                        self.trust_db[sender] = max(0, current_trust - 20)
+                        logger.warning(f"Trust Drop for {sender}: {self.trust_db[sender]} (Bad Intel)")
+                        continue
+
+                    # Consensus: Only accept if trusted OR we verified it
+                    if current_trust > 30:
+                        if ioc not in self.immunity_db:
+                            self.immunity_db.add(ioc)
+                            logger.info(f"Received Shared Immunity: {ioc} (Trust: {current_trust})")
+                    else:
+                        logger.debug(f"Ignoring IOC from untrusted {sender}")
+
+                elif msg.get('type') == "VOUCH":
+                    # Peer verification increases trust
+                    target_agent = msg.get('target')
+                    if target_agent in self.trust_db:
+                        self.trust_db[target_agent] = min(100, self.trust_db[target_agent] + 5)
+                        logger.info(f"Trust Boost for {target_agent}: {self.trust_db[target_agent]}")
 
             except Exception: pass
 
@@ -118,7 +141,37 @@ class BlueSwarmAgent:
                     self.immunity_db.add(fake_hash)
                     logger.info(f"Detected Threat: {fake_hash}")
                     self.share_intel(fake_hash)
+
+            # 3. Hunt Persistence
+            persistence = glob.glob(os.path.join(config.PERSISTENCE_DIR, "*.service"))
+            for p in persistence:
+                logger.critical(f"PERSISTENCE FOUND: {os.path.basename(p)}")
+                try:
+                    os.remove(p)
+                    logger.info("Persistence mechanism purged.")
+                except Exception: pass
+
+            # Verify/Vouch logic (Simulation)
+            # If this hash matches something recently shared by a peer, VOUCH for them
+            # (Simplified: Random vouching for simulation aliveness)
+            if self.trust_db and random.random() > 0.7:
+                peer = random.choice(list(self.trust_db.keys()))
+                self.broadcast_vouch(peer)
+
             time.sleep(2)
+
+    def broadcast_vouch(self, target_agent):
+        """Broadcast trust vote."""
+        msg = {
+            "sender": AGENT_ID,
+            "type": "VOUCH",
+            "target": target_agent,
+            "ts": time.time()
+        }
+        data = json.dumps(msg).encode('utf-8')
+        try:
+            self.sender.sendto(data, (SWARM_GRP, SWARM_PORT))
+        except Exception: pass
 
     def run(self):
         logger.info(f"Blue Swarm Agent {AGENT_ID} activated.")

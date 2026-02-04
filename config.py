@@ -6,6 +6,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Simulation Directories
 SIMULATION_DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
+PERSISTENCE_DIR = os.path.join(BASE_DIR, "simulation_data", "persistence")
 BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 NETWORK_BUS_DIR = os.path.join(BASE_DIR, "network_bus")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
@@ -39,7 +40,7 @@ MAX_MEMORY_MB = 50     # 50MB RAM limit per agent
 MAX_CPU_PERCENT = 80   # Not easily enforceable via resource module, but noted.
 
 # Ensure directories exist
-for d in [SIMULATION_DATA_DIR, BACKUP_DIR, NETWORK_BUS_DIR, MODELS_DIR, LOGS_DIR]:
+for d in [SIMULATION_DATA_DIR, PERSISTENCE_DIR, BACKUP_DIR, NETWORK_BUS_DIR, MODELS_DIR, LOGS_DIR]:
     if not os.path.exists(d):
         try:
             os.makedirs(d, mode=0o700)

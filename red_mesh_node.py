@@ -24,6 +24,7 @@ logger = utils.setup_logging(f"RedNode-{NODE_ID}", config.RED_LOG)
 class RedMeshNode:
     def __init__(self, gene_jitter=5.0, gene_aggression=0.5, gene_stealth=False):
         self.peers = set()
+        self.peer_genes = {} # {peer_id: genes}
         self.running = True
         self.sock = None
         self.start_time = time.time()
@@ -55,6 +56,7 @@ class RedMeshNode:
             "sender": NODE_ID,
             "type": msg_type,
             "payload": payload,
+            "genes": self.genes, # Share genes for Crossover
             "ts": time.time()
         }
         data = json.dumps(msg).encode('utf-8')
@@ -81,10 +83,24 @@ class RedMeshNode:
         if age > 15: # Fast evolution for sim
             logger.info("🧬 MITOSIS: Spawning Offspring Node")
 
+            # Crossover (Sexual Reproduction if peers exist)
+            base_genes = self.genes.copy()
+            if self.peer_genes:
+                mate_id = random.choice(list(self.peer_genes.keys()))
+                mate_genes = self.peer_genes[mate_id]
+                logger.info(f"💕 CROSSOVER with {mate_id}")
+
+                # Average numeric genes
+                base_genes['jitter'] = (base_genes['jitter'] + mate_genes['jitter']) / 2
+                base_genes['aggression'] = (base_genes['aggression'] + mate_genes['aggression']) / 2
+                # 50/50 Chance for boolean genes
+                if random.random() > 0.5:
+                    base_genes['stealth'] = mate_genes['stealth']
+
             # Mutation
-            new_jitter = max(1.0, self.genes['jitter'] + random.uniform(-1.0, 1.0))
-            new_aggro = max(0.1, min(1.0, self.genes['aggression'] + random.uniform(-0.1, 0.1)))
-            new_stealth = not self.genes['stealth'] if random.random() > 0.9 else self.genes['stealth']
+            new_jitter = max(1.0, base_genes['jitter'] + random.uniform(-1.0, 1.0))
+            new_aggro = max(0.1, min(1.0, base_genes['aggression'] + random.uniform(-0.1, 0.1)))
+            new_stealth = not base_genes['stealth'] if random.random() > 0.9 else base_genes['stealth']
 
             # Spawn process
             import subprocess
@@ -104,6 +120,10 @@ class RedMeshNode:
 
                 sender = msg.get('sender')
                 if sender == NODE_ID: continue # Ignore self
+
+                # Gene Harvesting
+                if 'genes' in msg:
+                    self.peer_genes[sender] = msg['genes']
 
                 if sender not in self.peers:
                     self.peers.add(sender)
@@ -137,6 +157,22 @@ class RedMeshNode:
             utils.steganography_encode(payload, fname)
             logger.info(f"Dropped Stego Payload: {fname}")
 
+    def establish_persistence(self):
+        """Simulate dropping persistence artifacts."""
+        if random.random() < 0.3: # 30% chance
+            svc_name = f"systemd-worker-{secrets.token_hex(4)}.service"
+            target = os.path.join(config.PERSISTENCE_DIR, svc_name)
+            content = f"[Unit]\nDescription=Worker {NODE_ID}\n[Service]\nExecStart=/usr/bin/python3 red_node.py"
+
+            # We don't have a token here easily in this architecture,
+            # or we assume Red nodes bypass auth or steal tokens.
+            # For sim, we try to create it.
+            if not os.path.exists(target):
+                try:
+                    with open(target, 'w') as f: f.write(content)
+                    logger.info(f"Persistence established: {svc_name}")
+                except Exception: pass
+
     def run(self):
         logger.info(f"Red Mesh Node {NODE_ID} coming online...")
         utils.enforce_seccomp() # Hardening
@@ -151,6 +187,7 @@ class RedMeshNode:
             self.broadcast("HEARTBEAT", "Still Alive")
             self.reproduce()
             self.drop_stego()
+            self.establish_persistence()
 
             # Behavior based on Genes
             sleep_time = self.genes['jitter']
