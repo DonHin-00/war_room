@@ -4,6 +4,7 @@ import utils
 import logging
 import os
 import config
+import urllib.parse
 
 class WebApplicationFirewall:
     """Simulated WAF for inspecting 'network' files."""
@@ -25,37 +26,40 @@ class WebApplicationFirewall:
         ]
         self.blocked_ips = set() # Simulated IP blocking via filename metadata
 
-    def inspect_request(self, filepath):
-        """Inspect a request file. Returns (allowed: bool, reason: str)."""
+    def inspect_log_line(self, line):
+        """Inspect a server access log line. Returns (malicious: bool, ip: str)."""
+        # Format: IP - REQUEST - CODE (Simulated Common Log Format from live_target.py)
+        # e.g., "127.0.0.1 - GET /?q=UNION... HTTP/1.1 - 200"
         try:
-            filename = os.path.basename(filepath)
+            parts = line.split(' - ')
+            if len(parts) < 2: return False, None
 
-            # 1. IP Reputation (Simulated by filename convention: http_req_{IP}_{ID}.log)
-            # Format: http_req_192.168.1.5_12345.log
-            parts = filename.split('_')
-            if len(parts) >= 3:
-                ip = parts[2]
-                if ip in self.blocked_ips:
-                    return False, f"IP_BLOCKED:{ip}"
+            ip = parts[0]
+            request = parts[1]
 
-            # 2. Payload Inspection
-            content = utils.safe_file_read(filepath)
-            if not content: return True, "EMPTY"
+            # Check Blocklist
+            if ip in self.blocked_ips:
+                return True, ip # Already blocked
+
+            # Check Payload
+            # Decode URL encoding first
+            decoded_req = urllib.parse.unquote(request)
 
             for pattern, threat_type in self.rules:
-                if re.search(pattern, content):
-                    # Block and ban IP
-                    if len(parts) >= 3:
-                        self.blocked_ips.add(parts[2])
+                if re.search(pattern, decoded_req):
+                    self.logger.warning(f"DETECTED {threat_type} from {ip}")
+                    self.blocked_ips.add(ip)
+                    # Update global blocklist
+                    try:
+                        current = utils.safe_json_read(config.TARGET_DIR + "/../global_blocklist.json", [])
+                        if ip not in current:
+                            current.append(ip)
+                            utils.safe_json_write(config.TARGET_DIR + "/../global_blocklist.json", current)
+                    except: pass
+                    return True, ip
 
-                    self.logger.warning(f"BLOCKED {threat_type} in {filename}")
-                    return False, threat_type
-
-            return True, "CLEAN"
-
-        except Exception as e:
-            self.logger.error(f"WAF Error inspecting {filepath}: {e}")
-            return False, "ERROR"
+            return False, ip
+        except: return False, None
 
     def update_rules(self):
         # Placeholder for dynamic rule updates

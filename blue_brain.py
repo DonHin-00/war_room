@@ -181,15 +181,19 @@ def engage_defense():
                 except: pass
 
             elif action == "NETWORK_DEFENSE":
-                # WAF Inspection of Traffic
+                # WAF Inspection of Access Logs (Real-time)
                 try:
-                    requests = [f for f in visible_threats if "http_req_" in f]
-                    for req in requests:
-                        allowed, reason = web_firewall.inspect_request(req)
-                        if not allowed:
-                            utils.secure_delete(req) # Block/Drop packet
-                            mitigated += 1
-                            # WAF logs internally, but we can note it here too
+                    # Tail the last 50 lines of access.log
+                    log_path = os.path.join(config.LOG_DIR, "access.log")
+                    if os.path.exists(log_path):
+                        with open(log_path, 'r') as f:
+                            lines = f.readlines()[-50:]
+
+                        for line in lines:
+                            malicious, ip = web_firewall.inspect_log_line(line.strip())
+                            if malicious:
+                                mitigated += 1
+                                # Blocklist is updated by WAF automatically
                 except: pass
 
             # 5. REWARD CALCULATION
