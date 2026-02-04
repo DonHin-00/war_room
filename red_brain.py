@@ -3,9 +3,6 @@
 Project: AI Cyber War Simulation (Red Team)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: MITRE ATT&CK Matrix
-
-This module implements the Red Team Agent in "Emulation Mode".
-It simulates an APT moving through a segregated network (DMZ -> USER -> SERVER -> CORE).
 """
 
 import os
@@ -20,6 +17,7 @@ from typing import Dict, Any, Optional
 
 import utils
 import config
+import ml_engine
 
 # Setup Logging
 utils.setup_logging(config.PATHS["LOG_RED"])
@@ -34,6 +32,7 @@ class RedTeamer:
         utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
 
         self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+        self.ai = ml_engine.DoubleQLearner(config.RED["ACTIONS"], "RED")
 
         # Access Progression: Starts at DMZ
         self.access_level = "DMZ"
@@ -42,8 +41,18 @@ class RedTeamer:
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
+    def load_memory(self):
+        data = self.state_manager.load_json(config.PATHS["Q_TABLE_RED"])
+        self.ai.load(data)
+        logger.info(f"AI Memory Loaded.")
+
+    def sync_memory(self):
+        data = self.ai.export()
+        self.state_manager.save_json(config.PATHS["Q_TABLE_RED"], data)
+
     def shutdown(self, signum, frame):
-        logger.info("Shutting down emulation...")
+        logger.info("Shutting down... Syncing memory.")
+        self.sync_memory()
         self.running = False
         sys.exit(0)
 
@@ -158,50 +167,69 @@ class RedTeamer:
     def t1589_lurk(self):
         return {"impact": 0, "status": "lurking"}
 
-    # --- DECISION ENGINE ---
-
-    def decide_action(self):
-        """Selects an action based on Access Level Probabilities."""
-        zone_probs = config.EMULATION["RED"].get(self.access_level, {})
-        if not zone_probs:
-            # Fallback to lurk if undefined
-            return "T1589_LURK"
-
-        actions = list(zone_probs.keys())
-        weights = list(zone_probs.values())
-
-        return random.choices(actions, weights=weights, k=1)[0]
-
     # --- MAIN LOOP ---
 
     def engage(self):
-        logger.info("Red Team Emulation Initialized. Framework: APT / Lateral Movement")
+        logger.info("Red Team AI Initialized. Framework: APT / Double Q-Learning")
+        self.load_memory()
 
         if not os.path.exists(config.PATHS["WAR_ZONE"]):
             os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
+
+        last_impact = 0
+        traps_found = 0
 
         while self.running:
             try:
                 self.iteration_count += 1
                 self.update_heartbeat()
                 
-                # Perceive (Optional in Emulation, but we check Alert Level)
+                # Perceive
                 war_state = self.state_manager.get_war_state()
                 current_alert = war_state.get('blue_alert_level', 1)
 
+                # State Vector includes Access Level
+                access_idx = self.zones.index(self.access_level)
+                state_vector = f"{current_alert}_{access_idx}_{1 if traps_found > 0 else 0}"
+
+                context = {
+                    "alert_level": current_alert,
+                    "access_level": self.access_level,
+                    "traps_found": traps_found,
+                    "actions_taken": self.iteration_count
+                }
+
                 # Decide
-                action_name = self.decide_action()
+                action_name = self.ai.choose_action(state_vector, context)
                 tactic_func = getattr(self, action_name.lower())
 
                 # Act
                 try:
                     result = tactic_func()
                     impact = result.pop("impact", 0)
+                    if "traps_found" in result: traps_found = result["traps_found"]
+
                     self.audit_logger.log_event("RED", action_name, result)
-                    logger.info(f"Action: {action_name} | Impact: {impact} | Zone: {self.access_level}")
+                    logger.info(f"Action: {action_name} | Impact: {impact} | Zone: {self.access_level} | Q: {self.ai.get_q(state_vector, action_name):.2f}")
                 except Exception as e:
                     logger.warning(f"Failed {action_name}: {e}")
                     impact = 0
+
+                # Reward & Learn
+                reward = impact
+                if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
+                    reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
+                if self.access_level == "CORE" and impact > 0:
+                    reward += config.RED["REWARDS"]["CRITICAL"]
+
+                # Simple S' assumption: State stays same or changes slightly
+                next_state_vector = state_vector
+
+                self.ai.memory.push(state_vector, action_name, reward, next_state_vector, False)
+                self.ai.learn()
+
+                if self.iteration_count % config.RL["SYNC_INTERVAL"] == 0:
+                    self.sync_memory()
 
                 # Trigger Alerts
                 if impact > 0 and random.random() > 0.5:
