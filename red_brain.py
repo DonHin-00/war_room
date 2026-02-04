@@ -3,8 +3,6 @@
 Project: AI Cyber War Simulation (Red Team)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: MITRE ATT&CK Matrix
-
-This module implements the Red Team Agent in "Emulation Mode".
 """
 
 import os
@@ -19,6 +17,7 @@ from typing import Dict, Any, Optional
 
 import utils
 import config
+import ml_engine
 
 # Setup Logging
 utils.setup_logging(config.PATHS["LOG_RED"])
@@ -33,16 +32,29 @@ class RedTeamer:
         # Enforce Limits
         utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
 
+        self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+        self.ai = ml_engine.DoubleQLearner(config.RED["ACTIONS"], "RED")
+
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
+    def load_memory(self):
+        # Load Q-Tables using StateManager
+        data = self.state_manager.load_json(config.PATHS["Q_TABLE_RED"])
+        self.ai.load(data)
+        logger.info(f"AI Memory Loaded.")
+
+    def sync_memory(self):
+        data = self.ai.export()
+        self.state_manager.save_json(config.PATHS["Q_TABLE_RED"], data)
+
     def shutdown(self, signum, frame):
-        logger.info("Shutting down emulation...")
+        logger.info("Shutting down... Syncing memory.")
+        self.sync_memory()
         self.running = False
         sys.exit(0)
 
     def update_heartbeat(self):
-        """Touch a heartbeat file to signal liveness."""
         hb_file = os.path.join(config.PATHS["DATA_DIR"], "red.heartbeat")
         try:
             with open(hb_file, 'w') as f:
@@ -138,42 +150,77 @@ class RedTeamer:
     # --- MAIN LOOP ---
 
     def engage(self):
-        logger.info("Red Team Emulation Initialized. Tactics Loaded.")
+        logger.info("Red Team AI Initialized. Framework: Double Q-Learning")
+        self.load_memory()
 
         if not os.path.exists(config.PATHS["WAR_ZONE"]):
             os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
 
+        last_impact = 0
+        traps_found = 0
+
         while self.running:
             try:
                 self.iteration_count += 1
-                self.update_heartbeat() # Liveness check
+                self.update_heartbeat()
                 
-                actions = [
-                    (self.t1046_recon, 0.3),
-                    (self.t1071_c2_beacon, 0.2),
-                    (self.t1027_obfuscate, 0.15),
-                    (self.t1036_masquerade, 0.1),
-                    (self.t1003_rootkit, 0.1),
-                    (self.t1486_encrypt, 0.05),
-                    (self.t1055_injection, 0.05),
-                    (self.t1070_wipe_logs, 0.05)
-                ]
+                # 1. Perceive State
+                war_state = self.state_manager.get_war_state()
+                current_alert = war_state.get('blue_alert_level', 1)
 
-                tactic_func, _ = random.choices(
-                    actions,
-                    weights=[w for _, w in actions],
-                    k=1
-                )[0]
+                # State: (AlertLevel, TrapsFound, LastImpact)
+                # Reduced state space for faster convergence
+                state_vector = f"{current_alert}_{1 if traps_found > 0 else 0}_{1 if last_impact > 0 else 0}"
 
-                tactic_name = tactic_func.__name__.upper()
+                context = {
+                    "traps_found": traps_found,
+                    "alert_level": current_alert,
+                    "actions_taken": self.iteration_count
+                }
 
+                # 2. Decide
+                action_name = self.ai.choose_action(state_vector, context)
+                tactic_func = getattr(self, action_name.lower())
+
+                # 3. Act
+                result = {}
                 try:
                     result = tactic_func()
                     impact = result.pop("impact", 0)
-                    self.audit_logger.log_event("RED", tactic_name, result)
-                    logger.info(f"Executed: {tactic_name} | Impact: {impact}")
+                    if "traps_found" in result: traps_found = result["traps_found"]
+
+                    self.audit_logger.log_event("RED", action_name, result)
+                    logger.info(f"Action: {action_name} | Impact: {impact} | Q-Val: {self.ai.get_q(state_vector, action_name):.2f}")
+
                 except Exception as e:
-                    logger.warning(f"Failed {tactic_name}: {e}")
+                    logger.warning(f"Failed {action_name}: {e}")
+                    impact = 0
+
+                # 4. Reward & Learn
+                # Calculate Reward
+                reward = 0
+                if impact > 0: reward += config.RED["REWARDS"]["IMPACT"]
+                # Penalty for high alert if we want stealth?
+                # Penalty if we hit a trap (simulated by impact being 0 despite attack)
+
+                # Update Next State (Approximation: state in next loop)
+                # Ideally we observe S' after Blue moves, but we do async here.
+                # We use the 'result' state effectively.
+                next_state_vector = state_vector # Simplified transition
+
+                self.ai.memory.push(state_vector, action_name, reward, next_state_vector, False)
+                self.ai.learn()
+
+                last_impact = impact
+
+                # 5. Sync & Alert
+                if self.iteration_count % config.RL["SYNC_INTERVAL"] == 0:
+                    self.sync_memory()
+
+                if impact > 0 and random.random() > 0.5:
+                    new_level = min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)
+                    if new_level != current_alert:
+                         self.state_manager.update_war_state({'blue_alert_level': new_level})
 
                 time.sleep(random.uniform(0.5, 2.0))
 

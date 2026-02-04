@@ -3,8 +3,6 @@
 Project: AI Cyber War Simulation (Blue Team)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: NIST SP 800-61, MITRE Shield
-
-This module implements the Blue Team Agent in "Detection Mode".
 """
 
 import glob
@@ -14,60 +12,95 @@ import random
 import signal
 import sys
 import logging
+import hashlib
 import collections
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Deque, Set
 
 import utils
 import config
+import ml_engine
 
 # Setup Logging
 utils.setup_logging(config.PATHS["LOG_BLUE"])
 logger = logging.getLogger("BlueTeam")
 
+class SignatureDatabase:
+    """Manages known bad file hashes (Adaptive Immunity)."""
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+        self.signatures: Set[str] = set()
+        self.load()
+
+    def load(self):
+        data = utils.safe_json_read(self.filepath)
+        if isinstance(data, list):
+            self.signatures = set(data)
+
+    def save(self):
+        utils.safe_json_write(self.filepath, list(self.signatures))
+
+    def add_signature(self, file_content: bytes):
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        if file_hash not in self.signatures:
+            self.signatures.add(file_hash)
+            self.save()
+            logger.info(f"Learned new signature: {file_hash[:8]}...")
+
+    def check_signature(self, file_content: bytes) -> bool:
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        return file_hash in self.signatures
+
 class BlueDefender:
     def __init__(self):
         self.running = True
         self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
+        self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+        self.signature_db = SignatureDatabase(config.PATHS["SIGNATURES"])
+
+        self.ai = ml_engine.DoubleQLearner(config.BLUE["ACTIONS"], "BLUE")
         self.backups: Dict[str, bytes] = {}
 
-        # Enforce Limits
         utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
+    def load_memory(self):
+        data = self.state_manager.load_json(config.PATHS["Q_TABLE_BLUE"])
+        self.ai.load(data)
+        logger.info(f"AI Memory Loaded.")
+
+    def sync_memory(self):
+        data = self.ai.export()
+        self.state_manager.save_json(config.PATHS["Q_TABLE_BLUE"], data)
+
     def shutdown(self, signum, frame):
-        logger.info("Shutting down detection...")
+        logger.info("Shutting down... Syncing memory.")
+        self.sync_memory()
         self.running = False
         sys.exit(0)
 
     def update_heartbeat(self):
-        """Touch a heartbeat file to signal liveness."""
         hb_file = os.path.join(config.PATHS["DATA_DIR"], "blue.heartbeat")
         try:
-            with open(hb_file, 'w') as f:
-                f.write(str(time.time()))
+            with open(hb_file, 'w') as f: f.write(str(time.time()))
         except: pass
 
-    # --- TACTICS (Same as before) ---
-    def scan_signatures(self):
+    # --- TACTICS ---
+    def signature_scan(self):
         mitigated = 0
         if not os.path.exists(config.PATHS["WAR_ZONE"]): return {"mitigated": 0}
-
         try:
             with os.scandir(config.PATHS["WAR_ZONE"]) as it:
                 for entry in it:
                     if entry.is_file():
-                        if "c2_beacon" in entry.name:
-                            os.remove(entry.path)
-                            mitigated += 1
-                        elif utils.scan_threats(entry.path):
+                        if "c2_beacon" in entry.name or utils.scan_threats(entry.path):
                             os.remove(entry.path)
                             mitigated += 1
         except: pass
         return {"mitigated": mitigated}
 
-    def scan_heuristics(self):
+    def heuristic_scan(self):
         mitigated = 0
         try:
             with os.scandir(config.PATHS["WAR_ZONE"]) as it:
@@ -112,37 +145,92 @@ class BlueDefender:
         except: pass
         return {"restored": restored}
 
-    def deploy_defenses(self):
+    def deploy_trap(self):
         if not os.path.exists(config.PATHS["WAR_ZONE"]): return {}
         utils.create_tar_pit(os.path.join(config.PATHS["WAR_ZONE"], "access.log"))
         utils.create_logic_bomb(os.path.join(config.PATHS["WAR_ZONE"], "shadow_backup"))
         return {"status": "deployed"}
 
+    def deploy_decoy(self):
+        # Alias for same trap logic for now, or deploy different files
+        return self.deploy_trap()
+
+    def observe(self):
+        return {"status": "observing"}
+
+    def ignore(self):
+        return {"status": "ignoring"}
+
+    def hunt_processes(self):
+        # Implementation if needed, or placeholder
+        return {"status": "hunting"}
+
+    def verify_integrity(self):
+        return {"status": "verifying"}
+
     def engage(self):
-        logger.info("Blue Team Detection Initialized. Policy: Active Defense.")
-        self.deploy_defenses()
+        logger.info("Blue Team AI Initialized. Framework: Double Q-Learning + Active Defense")
+        self.load_memory()
+
+        if not os.path.exists(config.PATHS["WAR_ZONE"]):
+            os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
+
+        threat_volume = 0
 
         while self.running:
             try:
                 self.update_heartbeat()
 
-                actions = [
-                    (self.scan_signatures, 0.4),
-                    (self.scan_heuristics, 0.3),
-                    (self.backup_critical, 0.2),
-                    (self.restore_data, 0.1)
-                ]
+                # 1. Perceive State
+                war_state = self.state_manager.get_war_state()
+                current_alert = war_state.get('blue_alert_level', 1)
 
-                func, _ = random.choices(actions, weights=[w for _, w in actions], k=1)[0]
-                name = func.__name__.upper()
+                # Simple volume estimation
+                try:
+                    threat_volume = len(os.listdir(config.PATHS["WAR_ZONE"]))
+                except: threat_volume = 0
 
-                result = func()
+                state_vector = f"{current_alert}_{1 if threat_volume > 5 else 0}_{1 if self.backups else 0}"
 
-                if result.get("mitigated", 0) > 0 or result.get("restored", 0) > 0:
-                    self.audit_logger.log_event("BLUE", name, result)
-                    logger.info(f"Action: {name} | Result: {result}")
+                context = {
+                    "alert_level": current_alert,
+                    "threat_count": threat_volume,
+                    "has_backup": len(self.backups) > 0
+                }
 
-                time.sleep(random.uniform(0.5, 1.5))
+                # 2. Decide
+                action_name = self.ai.choose_action(state_vector, context)
+                tactic_func = getattr(self, action_name.lower())
+
+                # 3. Act
+                result = {}
+                try:
+                    result = tactic_func()
+
+                    mitigated = result.get("mitigated", 0)
+                    restored = result.get("restored", 0)
+
+                    self.audit_logger.log_event("BLUE", action_name, result)
+                    logger.info(f"Action: {action_name} | Q-Val: {self.ai.get_q(state_vector, action_name):.2f}")
+
+                except Exception as e:
+                    logger.warning(f"Failed {action_name}: {e}")
+                    mitigated = 0
+                    restored = 0
+
+                # 4. Reward
+                reward = 0
+                if mitigated > 0: reward += config.BLUE["REWARDS"]["MITIGATION"]
+                if restored > 0: reward += config.BLUE["REWARDS"]["RESTORE_SUCCESS"]
+                if action_name == "BACKUP_CRITICAL" and result.get("backed_up", 0) > 0: reward += 5
+
+                self.ai.memory.push(state_vector, action_name, reward, state_vector, False)
+                self.ai.learn()
+
+                # 5. Sync
+                self.sync_memory() # Blue syncs often for safety
+
+                time.sleep(random.uniform(0.5, 2.0))
 
             except KeyboardInterrupt:
                 self.shutdown(None, None)
