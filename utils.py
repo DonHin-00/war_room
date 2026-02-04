@@ -14,16 +14,37 @@ import hashlib
 import resource
 from typing import Any, Union, List, Tuple, Deque, Dict, Optional
 
+# Add parent to path to import config for BASE_DIR validation
+# Hacky, but utils needs context of allowed paths.
+# Or we pass allowed paths.
+# Best practice: Config defines paths, utils imports config.
+import config
+
 # Utility functions
+
+def validate_path(path: str) -> bool:
+    """
+    Ensures the path is within allowed directories (BASE_DIR).
+    Prevents Path Traversal.
+    """
+    try:
+        resolved_path = os.path.realpath(path)
+        base_dir = os.path.realpath(config.PATHS["BASE_DIR"])
+
+        # Check if it starts with base_dir
+        return resolved_path.startswith(base_dir)
+    except:
+        return False
 
 def safe_file_write(file_path: str, data: str) -> None:
     """
     Write data to a file safely using locks and atomic move.
-    Ensure permissions are friendly (644) for shared access.
     """
+    if not validate_path(file_path):
+        raise PermissionError(f"Path traversal detected: {file_path}")
+
     dir_name = os.path.dirname(os.path.abspath(file_path))
 
-    # Auto-Fix: Ensure directory exists
     if not os.path.exists(dir_name):
         os.makedirs(dir_name, mode=0o700, exist_ok=True)
 
@@ -41,7 +62,6 @@ def safe_file_write(file_path: str, data: str) -> None:
                 fcntl.flock(tf, fcntl.LOCK_UN)
         os.replace(temp_file, file_path)
     except Exception as e:
-        # Cleanup temp file if something went wrong
         if temp_file and os.path.exists(temp_file):
             try: os.remove(temp_file)
             except: pass
@@ -50,9 +70,12 @@ def safe_file_write(file_path: str, data: str) -> None:
 
 def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
     """
-    Read data from a file safely using locks.
-    Includes a timeout mechanism to avoid Tar Pits.
+    Read data from a file safely.
     """
+    if not validate_path(file_path):
+        # logging.warning(f"Path traversal blocked: {file_path}")
+        return ""
+
     if not os.path.exists(file_path):
         return ""
 
@@ -74,10 +97,9 @@ def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
         return ""
 
 def safe_json_read(file_path: str, default: Any = None) -> Any:
-    """
-    Read JSON data safely with retry logic and Auto-Healing.
-    """
+    """Read JSON data safely."""
     if default is None: default = {}
+    if not validate_path(file_path): return default
 
     if not os.path.exists(file_path):
         return default
@@ -88,22 +110,19 @@ def safe_json_read(file_path: str, default: Any = None) -> Any:
             try:
                 return json.loads(data)
             except json.JSONDecodeError:
-                # Corrupt file? Wait and retry, then heal.
                 pass
         time.sleep(0.01)
 
-    # Auto-Healing: Corrupt file logic
-    # Backup corrupt file and reset
     try:
         corrupt_path = file_path + ".corrupt." + str(int(time.time()))
         shutil.copy(file_path, corrupt_path)
-        print(f"⚠️ [Self-Healing] Corrupt JSON detected at {file_path}. Backed up to {corrupt_path} and reset.")
     except: pass
 
     return default
 
 def safe_json_write(file_path: str, data: Any) -> None:
     """Write JSON data safely."""
+    if not validate_path(file_path): return
     try:
         json_str = json.dumps(data, indent=4)
         safe_file_write(file_path, json_str)
@@ -136,8 +155,24 @@ def generate_high_entropy_data(size: int = 1024) -> bytes:
     """Generates a block of high-entropy (random) data."""
     return os.urandom(size)
 
+def rotate_log(log_path: str, max_bytes: int = 5 * 1024 * 1024):
+    """Rotates log file if it exceeds max_bytes."""
+    if not os.path.exists(log_path): return
+    try:
+        if os.path.getsize(log_path) > max_bytes:
+            # Simple rotation: rename to .1, .2
+            # Only keep 1 backup for simplicity in simulation
+            backup = log_path + ".1"
+            if os.path.exists(backup): os.remove(backup)
+            os.rename(log_path, backup)
+    except: pass
+
 def setup_logging(log_file_path: str) -> None:
-    """Set up logging to a specified file."""
+    """Set up logging to a specified file with rotation."""
+    if not validate_path(log_file_path): return
+
+    rotate_log(log_file_path)
+
     logging.basicConfig(filename=log_file_path,
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)s:%(message)s')
@@ -173,6 +208,7 @@ def is_friendly() -> bool:
     return os.environ.get("WAR_ROOM_ROLE") == "BLUE"
 
 def create_tar_pit(filepath: str) -> None:
+    if not validate_path(filepath): return
     if os.path.exists(filepath):
         if is_tar_pit(filepath): return
         try: os.remove(filepath)
@@ -187,6 +223,7 @@ def is_tar_pit(filepath: str) -> bool:
     except OSError: return False
 
 def create_logic_bomb(filepath: str) -> None:
+    if not validate_path(filepath): return
     with open(filepath, 'w') as f:
         f.write("LOGIC_BOMB_ACTIVE_DO_NOT_READ")
 
@@ -199,24 +236,18 @@ def is_honeypot(filepath: str) -> bool:
 # --- STATE MANAGEMENT ---
 
 class StateManager:
-    """
-    Manages state persistence with caching and optimization.
-    """
     def __init__(self, state_file: str):
         self.state_file = state_file
         self.state_cache: Dict[str, Any] = {}
         self.state_mtime: float = 0.0
 
     def load_json(self, filepath: str) -> Dict[str, Any]:
-        """Safely loads JSON data from a file."""
         return safe_json_read(filepath)
 
     def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
-        """Safely saves JSON data to a file."""
         safe_json_write(filepath, data)
 
     def get_war_state(self) -> Dict[str, Any]:
-        """Retrieves the shared war state with mtime caching."""
         if not os.path.exists(self.state_file):
             return {'blue_alert_level': 1}
         try:
@@ -228,8 +259,6 @@ class StateManager:
         return self.state_cache
 
     def update_war_state(self, updates: Dict[str, Any]) -> None:
-        """Updates the shared war state."""
-        # Load fresh to minimize overwrite race conditions
         current = self.load_json(self.state_file)
         current.update(updates)
         self.save_json(self.state_file, current)
@@ -246,6 +275,11 @@ class AuditLogger:
     def __init__(self, log_path: str):
         self.log_path = log_path
         self.previous_hash = "0" * 64
+
+        if not validate_path(log_path):
+            raise PermissionError("Audit Log path unsafe")
+
+        rotate_log(log_path) # Rotate on init
         self._recover_last_hash()
 
     def _recover_last_hash(self):
