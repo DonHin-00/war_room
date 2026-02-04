@@ -10,6 +10,7 @@ import time
 import json
 import random
 import math
+from utils import safe_file_read, safe_file_write
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -60,11 +61,12 @@ def access_memory(filepath, data=None):
     """Atomic JSON I/O."""
     if data is not None:
         try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            safe_file_write(filepath, json.dumps(data, indent=4))
         except: pass
     if os.path.exists(filepath):
         try:
-            with open(filepath, 'r') as f: return json.load(f)
+            content = safe_file_read(filepath)
+            return json.loads(content) if content else {}
         except: return {}
     return {}
 
@@ -116,14 +118,20 @@ def engage_defense():
             
             if action == "SIGNATURE_SCAN":
                 for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
+                    try:
+                        if not os.path.islink(t):
+                            os.remove(t)
+                            mitigated += 1
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
                 for t in all_threats:
                     # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
                     if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
-                        try: os.remove(t); mitigated += 1
+                        try:
+                            if not os.path.islink(t):
+                                os.remove(t)
+                                mitigated += 1
                         except: pass
             
             elif action == "OBSERVE": pass

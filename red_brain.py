@@ -9,6 +9,7 @@ import os
 import time
 import json
 import random
+from utils import safe_file_read, safe_file_write
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,11 +40,12 @@ C_RESET = "\033[0m"
 def access_memory(filepath, data=None):
     if data is not None:
         try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            safe_file_write(filepath, json.dumps(data, indent=4))
         except: pass
     if os.path.exists(filepath):
         try:
-            with open(filepath, 'r') as f: return json.load(f)
+            content = safe_file_read(filepath)
+            return json.loads(content) if content else {}
         except: return {}
     return {}
 
@@ -80,7 +82,8 @@ def engage_offense():
                 # Low Entropy Bait
                 fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
                 try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
+                    fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(fd, 'w') as f: f.write("echo 'scan'")
                     impact = 1
                 except: pass
                 
@@ -88,7 +91,8 @@ def engage_offense():
                 # High Entropy Binary
                 fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
                 try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                    fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(fd, 'wb') as f: f.write(os.urandom(1024))
                     impact = 3
                 except: pass
                 
@@ -96,7 +100,8 @@ def engage_offense():
                 # Hidden File
                 fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
                 try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
+                    fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(fd, 'w') as f: f.write("uid=0(root)")
                     impact = 5
                 except: pass
                 
