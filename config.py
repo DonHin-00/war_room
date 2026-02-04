@@ -14,10 +14,11 @@ PATHS = {
     'SIGNATURE_DB': os.path.join(BASE_DIR, "signatures.json"),
     'EVOLUTION_LOG': os.path.join(BASE_DIR, "evolution.json"),
     'AUDIT_LOG': os.path.join(BASE_DIR, "audit.jsonl"),
+    'BACKUPS': os.path.join(BASE_DIR, "backups"),
 }
 
 # Ensure directories exist
-for path in [PATHS['BATTLEFIELD'], PATHS['SESSIONS_DIR']]:
+for path in [PATHS['BATTLEFIELD'], PATHS['SESSIONS_DIR'], PATHS['BACKUPS']]:
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
 
@@ -33,7 +34,7 @@ HYPERPARAMETERS = {
 
 # Blue Team Configuration
 BLUE = {
-    'ACTIONS': ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"],
+    'ACTIONS': ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "BACKUP_CRITICAL"],
     'REWARDS': {
         'MITIGATION': 25,
         'PATIENCE': 10,
@@ -48,7 +49,7 @@ BLUE = {
 
 # Red Team Configuration
 RED = {
-    'ACTIONS': ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"],
+    'ACTIONS': ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1486_ENCRYPT"],
     'REWARDS': {
         'IMPACT': 10,
         'STEALTH': 15,

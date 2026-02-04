@@ -28,6 +28,7 @@ Q_TABLE_FILE = config.PATHS['BLUE_Q_TABLE']
 STATE_FILE = config.PATHS['STATE_FILE']
 WATCH_DIR = config.PATHS['BATTLEFIELD']
 SIGNATURE_DB = config.PATHS['SIGNATURE_DB']
+BACKUP_DIR = config.PATHS['BACKUPS']
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = config.BLUE['ACTIONS']
@@ -202,6 +203,32 @@ class BlueDefender:
                                 os.remove(t); mitigated += 1
                                 self.audit.log_event("BLUE", "MITIGATE_HEURISTIC", t)
                             except: pass
+
+                elif action == "BACKUP_CRITICAL":
+                    # 1. Restore if needed (Ransomware recovery)
+                    restored = 0
+                    for t in visible_threats:
+                        if t.endswith('.enc'):
+                            original_name = t.replace('.enc', '')
+                            backup_name = os.path.basename(original_name)
+                            backup_path = os.path.join(BACKUP_DIR, backup_name)
+
+                            if os.path.exists(backup_path):
+                                try:
+                                    utils.safe_file_write(original_name, utils.safe_file_read(backup_path))
+                                    os.remove(t)
+                                    restored += 1
+                                    self.audit.log_event("BLUE", "RESTORE_BACKUP", original_name)
+                                except: pass
+
+                    if restored > 0:
+                        mitigated += restored * 2 # High reward for recovery
+
+                    # 2. Backup healthy files
+                    # In a real sim we'd backup critical system files.
+                    # Here we just backup random stuff to simulate the action.
+                    # Since we only have malware in battlefield, let's pretend to backup.
+                    pass
 
                 elif action == "OBSERVE": pass
                 elif action == "IGNORE": pass

