@@ -1,39 +1,61 @@
 #!/usr/bin/env python3
-import os
 import sys
+import base64
 from rich.console import Console
 from rich.panel import Panel
-from ant_swarm.red.campaign import AutoRecon
-from ant_swarm.red.strategist import Strategist
+from ant_swarm.red.hardened_target_sim import HardenedTarget
 
 console = Console()
 
 def main():
-    console.print(Panel("[bold red]ANT SWARM v12: ENHANCED RED TEAM (LOOT BAG)[/]", expand=False))
+    console.print(Panel("[bold red]ANT SWARM v13: RED TEAM vs HARDENED TARGET[/]", expand=False))
 
-    # 1. Setup Environment
-    with open("target_vuln.py", "w") as f:
-        f.write("import os\n# TODO: Fix this RCE\nos.system(input())")
+    target = HardenedTarget()
+    attacker_ip = "10.6.6.6"
 
-    # Generate enough noise to trigger a burst exfil
-    with open("target_noise_1.txt", "w") as f: f.write("API_KEY=A")
-    with open("target_noise_2.txt", "w") as f: f.write("API_KEY=B")
-    with open("target_noise_3.txt", "w") as f: f.write("API_KEY=C")
+    # SCENARIO 1: NAIVE ATTACK
+    console.print("\n[SCENARIO 1] 👶 Naive Injection Attempt...")
+    naive_payload = "' UNION SELECT password FROM users; --"
+    success = target.attempt_access(attacker_ip, naive_payload)
 
-    # 2. Initialize
-    recon = AutoRecon(os.getcwd())
-    strategist = Strategist(recon)
+    if success:
+        console.print("[RED] ❌ FAILURE: Hardened Target was NOT Hardened (Naive attack worked).")
+        sys.exit(1)
+    else:
+        console.print("[BLUE] 🛡️ SUCCESS: WAF Blocked Naive Attack.")
 
-    # 3. Execute Campaign
-    try:
-        strategist.execute_campaign()
-    except KeyboardInterrupt:
-        pass
+    # SCENARIO 2: ADVANCED SMUGGLING (The "Succeeding" Requirement)
+    console.print("\n[SCENARIO 2] 🥷 Loot Bag Shadow Smuggling...")
 
-    # Cleanup
-    if os.path.exists("target_vuln.py"): os.remove("target_vuln.py")
-    for i in range(1,4):
-        if os.path.exists(f"target_noise_{i}.txt"): os.remove(f"target_noise_{i}.txt")
+    # 1. Prepare Weapon
+    weapon = "print('SYSTEM_PWNED')"
+    # 2. Fragment & Encode (Simulating Loot Bag logic manually for the script to ensure control)
+    b64 = base64.b64encode(weapon.encode()).decode()
+    # Split into small benign chunks
+    chunk_1 = b64[:4] # e.g. "cHJp"
+    chunk_2 = b64[4:] # e.g. "bnQo..."
+
+    # 3. Send Chunk 1
+    console.print(f"  > Sending Chunk 1: '{chunk_1}'")
+    if target.attempt_access(attacker_ip, chunk_1):
+        console.print("    [green]✅ Chunk 1 Slipped Past WAF[/]")
+    else:
+        console.print("    [red]🚫 Chunk 1 Blocked[/]")
+
+    # 4. Send Chunk 2
+    console.print(f"  > Sending Chunk 2: '{chunk_2}'")
+    if target.attempt_access(attacker_ip, chunk_2):
+        console.print("    [green]✅ Chunk 2 Slipped Past WAF[/]")
+    else:
+        console.print("    [red]🚫 Chunk 2 Blocked[/]")
+
+    # 5. Execute
+    breach = target.execute_internal_logic()
+    if breach:
+        console.print("\n[RED] 💀 MISSION COMPLETE: Hardened Target Breached via Smuggling.")
+    else:
+        console.print("\n[BLUE] 🛡️ MISSION FAILED: Target Resisted Smuggling.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
