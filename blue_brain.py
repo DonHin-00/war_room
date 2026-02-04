@@ -12,7 +12,8 @@ import random
 import signal
 import sys
 import logging
-from typing import Dict, Any, List
+import collections
+from typing import Dict, Any, List, Deque
 
 import utils
 
@@ -29,6 +30,7 @@ MIN_EPSILON = 0.01
 # --- REWARD CONFIGURATION (AI PERSONALITY) ---
 R_MITIGATION = 25       # Reward for killing a threat
 R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
+R_TRAP = 50             # Reward for Red Team triggering a honeypot
 P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
 P_NEGLIGENCE = -50      # Penalty for ignoring active malware
 MAX_ALERT = 5
@@ -100,6 +102,9 @@ class BlueDefender:
         self.running = True
         self.state_manager = StateManager()
 
+        # Anomaly Detection: Sliding window of file counts
+        self.threat_history: Deque[int] = collections.deque(maxlen=10)
+
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
@@ -116,9 +121,30 @@ class BlueDefender:
         self.running = False
         sys.exit(0)
 
+    def detect_anomaly(self, current_threat_count: int) -> bool:
+        """Detects sudden spikes in threat activity."""
+        self.threat_history.append(current_threat_count)
+        if len(self.threat_history) < 3: return False
+
+        avg = sum(self.threat_history) / len(self.threat_history)
+        if current_threat_count > avg * 2 and current_threat_count > 2:
+            return True
+        return False
+
+    def deploy_honeypot(self):
+        """Creates a honeypot file."""
+        if not os.path.exists(WATCH_DIR): return
+        fname = os.path.join(WATCH_DIR, f"passwords_honeypot_{int(time.time())}.trap")
+        try:
+            with open(fname, 'w') as f: f.write("admin:admin")
+        except: pass
+
     def engage(self):
         logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
         self.load_memory()
+
+        # Initial Honeypot
+        self.deploy_honeypot()
 
         while self.running:
             try:
@@ -133,6 +159,18 @@ class BlueDefender:
                 all_threats = visible_threats + hidden_threats
 
                 threat_count = len(all_threats)
+
+                # Check for Honeypot Triggers (Simulated: if we see a modified honeypot or if red team touched it)
+                # In this simple sim, we can't easily tell if it was touched unless modified or deleted.
+                # We'll rely on Anomaly Detection for "Innovation".
+
+                anomaly_detected = self.detect_anomaly(threat_count)
+                if anomaly_detected:
+                    logger.warning("ANOMALY DETECTED: Threat Surge!")
+                    # Immediate reaction: Boost alert
+                    if current_alert < MAX_ALERT:
+                        self.state_manager.update_war_state({'blue_alert_level': min(MAX_ALERT, current_alert + 1)})
+
                 state_key = f"{current_alert}_{threat_count}"
 
                 # 3. DECISION
@@ -162,14 +200,18 @@ class BlueDefender:
                     for t in all_threats:
                         entropy = 0.0
                         try:
-                            # Read file content safely for entropy calculation
-                            # Note: t is a path, calculate_entropy expects data (str or bytes)
                             if not os.path.islink(t):
                                 with open(t, 'rb') as f:
                                     data = f.read()
                                     entropy = utils.calculate_entropy(data)
                         except Exception:
                             entropy = 0.0
+
+                        # Detect Honeypot Interation?
+                        # If a threat looks like a honeypot but is in the threat list...
+                        # Actually, honeypots are files we made. If they are missing, Red Team took them?
+                        # This sim doesn't simulate file theft, only creation.
+                        # So we focus on cleaning.
 
                         if ".sys" in t or entropy > 3.5:
                             try: os.remove(t); mitigated += 1
@@ -181,7 +223,8 @@ class BlueDefender:
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
                 if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
                 if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-                
+                if anomaly_detected and action == "HEURISTIC_SCAN": reward += 20 # Reward for responding to surge
+
                 # 6. LEARN
                 current_q_key = f"{state_key}_{action}"
                 old_val = self.q_table.get(current_q_key, 0.0)

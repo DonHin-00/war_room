@@ -6,17 +6,20 @@ import random
 import json
 import shutil
 import tempfile
-from typing import Any, Union
+import collections
+from typing import Any, Union, List, Tuple, Deque
 
 # Utility functions
 
 def safe_file_write(file_path: str, data: str) -> None:
     """
     Write data to a file safely using locks and atomic move.
+    Ensure permissions are friendly (644) for shared access.
     """
     dir_name = os.path.dirname(os.path.abspath(file_path))
 
     # Create temp file in same directory to ensure atomic rename works
+    # Use delete=False so we can chmod and rename
     with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False) as tf:
         # Lock temp file
         fcntl.flock(tf, fcntl.LOCK_EX)
@@ -24,6 +27,9 @@ def safe_file_write(file_path: str, data: str) -> None:
             tf.write(data)
             tf.flush()
             os.fsync(tf.fileno())
+            # Fix permissions to 644 (Owner: rw, Group: r, Other: r)
+            # This is critical for War State shared file
+            os.fchmod(tf.fileno(), 0o644)
         finally:
             fcntl.flock(tf, fcntl.LOCK_UN)
 
@@ -67,10 +73,7 @@ def calculate_entropy(data: Union[str, bytes]) -> float:
     if isinstance(data, str):
         data = data.encode('utf-8')
 
-    # Optimized calculation using list lookup instead of count() in loop
-    # O(N) instead of O(N^2)
-
-    # Frequency count
+    # Optimized calculation using list lookup
     counts = [0] * 256
     for byte in data:
         counts[byte] += 1
@@ -85,6 +88,9 @@ def calculate_entropy(data: Union[str, bytes]) -> float:
 
     return entropy
 
+def generate_high_entropy_data(size: int = 1024) -> bytes:
+    """Generates a block of high-entropy (random) data."""
+    return os.urandom(size)
 
 def setup_logging(log_file_path: str) -> None:
     """Set up logging to a specified file."""
@@ -92,6 +98,33 @@ def setup_logging(log_file_path: str) -> None:
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)s:%(message)s')
 
+
+class ExperienceReplay:
+    """
+    A ring buffer to store AI experiences for replay learning.
+    """
+    def __init__(self, capacity: int = 1000):
+        self.buffer: Deque[Tuple] = collections.deque(maxlen=capacity)
+
+    def push(self, state, action, reward, next_state):
+        """Save a transition."""
+        self.buffer.append((state, action, reward, next_state))
+
+    def sample(self, batch_size: int) -> List[Tuple]:
+        """Sample a batch of transitions."""
+        if len(self.buffer) < batch_size:
+            return list(self.buffer)
+        return random.sample(self.buffer, batch_size)
+
+    def __len__(self):
+        return len(self.buffer)
+
+def is_honeypot(filepath: str) -> bool:
+    """
+    Checks if a file is a potential honeypot based on naming convention.
+    """
+    filename = os.path.basename(filepath)
+    return "honeypot" in filename or ".trap" in filename
 
 def manage_session(session_id):
     """Manage a user session given a session ID."""
