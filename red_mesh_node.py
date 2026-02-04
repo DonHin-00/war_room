@@ -116,13 +116,31 @@ class RedMeshNode:
 
             # Spawn process
             import subprocess
-            cmd = [sys.executable, __file__,
-                   str(new_jitter), str(new_aggro), str(new_stealth)]
+
+            # Polymorphic Code Generation (Runtime)
             try:
+                with open(__file__, 'r') as f:
+                    source_code = f.read()
+
+                # Mutate source (simple variable rename or comment injection)
+                mutation_id = secrets.token_hex(4)
+                mutated_source = f"# MUTATION {mutation_id}\n" + source_code.replace("RedMeshNode", f"RedMeshNode_{mutation_id}")
+
+                new_file = os.path.join(config.SIMULATION_DATA_DIR, f"red_node_{mutation_id}.py")
+                with open(new_file, 'w') as f:
+                    f.write(mutated_source)
+
+                cmd = [sys.executable, new_file,
+                       str(new_jitter), str(new_aggro), str(new_stealth)]
+
                 subprocess.Popen(cmd)
                 self.start_time = time.time() # Reset breeding timer
             except Exception as e:
-                logger.error(f"Reproduction failed: {e}")
+                logger.error(f"Polymorphic Reproduction failed: {e}")
+                # Fallback to standard
+                cmd = [sys.executable, __file__,
+                       str(new_jitter), str(new_aggro), str(new_stealth)]
+                subprocess.Popen(cmd)
 
     def listener(self):
         while self.running:

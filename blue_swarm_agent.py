@@ -87,6 +87,12 @@ class BlueSwarmAgent:
                 data, addr = self.sock.recvfrom(1024)
                 msg = json.loads(data.decode('utf-8'))
 
+                # Replay Protection
+                msg_ts = msg.get('ts', 0)
+                if time.time() - msg_ts > 5.0:
+                    # logger.warning("Dropping Replay/Old Message")
+                    continue
+
                 sender = msg.get('sender')
                 if sender == AGENT_ID: continue
 
@@ -178,11 +184,17 @@ class BlueSwarmAgent:
         utils.enforce_seccomp() # Hardening
         self.setup_multicast()
 
-        t = threading.Thread(target=self.listener)
-        t.daemon = True
-        t.start()
+        # Auto-Healing Listener
+        while self.running:
+            t = threading.Thread(target=self.listener)
+            t.daemon = True
+            t.start()
 
-        self.hunt()
+            try:
+                self.hunt() # Main loop
+            except Exception as e:
+                logger.error(f"Agent Crash: {e}. Auto-Healing...")
+                time.sleep(1)
 
 if __name__ == "__main__":
     agent = BlueSwarmAgent()
