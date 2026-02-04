@@ -9,6 +9,7 @@ import os
 import time
 import json
 import random
+import uuid
 from utils import safe_file_read, safe_file_write
 
 # --- SYSTEM CONFIGURATION ---
@@ -80,7 +81,7 @@ def engage_offense():
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                fname = os.path.join(TARGET_DIR, f"malware_bait_{uuid.uuid4()}.sh")
                 try: 
                     fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                     with os.fdopen(fd, 'w') as f: f.write("echo 'scan'")
@@ -89,7 +90,7 @@ def engage_offense():
                 
             elif action == "T1027_OBFUSCATE":
                 # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
+                fname = os.path.join(TARGET_DIR, f"malware_crypt_{uuid.uuid4()}.bin")
                 try:
                     fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                     with os.fdopen(fd, 'wb') as f: f.write(os.urandom(1024))
@@ -98,7 +99,7 @@ def engage_offense():
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
+                fname = os.path.join(TARGET_DIR, f".sys_shadow_{uuid.uuid4()}")
                 try:
                     fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                     with os.fdopen(fd, 'w') as f: f.write("uid=0(root)")

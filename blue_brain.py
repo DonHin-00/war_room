@@ -47,7 +47,7 @@ def calculate_shannon_entropy(filepath):
     """Detects High Entropy (Encrypted/Obfuscated) files."""
     try:
         with open(filepath, 'rb') as f:
-            data = f.read()
+            data = f.read(4096)
             if not data: return 0
             entropy = 0
             for x in range(256):
