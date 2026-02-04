@@ -14,6 +14,7 @@ import utils
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
+THREAT_DB_FILE = os.path.join(BASE_DIR, "threat_db.json")
 WATCH_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
@@ -61,6 +62,7 @@ def engage_defense():
     q_manager.load(utils.safe_json_read(Q_TABLE_FILE))
 
     state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
+    threat_loader = utils.SmartJSONLoader(THREAT_DB_FILE, {'hashes': [], 'filenames': []})
     file_cache = utils.FileIntegrityCache()
     step_count = 0
 
@@ -97,8 +99,30 @@ def engage_defense():
             mitigated = 0
             
             if action == "SIGNATURE_SCAN":
+                # Real Intel Scan
+                threat_intel, _ = threat_loader.load()
+                known_hashes = set(threat_intel.get('hashes', []))
+                known_names = set(threat_intel.get('filenames', []))
+
                 for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
+                    try:
+                        # Check 1: Filename Blocklist
+                        if os.path.basename(t) in known_names:
+                            os.remove(t)
+                            mitigated += 1
+                            continue
+
+                        # Check 2: Hash Blocklist
+                        # Only hash if we have hashes to check against (save CPU)
+                        if known_hashes:
+                             f_hash = utils.calculate_sha256(t)
+                             if f_hash in known_hashes:
+                                 os.remove(t)
+                                 mitigated += 1
+                                 continue
+
+                        # Fallback: Default cleanup
+                        os.remove(t); mitigated += 1
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":

@@ -14,10 +14,11 @@ import utils
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
+THREAT_DB_FILE = os.path.join(BASE_DIR, "threat_db.json")
 TARGET_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -45,6 +46,7 @@ def engage_offense():
     q_manager.load(utils.safe_json_read(Q_TABLE_FILE))
 
     state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
+    threat_loader = utils.SmartJSONLoader(THREAT_DB_FILE, {'hashes': [], 'filenames': []})
     step_count = 0
 
     # Local optimizations
@@ -102,6 +104,22 @@ def engage_offense():
                     with open(fname, 'w') as f: f.write("uid=0(root)")
                     impact = 5
                 except: pass
+
+            elif action == "T1036_MASQUERADE":
+                # Use real malware name from intel feed
+                threat_intel, _ = threat_loader.load()
+                names = threat_intel.get('filenames', [])
+                if names:
+                    fake_name = _choice(names)
+                    # Sanitize filename
+                    fake_name = os.path.basename(fake_name)
+                    fname = f"{TARGET_DIR}/{fake_name}"
+                    try:
+                        with open(fname, 'w') as f: f.write("real_sample_simulation")
+                        impact = 4
+                    except: pass
+                else:
+                    impact = 0 # Failed if no feed data
                 
             elif action == "T1589_LURK":
                 impact = 0

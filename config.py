@@ -33,3 +33,19 @@ logging_settings = {
     'log_level': 'INFO',
     'log_format': '%(asctime)s - %(levelname)s - %(message)s',
 }
+
+# Free Non-API Threat Feeds
+threat_feeds = [
+    {
+        "name": "URLHaus",
+        "url": "https://urlhaus.abuse.ch/downloads/csv_recent/",
+        "type": "csv",
+        "columns": {"filename": 2, "hash": 5}
+    },
+    {
+        "name": "ThreatFox",
+        "url": "https://threatfox.abuse.ch/export/csv/recent/",
+        "type": "csv",
+        "columns": {"hash": 2, "filename": 3}
+    }
+]

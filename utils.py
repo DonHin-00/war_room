@@ -5,6 +5,7 @@ import math
 import random
 import json
 import time
+import hashlib
 
 # Utility functions
 
@@ -176,6 +177,18 @@ def calculate_entropy(data):
             entropy -= p_x * math.log2(p_x)
 
     return entropy
+
+def calculate_sha256(filepath):
+    """Calculate SHA256 hash of a file efficiently."""
+    sha256 = hashlib.sha256()
+    try:
+        with open(filepath, 'rb') as f:
+            while True:
+                data = f.read(65536) # 64k chunks
+                if not data: break
+                sha256.update(data)
+        return sha256.hexdigest()
+    except: return None
 
 
 def setup_logging(log_file_path):
