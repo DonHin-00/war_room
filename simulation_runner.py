@@ -23,7 +23,7 @@ AGENTS = {
     "red": "agents/red_brain.py",
     "green": "agents/green_brain.py",
     "purple": "agents/purple_brain.py",
-    "bot": "agents/bot_brain.py",
+    "force_multiplier": "agents/force_multiplier_brain.py",
     "daemon": "agents/daemon_brain.py"
 }
 

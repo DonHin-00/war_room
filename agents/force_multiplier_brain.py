@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: AI Cyber War Simulation (Bot - Force Multiplier)
+Project: AI Cyber War Simulation (Force Multiplier - Dynamic Support)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: Automation
 """
@@ -23,7 +23,7 @@ import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
-logger = logging.getLogger("BotBrain")
+logger = logging.getLogger("ForceMultiplier")
 
 # --- VISUALS ---
 C_YELLOW = "\033[93m"
@@ -33,7 +33,7 @@ C_RESET = "\033[0m"
 
 def engage_force(max_iterations: Optional[int] = None) -> None:
 
-    msg = f"[SYSTEM] Bot Agent Initialized. Role: Force Multiplier"
+    msg = f"[SYSTEM] Force Multiplier Initialized. Role: Dynamic Reinforcement"
     print(f"{C_YELLOW}{msg}{C_RESET}")
     logger.info(msg)
 
@@ -57,13 +57,13 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                 # Low Alert -> Help Red (Rapid Offense)
 
                 if alert_level >= 3:
-                    # MODE: RAPID DEFENSE (Help Blue)
+                    # MODE: RAPID DEFENSE (Reinforcing Blue)
                     cleaned = 0
                     try:
                         with os.scandir(watch_dir) as it:
                             for entry in it:
                                 if entry.is_file() and entry.name.startswith("malware_"):
-                                    # Bot uses "dumb" signature match (prefix) but runs fast
+                                    # Force Multiplier uses "dumb" signature match (prefix) but runs fast
                                     try:
                                         os.remove(entry.path)
                                         cleaned += 1
@@ -71,12 +71,12 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                     except: pass
 
                     if cleaned > 0:
-                        log_msg = f"⚡ Force Multiplier (BLUE): Purged {cleaned} threats"
-                        print(f"{C_YELLOW}[BOT AI]{C_RESET} {log_msg}")
+                        log_msg = f"⚡ Reinforcing Blue Defense: Purged {cleaned} threats"
+                        print(f"{C_YELLOW}[FORCE MULTIPLIER]{C_RESET} {log_msg}")
                         logger.info(log_msg)
 
                 else:
-                    # MODE: RAPID OFFENSE (Help Red)
+                    # MODE: RAPID OFFENSE (Reinforcing Red)
                     # Create noise/chaff to confuse Blue or speed up Red's goal
                     created = 0
                     for _ in range(3): # Burst of 3
@@ -87,21 +87,21 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                         except: pass
 
                     if created > 0:
-                        log_msg = f"⚡ Force Multiplier (RED): Generated {created} noise files"
-                        print(f"{C_YELLOW}[BOT AI]{C_RESET} {log_msg}")
+                        log_msg = f"⚡ Reinforcing Red Offense: Generated {created} noise files"
+                        print(f"{C_YELLOW}[FORCE MULTIPLIER]{C_RESET} {log_msg}")
                         logger.info(log_msg)
 
-                # Bot runs faster than main brains
+                # Force Multiplier runs faster than main brains
                 time.sleep(random.uniform(0.5, 1.0))
 
             except Exception as e:
-                logger.error(f"Error in Bot loop: {e}")
+                logger.error(f"Error in Force Multiplier loop: {e}")
                 time.sleep(1)
 
     except KeyboardInterrupt:
         pass
     finally:
-        logger.info("Bot Agent Shutting Down")
+        logger.info("Force Multiplier Shutting Down")
 
 if __name__ == "__main__":
     engage_force()
