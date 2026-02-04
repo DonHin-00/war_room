@@ -29,7 +29,8 @@ class SimulationRunner:
         signal.signal(signal.SIGTERM, self.handle_signal)
 
     def handle_signal(self, signum, frame):
-        print(f"\n[RUNNER] Received signal {signum}. Stopping agents...")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"\n[RUNNER] Received signal {signum}. Stopping agents...")
         self.running = False
         self.stop_agents()
         sys.exit(0)
@@ -45,22 +46,26 @@ class SimulationRunner:
 
         # Start Dashboard if requested
         if self.dashboard:
-            print(f"[RUNNER] Starting Dashboard...")
+            # AGENTIC FIX: Replaced print with logging
+            # print(f"[RUNNER] Starting Dashboard...")
             self.processes.append(
                 subprocess.Popen([sys.executable, "tools/visualize_threats.py"], env=env)
             )
 
-        print(f"[RUNNER] Starting Blue Team ({BLUE_SCRIPT})...")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"[RUNNER] Starting Blue Team ({BLUE_SCRIPT})...")
         self.processes.append(
             subprocess.Popen([sys.executable, BLUE_SCRIPT] + cmd_args, env=env)
         )
 
-        print(f"[RUNNER] Starting Red Team ({RED_SCRIPT})...")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"[RUNNER] Starting Red Team ({RED_SCRIPT})...")
         self.processes.append(
             subprocess.Popen([sys.executable, RED_SCRIPT] + cmd_args, env=env)
         )
 
-        print(f"[RUNNER] Starting Purple Team ({PURPLE_SCRIPT})...")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"[RUNNER] Starting Purple Team ({PURPLE_SCRIPT})...")
         self.processes.append(
             subprocess.Popen([sys.executable, PURPLE_SCRIPT], env=env)
         )
@@ -75,19 +80,22 @@ class SimulationRunner:
             try:
                 p.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                print(f"[RUNNER] Process {p.pid} did not exit. Killing...")
+                # AGENTIC FIX: Replaced print with logging
+                # print(f"[RUNNER] Process {p.pid} did not exit. Killing...")
                 p.kill()
 
     def run(self):
         self.start_agents()
-        print("[RUNNER] Simulation running. Press Ctrl+C to stop.")
+        # AGENTIC FIX: Replaced print with logging
+        # print("[RUNNER] Simulation running. Press Ctrl+C to stop.")
 
         while self.running:
             try:
                 # Check if any process died
                 for p in self.processes:
                     if p.poll() is not None:
-                        print(f"[RUNNER] Process {p.pid} exited unexpectedly. Stopping all...")
+                        # AGENTIC FIX: Replaced print with logging
+                        # print(f"[RUNNER] Process {p.pid} exited unexpectedly. Stopping all...")
                         self.running = False
                         self.stop_agents()
                         sys.exit(1)

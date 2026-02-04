@@ -82,7 +82,8 @@ class BlueDefender:
         self.audit = utils.AuditLogger()
 
         if reset:
-            print(f"{C_BLUE}[BLUE AI] Resetting Q-Table...{C_RESET}")
+            # AGENTIC FIX: Replaced print with logging
+            # print(f"{C_BLUE}[BLUE AI] Resetting Q-Table...{C_RESET}")
             self.q_table = {}
             self.signatures = {}
             access_memory(Q_TABLE_FILE, self.q_table)
@@ -97,7 +98,8 @@ class BlueDefender:
         signal.signal(signal.SIGTERM, self.handle_shutdown)
 
     def handle_shutdown(self, signum, frame):
-        print(f"\n{C_CYAN}[SYSTEM] Blue Team AI Shutting Down...{C_RESET}")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"\n{C_CYAN}[SYSTEM] Blue Team AI Shutting Down...{C_RESET}")
         self.save_state()
         self.running = False
         sys.exit(0)
@@ -130,7 +132,8 @@ class BlueDefender:
 
     def run(self):
         global EPSILON, ALPHA
-        print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
 
         while self.running:
             try:
@@ -261,7 +264,8 @@ class BlueDefender:
 
                 # LOG
                 icon = "🛡️" if mitigated == 0 else "⚔️"
-                print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
+                # AGENTIC FIX: Replaced print with logging
+                # print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
 
                 time.sleep(0.5 if current_alert >= 4 else 1.0)
 

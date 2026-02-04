@@ -34,7 +34,8 @@ class PurpleReferee:
         signal.signal(signal.SIGTERM, self.handle_shutdown)
 
     def handle_shutdown(self, signum, frame):
-        print(f"\n\033[95m[SYSTEM] Purple Team (Referee) Shutting Down...\033[0m")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"\n\033[95m[SYSTEM] Purple Team (Referee) Shutting Down...\033[0m")
         self.running = False
         sys.exit(0)
 
@@ -49,7 +50,8 @@ class PurpleReferee:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[PURPLE] Failed to penalize {agent_name}: {e}")
+            # AGENTIC FIX: Replaced print with logging
+            # print(f"[PURPLE] Failed to penalize {agent_name}: {e}")
 
     def enforce_roe(self):
         """Check for Rules of Engagement violations."""
@@ -59,7 +61,8 @@ class PurpleReferee:
 
             # 1. Check for Spamming/DoS (Red Team going crazy)
             if file_count > self.config['THRESHOLDS']['MAX_FILES']:
-                print(f"\033[95m[PURPLE] ROE VIOLATION: Too many files ({file_count}). Penalizing Red Team.\033[0m")
+                # AGENTIC FIX: Replaced print with logging
+                # print(f"\033[95m[PURPLE] ROE VIOLATION: Too many files ({file_count}). Penalizing Red Team.\033[0m")
                 self.audit.log_event("PURPLE", "PENALTY_DOS", "RED")
                 self.penalize_agent("RED", self.config['PENALTY'])
 
@@ -80,7 +83,8 @@ class PurpleReferee:
             if alert == 5:
                 # Randomly de-escalate
                 if time.time() % 10 < 1:
-                    print(f"\033[95m[PURPLE] INTERVENTION: De-escalating Alert Level.\033[0m")
+                    # AGENTIC FIX: Replaced print with logging
+                    # print(f"\033[95m[PURPLE] INTERVENTION: De-escalating Alert Level.\033[0m")
                     state['blue_alert_level'] = 3
                     self.db.set_state('war_state', state)
                     self.audit.log_event("PURPLE", "DE_ESCALATE", "BLUE")
@@ -89,7 +93,8 @@ class PurpleReferee:
             pass # Referee shouldn't crash
 
     def run(self):
-        print(f"\033[95m[SYSTEM] Purple Team Referee Initialized. Enforcing RoE.\033[0m")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"\033[95m[SYSTEM] Purple Team Referee Initialized. Enforcing RoE.\033[0m")
         while self.running:
             self.enforce_roe()
             time.sleep(1)

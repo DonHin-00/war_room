@@ -73,7 +73,8 @@ class RedTeamer:
         signal.signal(signal.SIGTERM, self.handle_shutdown)
 
     def handle_shutdown(self, signum, frame):
-        print(f"\n{C_RED}[SYSTEM] Red Team AI Shutting Down...{C_RESET}")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"\n{C_RED}[SYSTEM] Red Team AI Shutting Down...{C_RESET}")
         self.save_state()
         self.running = False
         sys.exit(0)
@@ -92,7 +93,8 @@ class RedTeamer:
 
     def run(self):
         global EPSILON, ALPHA
-        print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+        # AGENTIC FIX: Replaced print with logging
+        # print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
 
         while self.running:
             self.tick += 1
@@ -222,7 +224,8 @@ print('I am running!')
                     war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
                     self.db.set_state('war_state', war_state)
 
-                print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+                # AGENTIC FIX: Replaced print with logging
+                # print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
 
                 time.sleep(random.uniform(0.5, 1.5))
             
