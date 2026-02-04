@@ -17,6 +17,7 @@ import hashlib
 
 import utils
 import config
+from typing import List, Tuple, Dict, Any
 
 # --- VISUALS ---
 C_BLUE = "\033[94m"
@@ -24,13 +25,17 @@ C_CYAN = "\033[96m"
 C_RESET = "\033[0m"
 
 class BlueDefender:
-    def __init__(self):
-        self.running = True
-        self.epsilon = config.AI_PARAMS['EPSILON_START']
-        self.alpha = config.AI_PARAMS['ALPHA']
-        self.q_table = {}
+    """
+    Blue Team AI Agent implementing NIST SP 800-61 Incident Response policy.
+    Uses Q-Learning to adapt defensive strategies.
+    """
+    def __init__(self) -> None:
+        self.running: bool = True
+        self.epsilon: float = config.AI_PARAMS['EPSILON_START']
+        self.alpha: float = config.AI_PARAMS['ALPHA']
+        self.q_table: Dict[str, float] = {}
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
-        self.backup_created = False
+        self.backup_created: bool = False
 
         # Signal Handling
         signal.signal(signal.SIGINT, self.shutdown)
@@ -38,19 +43,27 @@ class BlueDefender:
 
         self.setup()
 
-    def setup(self):
+    def setup(self) -> None:
+        """Initialize resources and load persistent state."""
         print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
         self.q_table = utils.access_memory(config.Q_TABLE_BLUE) or {}
         if not os.path.exists(config.INCIDENT_DIR):
             os.makedirs(config.INCIDENT_DIR)
 
-    def shutdown(self, signum, frame):
+    def shutdown(self, signum: int, frame: Any) -> None:
+        """Graceful shutdown handler."""
         print(f"\n{C_CYAN}[SYSTEM] Blue Team shutting down gracefully...{C_RESET}")
         utils.access_memory(config.Q_TABLE_BLUE, self.q_table)
         self.running = False
         sys.exit(0)
 
-    def get_state(self, current_alert):
+    def get_state(self, current_alert: int) -> Tuple[str, List[str], List[str], List[str], List[str], List[str]]:
+        """
+        Scan environment and determine current state.
+
+        Returns:
+            Tuple containing state_key and lists of various threat types.
+        """
         visible_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, 'malware_*'))
         hidden_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, '.sys_*'))
         c2_beacons = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.c2_beacon'))
@@ -61,14 +74,15 @@ class BlueDefender:
 
         return f"{current_alert}_{threat_count}", visible_threats, hidden_threats, c2_beacons, encrypted_files, all_threats
 
-    def choose_action(self, state_key):
+    def choose_action(self, state_key: str) -> str:
+        """Select an action using Epsilon-Greedy strategy."""
         if random.random() < self.epsilon:
             return random.choice(config.BLUE_ACTIONS)
         else:
             known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS}
             return max(known, key=known.get)
 
-    def report_incident(self, filepath, threat_type, action_taken):
+    def report_incident(self, filepath: str, threat_type: str, action_taken: str) -> None:
         """Generate a forensic incident report."""
         try:
             timestamp = time.time()
@@ -90,10 +104,11 @@ class BlueDefender:
             report_path = os.path.join(config.INCIDENT_DIR, f"report_{report['id']}.json")
             utils.secure_create(report_path, json.dumps(report, indent=4))
             self.audit_logger.log_event("BLUE", "INCIDENT_REPORT", f"Report {report['id']} generated for {filepath}")
-        except Exception as e:
-            print(f"Reporting Error: {e}")
+        except (OSError, TypeError) as e:
+            # print(f"Reporting Error: {e}")
+            pass
 
-    def run(self):
+    def run(self) -> None:
         iteration = 0
         while self.running:
             try:
@@ -128,7 +143,7 @@ class BlueDefender:
                                 self.report_incident(t, "KNOWN_SIGNATURE", "DELETE")
                                 os.remove(t)
                                 mitigated += 1
-                        except: pass
+                        except OSError: pass
 
                     # Visible cleanup
                     for t in visible:
@@ -136,7 +151,7 @@ class BlueDefender:
                             try:
                                 self.report_incident(t, "VISIBLE_THREAT", "DELETE")
                                 os.remove(t); mitigated += 1
-                            except: pass
+                            except OSError: pass
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
@@ -159,21 +174,21 @@ class BlueDefender:
 
                                 os.remove(t)
                                 mitigated += 1
-                            except: pass
+                            except OSError: pass
 
                 elif action == "DEPLOY_DECOY":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"accounts_{random.randint(1000,9999)}.honey")
                     try:
                         utils.secure_create(fname, "admin:password123")
                         print(f"{C_BLUE}[DEFENSE] Deployed Honey Token: {fname}{C_RESET}")
-                    except: pass
+                    except OSError: pass
 
                 elif action == "DEPLOY_TRAP":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"backup_{random.randint(100,999)}.tar_pit")
                     try:
                         # Large empty file
                         with open(fname, 'wb') as f: f.truncate(1024 * 1024 * 50) # 50MB sparse file
-                    except: pass
+                    except OSError: pass
 
                 elif action == "BACKUP_CRITICAL":
                     self.backup_created = True
@@ -189,7 +204,9 @@ class BlueDefender:
                                 os.rename(enc, orig)
                                 restored += 1
                                 self.report_incident(enc, "RANSOMWARE_RECOVERY", "RESTORE")
-                            except: pass
+                            except OSError: pass
+
+                # 4. REWARD
 
                 # 4. REWARD
                 reward = 0

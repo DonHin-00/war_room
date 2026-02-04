@@ -1,8 +1,8 @@
 import os
 
 # --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WAR_ZONE_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
+BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
+WAR_ZONE_DIR: str = os.environ.get("WAR_ZONE_DIR", "/tmp")
 
 # --- FILE PATHS ---
 Q_TABLE_BLUE = os.path.join(BASE_DIR, "blue_q_table.json")

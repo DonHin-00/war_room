@@ -13,20 +13,25 @@ import signal
 import sys
 import utils
 import config
+from typing import List, Tuple, Dict, Any
 
 # --- VISUALS ---
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
 class RedTeamer:
-    def __init__(self):
-        self.running = True
-        self.epsilon = config.AI_PARAMS['EPSILON_START']
-        self.alpha = config.AI_PARAMS['ALPHA']
+    """
+    Red Team AI Agent implementing MITRE ATT&CK Matrix tactics.
+    Uses Double Q-Learning with Experience Replay for stable training.
+    """
+    def __init__(self) -> None:
+        self.running: bool = True
+        self.epsilon: float = config.AI_PARAMS['EPSILON_START']
+        self.alpha: float = config.AI_PARAMS['ALPHA']
         # Double Q-Learning: Two tables
-        self.q_table_1 = {}
-        self.q_table_2 = {}
-        self.memory = [] # Experience Replay Buffer
+        self.q_table_1: Dict[str, float] = {}
+        self.q_table_2: Dict[str, float] = {}
+        self.memory: List[Tuple[str, str, float, str]] = [] # Experience Replay Buffer
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
         # Signal Handling
@@ -35,7 +40,8 @@ class RedTeamer:
 
         self.setup()
 
-    def setup(self):
+    def setup(self) -> None:
+        """Initialize resources and load persistent state."""
         print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
         # Load Q-Table (legacy single file split into two or init new)
         data = utils.access_memory(config.Q_TABLE_RED) or {}
@@ -44,16 +50,18 @@ class RedTeamer:
 
         if not os.path.exists(config.WAR_ZONE_DIR):
             try: os.makedirs(config.WAR_ZONE_DIR)
-            except: pass
+            except OSError: pass
 
-    def shutdown(self, signum, frame):
+    def shutdown(self, signum: int, frame: Any) -> None:
+        """Graceful shutdown handler."""
         print(f"\n{C_RED}[SYSTEM] Red Team shutting down gracefully...{C_RESET}")
         # Save both tables
         utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
         self.running = False
         sys.exit(0)
 
-    def choose_action(self, state_key):
+    def choose_action(self, state_key: str) -> str:
+        """Select an action using Double Q-Learning strategy."""
         if random.random() < self.epsilon:
             return random.choice(config.RED_ACTIONS)
         else:
@@ -64,12 +72,14 @@ class RedTeamer:
                 known[a] = val
             return max(known, key=known.get)
 
-    def remember(self, state, action, reward, next_state):
+    def remember(self, state: str, action: str, reward: float, next_state: str) -> None:
+        """Store experience in replay buffer."""
         self.memory.append((state, action, reward, next_state))
         if len(self.memory) > config.AI_PARAMS['MEMORY_SIZE']:
             self.memory.pop(0)
 
-    def replay(self):
+    def replay(self) -> None:
+        """Train the model using random batch from memory."""
         if len(self.memory) < config.AI_PARAMS['BATCH_SIZE']:
             return
 
@@ -122,7 +132,8 @@ class RedTeamer:
                     try:
                         utils.secure_create(fname, "echo 'scan'")
                         impact = 1
-                    except: pass
+                    except OSError:
+                        pass # Expected if permissions deny
 
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
@@ -131,14 +142,14 @@ class RedTeamer:
                         data = os.urandom(size).decode('latin1')
                         utils.secure_create(fname, data)
                         impact = 3
-                    except: pass
+                    except OSError: pass
 
                 elif action == "T1003_ROOTKIT":
                     fname = os.path.join(config.WAR_ZONE_DIR, f".sys_shadow_{int(time.time())}")
                     try:
                         utils.secure_create(fname, "uid=0(root)")
                         impact = 5
-                    except: pass
+                    except OSError: pass
 
                 elif action == "T1071_C2_BEACON":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"beacon_{int(time.time())}.c2_beacon")
@@ -147,7 +158,7 @@ class RedTeamer:
                         utils.secure_create(fname, payload)
                         impact = 4
                         self.audit_logger.log_event("RED", "C2_BEACON", f"Established beacon at {fname}")
-                    except: pass
+                    except OSError: pass
 
                 elif action == "T1589_LURK":
                     impact = 0
@@ -167,7 +178,7 @@ class RedTeamer:
                                 os.rename(src, dst)
                                 impact = 6
                                 self.audit_logger.log_event("RED", "RANSOMWARE", f"Encrypted {target}")
-                        except: pass
+                        except OSError: pass
 
                 elif action == "T1547_PERSISTENCE":
                     # Persistence: Create a hidden startup script
@@ -175,7 +186,7 @@ class RedTeamer:
                     try:
                         utils.secure_create(fname, "#!/bin/bash\n./malware.sh")
                         impact = 4
-                    except: pass
+                    except OSError: pass
 
                 # 4. REWARD CALCULATION
                 reward = 0
