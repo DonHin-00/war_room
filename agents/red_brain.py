@@ -13,19 +13,23 @@ import uuid
 import signal
 import sys
 import logging
+
+# Adjust path to find utils in parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import safe_file_read, safe_file_write
 
 # --- CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 LOG_FILE = os.path.join(BASE_DIR, "red.log")
 TARGET_DIR = "/tmp"
+PORTS_DIR = "/tmp/ports"
 
 # --- HYPERPARAMETERS ---
 # Increased weight of Ransomware and Masquerade in the action set via logic tweaks if needed,
 # but simply having them available is enough for Q-learning to pick them up if they yield rewards.
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1048_EXFILTRATION"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -103,7 +107,7 @@ class RedAttacker:
                 else:
                     known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
                     action = max(known, key=known.get)
-                
+
                 self.epsilon = max(MIN_EPSILON, self.epsilon * EPSILON_DECAY)
                 self.alpha = max(0.1, self.alpha * ALPHA_DECAY)
 
@@ -171,6 +175,25 @@ class RedAttacker:
                             note = os.path.join(TARGET_DIR, f"RANSOM_NOTE_{uuid.uuid4()}.txt")
                             with open(note, 'w') as f: f.write("YOUR FILES ARE ENCRYPTED. PAY 1 BTC.")
                             impact = 5
+                    except Exception: pass
+
+                elif action == "T1048_EXFILTRATION":
+                    # Attempt to steal data from 'ports' (WAF protected)
+                    try:
+                        if os.path.exists(PORTS_DIR):
+                            with os.scandir(PORTS_DIR) as entries:
+                                for entry in entries:
+                                    if entry.is_file():
+                                        # "Steal" it (Read and copy to own stash)
+                                        with open(entry.path, 'r') as f:
+                                            content = f.read()
+
+                                        # Reverse Engineering / Innovating part:
+                                        # If it's a "better app" (bait), we might get burned.
+                                        # But let's try to exfil it.
+                                        exfil_path = os.path.join(TARGET_DIR, f"EXFIL_{entry.name}_{uuid.uuid4()}")
+                                        safe_file_write(exfil_path, content)
+                                        impact = 4 # High impact if successful
                     except Exception: pass
 
                 # 4. REWARDS

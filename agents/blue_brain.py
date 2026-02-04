@@ -17,10 +17,14 @@ import sys
 import logging
 import threading
 import queue
+import sys
+
+# Adjust path to find utils in parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import safe_file_read, safe_file_write
 
 # --- CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 SIGNATURES_FILE = os.path.join(BASE_DIR, "signatures.json")
 BABY_BRAIN_FILE = os.path.join(BASE_DIR, "baby_brain.json")
@@ -362,7 +366,7 @@ class BlueDefender:
                 next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
                 new_val = old_val + self.alpha * (reward + GAMMA * next_max - old_val)
                 self.q_table[f"{state_key}_{action}"] = new_val
-                
+
                 # Sync logic could be improved to not write every frame, but keeping it simple for now
                 self._access_memory(Q_TABLE_FILE, self.q_table)
 
