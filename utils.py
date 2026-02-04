@@ -153,7 +153,13 @@ def access_memory(filepath: str, data: Optional[Dict[str, Any]] = None) -> Dict[
 
             # File changed or not in cache, read it
             with open(filepath, 'r') as f:
-                data_loaded = json.load(f)
+                try:
+                    data_loaded = json.load(f)
+                except json.JSONDecodeError:
+                    # Retry once after a brief sleep (simulating spinlock waiting for a concurrent write to finish)
+                    time.sleep(0.1)
+                    with open(filepath, 'r') as f2:
+                        data_loaded = json.load(f2)
 
                 # Validation for state file
                 if "war_state.json" in filepath and not validate_state(data_loaded):
@@ -163,7 +169,7 @@ def access_memory(filepath: str, data: Optional[Dict[str, Any]] = None) -> Dict[
                 MEMORY_CACHE[filepath] = (mtime, data_loaded)
                 return data_loaded
         except (OSError, json.JSONDecodeError) as e:
-            logging.error(f"Memory Read Error {filepath}: {e}")
+            # logging.error(f"Memory Read Error {filepath}: {e}") # Reduce log noise for expected race
             return {}
     return {}
 

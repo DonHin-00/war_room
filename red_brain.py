@@ -103,14 +103,24 @@ class RedTeamer:
 
     def shutdown(self, signum: int, frame: Any) -> None:
         print(f"\n{C_RED}[SYSTEM] Red Team shutting down gracefully...{C_RESET}")
-        if self.c2_server: self.c2_server.shutdown()
-        # Kill payloads
-        for p in self.active_payloads:
-            try: p.terminate()
+
+        self.running = False
+
+        if self.c2_server:
+            try: self.c2_server.shutdown()
             except: pass
 
+        # Kill payloads
+        for p in self.active_payloads:
+            if p.poll() is None:
+                try:
+                    p.terminate()
+                    p.wait(timeout=1)
+                except:
+                    try: p.kill()
+                    except: pass
+
         utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
-        self.running = False
         sys.exit(0)
 
     def choose_action(self, state_key: str) -> str:

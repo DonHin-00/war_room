@@ -88,16 +88,15 @@ class BlueDefender:
         return suspicious_ports
 
     def scan_processes(self) -> List[int]:
-        """Scan for malicious processes (malware.py)."""
+        """Scan for malicious processes (malware.py) using pgrip pattern."""
         pids = []
         try:
-            # Simple ps aux check
-            output = subprocess.check_output(["ps", "-ef"], text=True)
-            for line in output.splitlines():
-                if "payloads/malware.py" in line:
-                    parts = line.split()
-                    if len(parts) > 1 and parts[1].isdigit():
-                        pids.append(int(parts[1]))
+            # Use pgrep for more reliable PID detection
+            # -f matches against full command line
+            output = subprocess.check_output(["pgrep", "-f", "payloads/malware.py"], text=True)
+            for pid_str in output.splitlines():
+                if pid_str.isdigit():
+                    pids.append(int(pid_str))
         except (OSError, subprocess.CalledProcessError): pass
         return pids
 
