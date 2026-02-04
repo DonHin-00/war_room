@@ -60,14 +60,25 @@ def engage_build(max_iterations: Optional[int] = None) -> None:
                         logger.info(f"🏗️  Yellow Team Deployed: {app_name}")
                     except: pass
 
-                # 2. MISCONFIGURATION (The "Insider Mistake")
-                # Formerly in Green, now correctly placed in Yellow (Admins making mistakes)
+                # 2. PATCH MANAGEMENT (Hardening)
+                # "Patch" an app by updating its timestamp/content
+                if random.random() < 0.1:
+                    try:
+                        with os.scandir(watch_dir) as it:
+                            for entry in it:
+                                if entry.is_file() and entry.name.startswith("app_v"):
+                                    # Simulate patching
+                                    os.utime(entry.path, None)
+                                    logger.info(f"🛡️  Yellow Team Patched: {entry.name}")
+                                    break
+                    except: pass
+
+                # 3. MISCONFIGURATION (The "Insider Mistake")
                 if random.random() < 0.05:
                     try:
                         with os.scandir(watch_dir) as it:
                             for entry in it:
                                 if entry.is_file() and entry.name.startswith("malware_"):
-                                    # Rename malware to something benign (accidental whitelisting/execution)
                                     new_name = f"authorized_tool_{int(time.time())}.exe"
                                     new_path = os.path.join(watch_dir, new_name)
                                     os.rename(entry.path, new_path)
@@ -76,7 +87,7 @@ def engage_build(max_iterations: Optional[int] = None) -> None:
                                     break
                     except: pass
 
-                # 3. SHADOW IT (Unsanctioned Tools)
+                # 4. SHADOW IT (Unsanctioned Tools)
                 if random.random() < 0.05:
                     tool_name = f"debug_tool_{random.randint(100,999)}.exe"
                     filepath = os.path.join(watch_dir, tool_name)

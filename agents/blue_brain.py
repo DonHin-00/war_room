@@ -72,16 +72,15 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
     print(f"{C_CYAN}{msg}{C_RESET}")
     logger.info(msg)
 
-    # Cache Q-Table in memory
     q_table_path = config.file_paths['blue_q_table']
     q_table: Dict[str, float] = atomic_json_io(q_table_path)
 
     steps_since_save = 0
     save_interval = config.constraints['save_interval']
     watch_dir = config.file_paths['watch_dir']
+    network_dir = config.file_paths['network_dir']
     state_file = config.file_paths['state_file']
 
-    # Local IOC Cache (Simulated "Known Bad" DB)
     known_iocs = load_threat_feed()
 
     iteration = 0
@@ -91,7 +90,6 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 break
             iteration += 1
             try:
-                # Refresh IOCs periodically (simulating feed update)
                 if iteration % 20 == 0:
                     known_iocs = load_threat_feed()
 
@@ -130,10 +128,11 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
                 ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
 
-                # 4. ERADICATION / DECEPTION / HUNTING
+                # 4. EXECUTION
                 mitigated = 0
                 trapped = 0
                 hunted = 0
+                blocked = 0
 
                 if action == "SIGNATURE_SCAN":
                     for t in visible_threats:
@@ -149,20 +148,15 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                                 except: pass
 
                 elif action == "THREAT_HUNT":
-                    # Cross-reference files with Threat Feed
                     if known_iocs:
                         for t in all_threats:
                             if is_honeypot(t): continue
-
-                            # Check Filename
                             fname = os.path.basename(t)
                             for ioc in known_iocs:
                                 if ioc['type'] == 'filename' and ioc['value'] in fname:
                                     try: os.remove(t); hunted += 1
                                     except: pass
                                     break
-
-                                # Check Hash (Expensive, but accurate)
                                 if ioc['type'] == 'hash':
                                     file_hash = get_file_hash(t)
                                     if file_hash == ioc['value']:
@@ -180,17 +174,46 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                             audit.log("BLUE", "HONEYPOT_DEPLOYED", {"file": hp_name})
                         except: pass
 
+                elif action == "DEPLOY_TRAP":
+                    # Active Defense: Tar Pits
+                    trap_name = "financials.xls"
+                    trap_path = os.path.join(watch_dir, trap_name)
+                    if not os.path.exists(trap_path):
+                        try:
+                            with open(trap_path, 'w') as f:
+                                f.write("TRAP" * 10000) # Big file to stall read
+                            trapped = 1
+                            logger.info("🕸️  Blue Team Deployed Tar Pit")
+                        except: pass
+
+                elif action == "NETWORK_HUNT":
+                    # Scan network bus for C2 traffic
+                    if os.path.exists(network_dir):
+                        try:
+                            with os.scandir(network_dir) as it:
+                                for entry in it:
+                                    if entry.is_file() and entry.name.endswith(".pcap"):
+                                        try:
+                                            os.remove(entry.path)
+                                            blocked += 1
+                                        except: pass
+                        except: pass
+                    if blocked > 0:
+                        logger.info(f"🚫 Blue Team Blocked {blocked} C2 Packets")
+
                 elif action == "OBSERVE": pass
                 elif action == "IGNORE": pass
 
-                # 5. REWARD CALCULATION
+                # 5. REWARDS
                 reward = 0
                 if mitigated > 0: reward = config.blue_rewards['mitigation']
                 if hunted > 0: reward = config.blue_rewards['threat_hunt_success']
-                if trapped > 0: reward = 5
+                if trapped > 0: reward = 10
+                if blocked > 0: reward = 15 # Good job stopping C2
 
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.blue_rewards['waste']
-                if action == "THREAT_HUNT" and hunted == 0: reward = -5 # Small penalty for wasted hunt
+                if action == "THREAT_HUNT" and hunted == 0: reward = -5
+                if action == "NETWORK_HUNT" and blocked == 0: reward = -5
 
                 if current_alert >= 4 and action == "OBSERVE": reward = config.blue_rewards['patience']
                 if action == "IGNORE" and threat_count > 0: reward = config.blue_rewards['negligence']
@@ -201,7 +224,6 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
                 q_table[f"{state_key}_{action}"] = new_val
 
-                # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= save_interval:
                     atomic_json_merge(q_table_path, q_table)
@@ -212,28 +234,30 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 max_alert = config.constraints['max_alert']
                 min_alert = config.constraints['min_alert']
 
-                total_kills = mitigated + hunted
-                if total_kills > 0 and current_alert < max_alert:
+                total_success = mitigated + hunted + blocked
+                if total_success > 0 and current_alert < max_alert:
                     should_update = True
-                elif total_kills == 0 and current_alert > min_alert and action == "OBSERVE":
+                elif total_success == 0 and current_alert > min_alert and action == "OBSERVE":
                     should_update = True
 
                 if should_update:
                     def update_state(state):
                         level = state.get('blue_alert_level', 1)
-                        if total_kills > 0 and level < max_alert:
+                        if total_success > 0 and level < max_alert:
                             state['blue_alert_level'] = min(max_alert, level + 1)
-                        elif total_kills == 0 and level > min_alert and action == "OBSERVE":
+                        elif total_success == 0 and level > min_alert and action == "OBSERVE":
                             state['blue_alert_level'] = max(min_alert, level - 1)
                         return state
                     atomic_json_update(state_file, update_state)
 
-                if total_kills > 0:
-                    audit.log("BLUE", "THREAT_MITIGATED", {"action": action, "count": total_kills})
+                if total_success > 0:
+                    audit.log("BLUE", "THREAT_MITIGATED", {"action": action, "count": total_success})
 
-                # LOG
-                icon = "🛡️" if total_kills == 0 else "⚔️"
-                log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {total_kills} | Q: {new_val:.2f}"
+                icon = "🛡️ "
+                if action == "DEPLOY_TRAP": icon = "🕸️ "
+                elif action == "THREAT_HUNT": icon = "🔎"
+
+                log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {total_success} | Q: {new_val:.2f}"
                 print(f"{C_BLUE}[BLUE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
 

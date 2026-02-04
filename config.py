@@ -29,6 +29,8 @@ red_rewards = {
     'stealth': 15,
     'critical': 30,
     'burned': -100,           # Penalty for touching a honeypot
+    'persistence': 50,        # Reward for establishing persistence
+    'exfil': 60,              # Reward for data exfiltration
 }
 
 # Simulation Constraints
@@ -36,11 +38,12 @@ constraints = {
     'max_alert': 5,
     'min_alert': 1,
     'save_interval': 10,
+    'memory_limit_mb': 100,   # Resource limit for agents
 }
 
 # Actions
-blue_actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DECOY", "THREAT_HUNT"]
-red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
+blue_actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DECOY", "THREAT_HUNT", "NETWORK_HUNT", "DEPLOY_TRAP"]
+red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1547_PERSISTENCE", "T1041_EXFILTRATION"]
 
 # Honeypot Configuration
 HONEYPOT_NAMES = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
@@ -56,10 +59,13 @@ file_paths = {
     'red_q_table': os.path.join(BASE_DIR, "red_q_table.json"),
     'state_file': os.path.join(BASE_DIR, "war_state.json"),
     'watch_dir': BATTLEFIELD_DIR,
+    'network_dir': os.path.join(BASE_DIR, "network_bus"),
     'log_file': os.path.join(BASE_DIR, "war_room.log"),
     'agents_dir': os.path.join(BASE_DIR, "agents"),
     'audit_log': os.path.join(BASE_DIR, "audit.jsonl"),
     'threat_feed': os.path.join(BASE_DIR, "intelligence/threat_feed.json"),
+    'persistence_dir': os.path.join(BATTLEFIELD_DIR, "startup"),
+    'exfil_dir': os.path.join(BATTLEFIELD_DIR, "staging"),
 }
 
 # Logging Settings

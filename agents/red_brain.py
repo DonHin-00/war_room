@@ -21,7 +21,8 @@ from utils import (
     atomic_json_merge,
     setup_logging,
     is_honeypot,
-    AuditLogger
+    AuditLogger,
+    is_tar_pit
 )
 from utils.trace_logger import trace_errors
 import config
@@ -61,6 +62,14 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
     save_interval = config.constraints['save_interval']
     target_dir = config.file_paths['watch_dir']
     state_file = config.file_paths['state_file']
+    persist_dir = config.file_paths['persistence_dir']
+    exfil_dir = config.file_paths['exfil_dir']
+
+    # Ensure attack dirs exist
+    for d in [persist_dir, exfil_dir]:
+        if not os.path.exists(d):
+            try: os.makedirs(d)
+            except: pass
 
     iteration = 0
     try:
@@ -76,7 +85,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 current_alert = war_state.get('blue_alert_level', 1)
                 state_key = f"{current_alert}"
 
-                # LOW AND SLOW: If alert is high, sleep more
+                # LOW AND SLOW
                 if current_alert >= 4:
                     time.sleep(random.uniform(2.0, 5.0))
 
@@ -94,17 +103,17 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 impact = 0
                 burned = False
 
-                # Check for honeypots before acting? (Smart Red)
-                # For now, simplistic interaction
-
                 if action == "T1046_RECON":
-                    # Check if any honeypots exist
                     try:
                         with os.scandir(target_dir) as it:
                             for entry in it:
                                 if is_honeypot(entry.path):
                                     burned = True
                                     audit.log("RED", "TRIPPED_HONEYPOT", {"file": entry.name})
+                                    break
+                                if is_tar_pit(entry.path):
+                                    # STALLED!
+                                    time.sleep(2.0)
                                     break
                     except: pass
 
@@ -116,11 +125,10 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                         except: pass
 
                 elif action == "T1027_OBFUSCATE":
-                    # POLYMORPHISM: Append random junk to change entropy/hash
                     fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.bin")
                     try:
                         payload = os.urandom(1024)
-                        padding = os.urandom(random.randint(100, 500)) # Polymorphic padding
+                        padding = os.urandom(random.randint(100, 500))
                         with open(fname, 'wb') as f: f.write(payload + padding)
                         impact = 3
                     except: pass
@@ -135,17 +143,39 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 elif action == "T1589_LURK":
                     impact = 0
 
+                elif action == "T1547_PERSISTENCE":
+                    # Create startup script
+                    p_name = os.path.join(persist_dir, "update_service.sh")
+                    try:
+                        with open(p_name, 'w') as f:
+                            f.write("#!/bin/bash\n# Re-spawn malware\ntouch /tmp/battlefield/malware_respawned.bin")
+                        impact = 5
+                        logger.info(f"⚓ Red Team Established Persistence: {p_name}")
+                        audit.log("RED", "PERSISTENCE_CREATED", {"file": p_name})
+                    except: pass
+
+                elif action == "T1041_EXFILTRATION":
+                    # Stage and Exfil data
+                    s_name = os.path.join(exfil_dir, f"data_{int(time.time())}.zip")
+                    try:
+                        with open(s_name, 'wb') as f:
+                            f.write(os.urandom(2048)) # Encrypted data
+                        time.sleep(0.5) # Upload time
+                        os.remove(s_name) # Sent!
+                        impact = 6
+                        logger.info("📤 Red Team Exfiltrated Data")
+                        audit.log("RED", "DATA_EXFILTRATION", {"size": 2048})
+                    except: pass
+
                 # 4. REWARDS
                 reward = 0
                 max_alert = config.constraints['max_alert']
-                if impact > 0:
-                    reward = config.red_rewards['impact']
-                if current_alert >= 4 and action == "T1589_LURK":
-                    reward = config.red_rewards['stealth']
-                if current_alert == max_alert and impact > 0:
-                    reward = config.red_rewards['critical']
-                if burned:
-                    reward = config.red_rewards['burned'] # Huge penalty
+                if impact > 0: reward = config.red_rewards['impact']
+                if current_alert >= 4 and action == "T1589_LURK": reward = config.red_rewards['stealth']
+                if current_alert == max_alert and impact > 0: reward = config.red_rewards['critical']
+                if action == "T1547_PERSISTENCE" and impact > 0: reward = config.red_rewards['persistence']
+                if action == "T1041_EXFILTRATION" and impact > 0: reward = config.red_rewards['exfil']
+                if burned: reward = config.red_rewards['burned']
 
                 # 5. LEARN
                 old_val = q_table.get(f"{state_key}_{action}", 0.0)
@@ -167,11 +197,9 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     atomic_json_update(state_file, update_state)
 
                 if impact > 0:
-                    audit.log("RED", "ATTACK_LAUNCHED", {"technique": action, "impact": impact})
-
-                log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Burned: {burned} | Q: {new_val:.2f}"
-                print(f"{C_RED}[RED AI] {C_RESET} {log_msg}")
-                logger.info(log_msg)
+                    log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Burned: {burned} | Q: {new_val:.2f}"
+                    print(f"{C_RED}[RED AI] {C_RESET} {log_msg}")
+                    logger.info(log_msg)
 
                 time.sleep(random.uniform(0.5, 1.5))
 

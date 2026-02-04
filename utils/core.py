@@ -7,10 +7,10 @@ import json
 import collections
 import threading
 import time
+import resource
 from typing import Dict, Any, Optional, Callable, Union
 
 # Import trace logger
-# Now that we are inside the utils package, we can import relatively
 from .trace_logger import trace_errors
 
 # Utility functions
@@ -61,7 +61,6 @@ def atomic_json_io(filepath: str, data: Optional[Union[Dict[str, Any], Any]] = N
                 fcntl.flock(f, fcntl.LOCK_UN)
             return data # Return written data to avoid redundant read
         except Exception as e:
-            # logging.error(f"Error atomic writing to {filepath}: {e}")
             return {}
 
     if os.path.exists(filepath):
@@ -86,8 +85,6 @@ def atomic_json_update(filepath: str, update_func: Callable[[Dict[str, Any]], Di
     This prevents race conditions by holding the lock during the read-modify-write cycle.
     """
     try:
-        # Use 'a+' to create if missing, but allows reading/seeking.
-        # This prevents the race condition of checking exists() then opening 'w'.
         with open(filepath, 'a+') as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
@@ -155,9 +152,20 @@ class AuditLogger:
 def is_honeypot(filepath: str) -> bool:
     """Checks if a file is a known honeypot based on naming convention."""
     filename = os.path.basename(filepath)
-    # Honeypot names usually mimic sensitive data
     decoy_names = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
     return filename in decoy_names or filename.startswith("decoy_")
+
+def is_tar_pit(filepath: str) -> bool:
+    """Checks if a file is a known Tar Pit (trap)."""
+    return os.path.basename(filepath) == "financials.xls"
+
+def limit_resources(max_ram_mb: int = 100):
+    """Limits the RAM usage of the current process."""
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        resource.setrlimit(resource.RLIMIT_AS, (max_ram_mb * 1024 * 1024, hard))
+    except Exception as e:
+        logging.warning(f"Failed to set resource limits: {e}")
 
 def calculate_entropy(data: bytes) -> float:
     """Calculate the entropy of a string of data (O(N) implementation)."""
