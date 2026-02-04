@@ -23,6 +23,7 @@ from utils import safe_file_read, safe_file_write
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 SIGNATURES_FILE = os.path.join(BASE_DIR, "signatures.json")
+BABY_BRAIN_FILE = os.path.join(BASE_DIR, "baby_brain.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 LOG_FILE = os.path.join(BASE_DIR, "blue.log")
 WATCH_DIR = "/tmp"
@@ -50,13 +51,46 @@ P_NEGLIGENCE = -50
 MAX_ALERT = 5
 MIN_ALERT = 1
 
+class BabyBrain:
+    """A lightweight pattern learner to assist Drones."""
+    def __init__(self, logger):
+        self.logger = logger
+        self.suspicious_extensions = {} # {ext: count}
+        self.threshold = 1 # Learn fast
+        self.load()
+
+    def learn(self, filepath):
+        try:
+            _, ext = os.path.splitext(filepath)
+            if ext:
+                self.suspicious_extensions[ext] = self.suspicious_extensions.get(ext, 0) + 1
+                self.save()
+        except: pass
+
+    def is_suspicious(self, filename):
+        for ext, count in self.suspicious_extensions.items():
+            if count >= self.threshold and filename.endswith(ext):
+                return True
+        return False
+
+    def save(self):
+        try: safe_file_write(BABY_BRAIN_FILE, json.dumps(self.suspicious_extensions))
+        except: pass
+
+    def load(self):
+        try:
+            data = safe_file_read(BABY_BRAIN_FILE)
+            if data: self.suspicious_extensions = json.loads(data)
+        except: pass
+
 class Drone(threading.Thread):
-    def __init__(self, drone_id, sector_path, report_queue, logger):
+    def __init__(self, drone_id, sector_path, report_queue, logger, baby_brain):
         super().__init__()
         self.drone_id = drone_id
         self.sector_path = sector_path
         self.report_queue = report_queue
         self.logger = logger
+        self.baby_brain = baby_brain
         self.running = True
         self.scan_interval = 2.0  # Initial scan rate (seconds)
         self.efficiency = 0.5    # Learning parameter
@@ -69,11 +103,15 @@ class Drone(threading.Thread):
                     try:
                         with os.scandir(self.sector_path) as entries:
                             for entry in entries:
-                                if entry.name.startswith('malware_') or entry.name.startswith('.sys_'):
+                                is_bad = False
+                                # Hardcoded instincts
+                                if entry.name.startswith(('malware_', '.sys_', 'RANSOM_')): is_bad = True
+                                elif entry.name.endswith('.enc'): is_bad = True
+                                # Baby Brain assistance
+                                elif self.baby_brain.is_suspicious(entry.name): is_bad = True
+
+                                if is_bad:
                                     self.report_queue.put(('THREAT', entry.path))
-                                    found_threats += 1
-                                elif entry.name.endswith('.enc'):
-                                    self.report_queue.put(('RANSOM', entry.path))
                                     found_threats += 1
                     except OSError: pass
 
@@ -103,6 +141,9 @@ class BlueDefender:
         self.setup_logging()
         self.load_state()
 
+        # Baby Brain (Assists Drones)
+        self.baby_brain = BabyBrain(self.logger)
+
         # Drone System
         self.report_queue = queue.Queue()
         self.drones = []
@@ -116,7 +157,7 @@ class BlueDefender:
         # Create "sectors" - for now, just the main watch dir, but architecture allows splitting
         # Let's spawn 3 overlapping drones for redundancy and "eyes in the sky" coverage
         for i in range(3):
-            drone = Drone(i, WATCH_DIR, self.report_queue, self.logger)
+            drone = Drone(i, WATCH_DIR, self.report_queue, self.logger, self.baby_brain)
             drone.daemon = True
             drone.start()
             self.drones.append(drone)
@@ -267,6 +308,10 @@ class BlueDefender:
                                     if f_hash and f_hash not in self.signatures:
                                         self.signatures.append(f_hash)
                                         self._access_memory(SIGNATURES_FILE, self.signatures)
+
+                                    # Teach the Baby!
+                                    self.baby_brain.learn(t)
+
                                     os.remove(t)
                                     mitigated += 1
                             except OSError: pass
