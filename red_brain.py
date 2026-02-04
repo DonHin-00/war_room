@@ -7,58 +7,40 @@ Frameworks: MITRE ATT&CK Matrix
 
 import os
 import time
-import json
 import random
+import config
+import utils
 
 # --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = "/tmp"
-
-# --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
-ALPHA = 0.4
-ALPHA_DECAY = 0.9999
-GAMMA = 0.9
-EPSILON = 0.3
-EPSILON_DECAY = 0.995
-MIN_EPSILON = 0.01
-
-# --- REWARD CONFIGURATION (ATTACKER PROFILE) ---
-R_IMPACT = 10           # Base points for successful drop
-R_STEALTH = 15          # Points for lurking when heat is high
-R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
-MAX_ALERT = 5
-
-# --- VISUALS ---
-C_RED = "\033[91m"
-C_RESET = "\033[0m"
+utils.ensure_directories(config.PATHS['TARGET_DIR'])
+utils.setup_logging(config.PATHS['LOG_FILE'])
 
 # --- UTILITIES ---
 def access_memory(filepath, data=None):
     if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
+        utils.safe_json_write(filepath, data)
+    return utils.safe_json_read(filepath)
 
 # --- MAIN LOOP ---
 
 def engage_offense():
-    global EPSILON, ALPHA
-    print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+    # Load AI Config
+    EPSILON = config.RED['HYPERPARAMETERS']['EPSILON']
+    ALPHA = config.RED['HYPERPARAMETERS']['ALPHA']
+    MIN_EPSILON = config.RED['HYPERPARAMETERS']['MIN_EPSILON']
+    EPSILON_DECAY = config.RED['HYPERPARAMETERS']['EPSILON_DECAY']
+    ALPHA_DECAY = config.RED['HYPERPARAMETERS']['ALPHA_DECAY']
+    ACTIONS = config.RED['ACTIONS']
+    GAMMA = config.RED['HYPERPARAMETERS']['GAMMA']
+
+    print(f"\033[91m[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE\033[0m")
     
     while True:
         try:
             # 1. RECON
-            war_state = access_memory(STATE_FILE)
+            war_state = access_memory(config.PATHS['STATE_FILE'])
             if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
+            q_table = access_memory(config.PATHS['RED_Q_TABLE'])
             
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
@@ -75,10 +57,11 @@ def engage_offense():
 
             # 3. EXECUTION
             impact = 0
+            target_dir = config.PATHS['TARGET_DIR']
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
                 try: 
                     with open(fname, 'w') as f: f.write("echo 'scan'")
                     impact = 1
@@ -86,7 +69,7 @@ def engage_offense():
                 
             elif action == "T1027_OBFUSCATE":
                 # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
+                fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.bin")
                 try:
                     with open(fname, 'wb') as f: f.write(os.urandom(1024))
                     impact = 3
@@ -94,7 +77,7 @@ def engage_offense():
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
+                fname = os.path.join(target_dir, f".sys_shadow_{int(time.time())}")
                 try:
                     with open(fname, 'w') as f: f.write("uid=0(root)")
                     impact = 5
@@ -105,9 +88,9 @@ def engage_offense():
 
             # 4. REWARDS
             reward = 0
-            if impact > 0: reward = R_IMPACT
-            if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
-            if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
+            if impact > 0: reward = config.RED['REWARDS']['IMPACT']
+            if current_alert >= 4 and action == "T1589_LURK": reward = config.RED['REWARDS']['STEALTH']
+            if current_alert == config.SIMULATION['MAX_ALERT'] and impact > 0: reward = config.RED['REWARDS']['CRITICAL']
             
             # 5. LEARN
             old_val = q_table.get(f"{state_key}_{action}", 0)
@@ -115,14 +98,14 @@ def engage_offense():
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+            access_memory(config.PATHS['RED_Q_TABLE'], q_table)
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                access_memory(STATE_FILE, war_state)
+                war_state['blue_alert_level'] = min(config.SIMULATION['MAX_ALERT'], current_alert + 1)
+                access_memory(config.PATHS['STATE_FILE'], war_state)
             
-            print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+            print(f"\033[91m[RED AI] \033[0m 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             
             time.sleep(random.uniform(0.5, 1.5))
             

@@ -1,35 +1,60 @@
-# Centralized Configuration for Red and Blue Teams
+# Centralized Configuration for AI Cyber War Simulation
 
-# Hyperparameters
-hyperparameters = {
-    'learning_rate': 0.001,
-    'num_episodes': 1000,
-    'discount_factor': 0.99,
-}
+import os
 
-# Rewards
-rewards = {
-    'victory': 10,
-    'defeat': -10,
-    'draw': 5,
-}
-
-# Actions
-actions = [
-    'attack',
-    'defend',
-    'retreat',
-    'gather_information'
-]
+# Base Directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WAR_ZONE_DIR = os.path.join(BASE_DIR, "war_zone")
 
 # File Paths
-file_paths = {
-    'model_save_path': './models/',
-    'log_file_path': './logs/train.log',
+PATHS = {
+    'BLUE_Q_TABLE': os.path.join(BASE_DIR, "blue_q_table.json"),
+    'RED_Q_TABLE': os.path.join(BASE_DIR, "red_q_table.json"),
+    'STATE_FILE': os.path.join(BASE_DIR, "war_state.json"),
+    'WATCH_DIR': WAR_ZONE_DIR,
+    'TARGET_DIR': WAR_ZONE_DIR,
+    'LOG_FILE': os.path.join(BASE_DIR, "war_room.log"),
 }
 
-# Logging Settings
-logging_settings = {
-    'log_level': 'INFO',
-    'log_format': '%(asctime)s - %(levelname)s - %(message)s',
+# Blue Team Config
+BLUE = {
+    'ACTIONS': ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"],
+    'REWARDS': {
+        'MITIGATION': 25,
+        'PATIENCE': 10,
+        'WASTE': -15,
+        'NEGLIGENCE': -50,
+    },
+    'HYPERPARAMETERS': {
+        'ALPHA': 0.4,
+        'ALPHA_DECAY': 0.9999,
+        'GAMMA': 0.9,
+        'EPSILON': 0.3,
+        'EPSILON_DECAY': 0.995,
+        'MIN_EPSILON': 0.01,
+    }
+}
+
+# Red Team Config
+RED = {
+    'ACTIONS': ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"],
+    'REWARDS': {
+        'IMPACT': 10,
+        'STEALTH': 15,
+        'CRITICAL': 30,
+    },
+    'HYPERPARAMETERS': {
+        'ALPHA': 0.4,
+        'ALPHA_DECAY': 0.9999,
+        'GAMMA': 0.9,
+        'EPSILON': 0.3,
+        'EPSILON_DECAY': 0.995,
+        'MIN_EPSILON': 0.01,
+    }
+}
+
+# Simulation Config
+SIMULATION = {
+    'MAX_ALERT': 5,
+    'MIN_ALERT': 1,
 }
