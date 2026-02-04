@@ -23,8 +23,11 @@ Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 
+# Make sure we identify as friendly
+os.environ["WAR_ROOM_ROLE"] = "BLUE"
+
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_TRAP"]
 MIN_EPSILON = 0.01
 
 # --- REWARD CONFIGURATION (AI PERSONALITY) ---
@@ -104,6 +107,7 @@ class BlueDefender:
 
         # Anomaly Detection: Sliding window of file counts
         self.threat_history: Deque[int] = collections.deque(maxlen=10)
+        self.traps_deployed = False
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
@@ -131,20 +135,25 @@ class BlueDefender:
             return True
         return False
 
-    def deploy_honeypot(self):
-        """Creates a honeypot file."""
+    def deploy_nasty_defenses(self):
+        """Deploys Tar Pits and Logic Bombs."""
         if not os.path.exists(WATCH_DIR): return
-        fname = os.path.join(WATCH_DIR, f"passwords_honeypot_{int(time.time())}.trap")
-        try:
-            with open(fname, 'w') as f: f.write("admin:admin")
-        except: pass
+
+        # Tar Pit (looks like a log file)
+        utils.create_tar_pit(os.path.join(WATCH_DIR, "system_access.log"))
+
+        # Logic Bomb / Obfuscated Honeypot (looks like shadow file)
+        utils.create_logic_bomb(os.path.join(WATCH_DIR, "shadow_backup"))
+
+        # Another decoy
+        utils.create_logic_bomb(os.path.join(WATCH_DIR, "sys_config.dat"))
+
+        self.traps_deployed = True
+        logger.info("NASTY DEFENSES DEPLOYED: Tar Pits & Logic Bombs Active.")
 
     def engage(self):
         logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
         self.load_memory()
-
-        # Initial Honeypot
-        self.deploy_honeypot()
 
         while self.running:
             try:
@@ -160,14 +169,9 @@ class BlueDefender:
 
                 threat_count = len(all_threats)
 
-                # Check for Honeypot Triggers (Simulated: if we see a modified honeypot or if red team touched it)
-                # In this simple sim, we can't easily tell if it was touched unless modified or deleted.
-                # We'll rely on Anomaly Detection for "Innovation".
-
                 anomaly_detected = self.detect_anomaly(threat_count)
                 if anomaly_detected:
                     logger.warning("ANOMALY DETECTED: Threat Surge!")
-                    # Immediate reaction: Boost alert
                     if current_alert < MAX_ALERT:
                         self.state_manager.update_war_state({'blue_alert_level': min(MAX_ALERT, current_alert + 1)})
 
@@ -189,41 +193,47 @@ class BlueDefender:
                 self.epsilon = max(MIN_EPSILON, self.epsilon * self.epsilon_decay)
                 self.alpha = max(0.1, self.alpha * self.alpha_decay)
 
-                # 4. ERADICATION
+                # 4. EXECUTION
                 mitigated = 0
-                if action == "SIGNATURE_SCAN":
+
+                if action == "DEPLOY_TRAP":
+                    if not self.traps_deployed:
+                        self.deploy_nasty_defenses()
+
+                elif action == "SIGNATURE_SCAN":
                     for t in visible_threats:
+                        if utils.is_tar_pit(t): continue # Don't delete our own traps unintentionally
                         try: os.remove(t); mitigated += 1
                         except: pass
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
+                        # Avoid scanning our own traps!
+                        if utils.is_tar_pit(t) or utils.is_honeypot(t):
+                            continue
+
                         entropy = 0.0
                         try:
                             if not os.path.islink(t):
-                                with open(t, 'rb') as f:
-                                    data = f.read()
-                                    entropy = utils.calculate_entropy(data)
+                                # Use safe read with timeout to avoid accidental stuck if logic fails
+                                # Though we rely on 'is_tar_pit' check primarily
+                                data = utils.safe_file_read(t, timeout=0.1)
+                                entropy = utils.calculate_entropy(data)
                         except Exception:
                             entropy = 0.0
-
-                        # Detect Honeypot Interation?
-                        # If a threat looks like a honeypot but is in the threat list...
-                        # Actually, honeypots are files we made. If they are missing, Red Team took them?
-                        # This sim doesn't simulate file theft, only creation.
-                        # So we focus on cleaning.
 
                         if ".sys" in t or entropy > 3.5:
                             try: os.remove(t); mitigated += 1
                             except: pass
 
-                # 5. REWARD CALCULATION
+                # 5. REWARDS
                 reward = 0
                 if mitigated > 0: reward = R_MITIGATION
+                if action == "DEPLOY_TRAP" and not self.traps_deployed: reward = R_TRAP
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
                 if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
                 if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-                if anomaly_detected and action == "HEURISTIC_SCAN": reward += 20 # Reward for responding to surge
+                if anomaly_detected and action == "HEURISTIC_SCAN": reward += 20
 
                 # 6. LEARN
                 current_q_key = f"{state_key}_{action}"

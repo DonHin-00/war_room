@@ -35,6 +35,7 @@ BATCH_SIZE = 8          # Mini-batch size for Experience Replay
 R_IMPACT = 10           # Base points for successful drop
 R_STEALTH = 15          # Points for lurking when heat is high
 R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
+P_TRAPPED = -20         # Penalty for falling into a trap
 MAX_ALERT = 5
 
 # --- PERFORMANCE CONFIGURATION ---
@@ -111,10 +112,7 @@ class RedTeamer:
         self.epsilon = 0.3
         self.epsilon_decay = 0.995
 
-        # Double Q-Learning: Two tables, A and B.
-        # Saved as a single dict with "A" and "B" keys for persistence simplicity.
         self.q_tables: Dict[str, Dict[str, float]] = {"A": {}, "B": {}}
-
         self.replay_buffer = utils.ExperienceReplay(capacity=1000)
 
         self.running = True
@@ -122,7 +120,6 @@ class RedTeamer:
 
         self.state_manager = StateManager()
 
-        # Signal handling for graceful shutdown
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
@@ -131,10 +128,8 @@ class RedTeamer:
         if "A" in data and "B" in data:
             self.q_tables = data
         else:
-            # Migration path for old Q-table format: treat it as Table A
             self.q_tables["A"] = data
-            self.q_tables["B"] = {} # Start B empty
-
+            self.q_tables["B"] = {}
         logger.info(f"Memory Loaded. Q-Table A Size: {len(self.q_tables['A'])}, B Size: {len(self.q_tables['B'])}")
 
     def sync_memory(self):
@@ -160,7 +155,6 @@ class RedTeamer:
         batch = self.replay_buffer.sample(BATCH_SIZE)
 
         for state, action, reward, next_state in batch:
-            # Randomly update Q-Table A or B
             if random.random() < 0.5:
                 update_a = True
                 main_table = self.q_tables["A"]
@@ -170,8 +164,6 @@ class RedTeamer:
                 main_table = self.q_tables["B"]
                 target_table = self.q_tables["A"]
 
-            # Action selection using MAIN table
-            # Which action has max Q in main table for NEXT state?
             max_next_q = -float('inf')
             best_next_action = None
             for a in ACTIONS:
@@ -181,16 +173,43 @@ class RedTeamer:
                     best_next_action = a
             if best_next_action is None: best_next_action = random.choice(ACTIONS)
 
-            # Value estimation using TARGET table
             target_value = target_table.get(f"{next_state}_{best_next_action}", 0.0)
 
-            # Update MAIN table
             current_q_key = f"{state}_{action}"
             old_val = main_table.get(current_q_key, 0.0)
 
             new_val = old_val + self.alpha * (reward + self.gamma * target_value - old_val)
             main_table[current_q_key] = new_val
 
+    def perform_recon(self):
+        """
+        Safely inspects the environment to find targets or traps.
+        """
+        traps_found = 0
+        try:
+            # We only look at TARGET_DIR if it exists
+            if not os.path.exists(TARGET_DIR): return 0
+
+            # Use os.scandir for speed and to check attributes without opening
+            with os.scandir(TARGET_DIR) as it:
+                for entry in it:
+                    # entry.is_file() returns False for FIFOs/Pipes!
+                    # We must check if it's a pipe specifically or just use is_tar_pit on path
+                    if utils.is_tar_pit(entry.path):
+                        traps_found += 1
+                        continue # Don't touch it!
+
+                    if entry.is_file():
+                        # Check for Honeypots (Obfuscated check)
+                        if utils.is_honeypot(entry.path):
+                             traps_found += 1
+                             continue
+
+                        # Try to read safe files to 'learn' system structure?
+                        # This simulates learning environment.
+        except OSError:
+            pass
+        return traps_found
 
     def engage(self):
         logger.info("Red Team AI Initialized. Framework: Double Q-Learning + Replay")
@@ -209,12 +228,10 @@ class RedTeamer:
                 if not war_state: war_state = {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                # Adaptive Sync: Less frequent syncs at higher alert levels (Stealth)
                 sync_interval = BASE_SYNC_INTERVAL * current_alert
-
                 state_key = f"{current_alert}"
 
-                # 2. STRATEGY (Epsilon Greedy on Average Q)
+                # 2. STRATEGY
                 if random.random() < self.epsilon:
                     action = random.choice(ACTIONS)
                 else:
@@ -232,18 +249,22 @@ class RedTeamer:
 
                 # 3. EXECUTION
                 impact = 0
+                trapped = False
+
                 try:
                     rand_suffix = secrets.token_hex(4)
                     timestamp = int(time.time())
 
                     if action == "T1046_RECON":
+                        # Updated Recon: Actually look around, risk traps
+                        traps_avoided = self.perform_recon()
+                        # If we found traps, we 'succeeded' in recon but impact is info, not damage.
                         fname = os.path.join(TARGET_DIR, f"malware_bait_{timestamp}_{rand_suffix}.sh")
                         with open(fname, 'w') as f: f.write("echo 'scan'")
                         impact = 1
 
                     elif action == "T1027_OBFUSCATE":
                         fname = os.path.join(TARGET_DIR, f"malware_crypt_{timestamp}_{rand_suffix}.bin")
-                        # Use utils to generate entropy
                         with open(fname, 'wb') as f: f.write(utils.generate_high_entropy_data(1024))
                         impact = 3
 
@@ -255,33 +276,21 @@ class RedTeamer:
                     elif action == "T1589_LURK":
                         impact = 0
                 except OSError as e:
-                    logger.warning(f"Attack failed: {e}")
+                    # Maybe we hit a trap or permission issue
+                    trapped = True
+                    logger.warning(f"Attack thwarted/trapped: {e}")
 
                 # 4. REWARDS
                 reward = 0
                 if impact > 0: reward = R_IMPACT
                 if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
                 if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
+                if trapped: reward = P_TRAPPED
 
                 # 5. LEARN (Experience Replay)
-                # We define "next_state" as the state in the next iteration.
-                # Since we don't know it yet, we can approximate it as the current state
-                # OR we store the previous transition now.
-                # Simplified: Assume state transitions are relatively static or we learn S->S transitions
-                # Ideally: Store current transition in buffer, then learn from buffer.
-                # (State, Action, Reward, NextState)
-                # Here we use 'state_key' as next state for simplicity, as simulated world
-                # only changes alert level in response to us.
-
-                # Check if alert changed?
-                # We can't see the future, so we will push the tuple (S, A, R, S_prime) *next* loop?
-                # For this simulation, we'll assume S_prime approx S (standard Q-Learning simplification for simple stateless envs)
-                # But to be "Innovative", let's re-read state? No, that's I/O.
-
                 self.replay_buffer.push(state_key, action, reward, state_key)
                 self.learn()
 
-                # Occasional Sync (Adaptive)
                 if self.iteration_count % sync_interval == 0:
                     self.sync_memory()
 
