@@ -75,6 +75,27 @@ class TestUtils(unittest.TestCase):
         read2 = utils.access_memory(self.test_file)
         self.assertEqual(read2, {"key": "changed"})
 
+    def test_manage_session(self):
+        """Test session management."""
+        session_id = "user_123"
+        # Since manage_session writes to "sessions.json" in CWD, we need to be careful.
+        # Ideally, we mock access_memory or the file path.
+        # But for this integration test, let's just run it and clean up.
+
+        # We need to monkeypatch the hardcoded "sessions.json" in utils.py
+        # or just let it write to CWD and clean up.
+        # Monkeypatching is cleaner.
+
+        with patch("utils.access_memory") as mock_access:
+            mock_access.return_value = {}
+            utils.manage_session(session_id)
+
+            # Check if access_memory was called to save
+            self.assertTrue(mock_access.called)
+            # Verify data contains session_id
+            args, _ = mock_access.call_args
+            self.assertIn(session_id, args[1])
+
 class TestConfig(unittest.TestCase):
     def test_config_paths(self):
         self.assertTrue(config.BASE_DIR)

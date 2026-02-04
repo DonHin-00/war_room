@@ -97,10 +97,33 @@ if __name__ == "__main__":
         except: pass
 
     def patch_vulnerability(self):
-        """Simulate patching: Rename/Delete old artifacts."""
+        """Simulate patching: Decommission old services and cleanup artifacts."""
         if not os.path.exists(config.WAR_ZONE_DIR): return
-        # Logic: Find old services or files and 'update' them
-        pass
+
+        # 1. Maintenance: Clean up process handles
+        self.active_services = [p for p in self.active_services if p.poll() is None]
+
+        # 2. Decommission oldest service if we have too many (rolling update simulation)
+        if len(self.active_services) > 5:
+            target = self.active_services.pop(0)
+            try:
+                target.terminate()
+                target.wait(timeout=1)
+            except:
+                try: target.kill()
+                except: pass
+
+        # 3. Cleanup old files (simulating deprecation)
+        now = time.time()
+        for f in os.listdir(config.WAR_ZONE_DIR):
+            if f.startswith("app_") and f.endswith(".py"):
+                path = os.path.join(config.WAR_ZONE_DIR, f)
+                try:
+                    # If file is older than 5 minutes, delete it
+                    if now - os.path.getmtime(path) > 300:
+                        os.remove(path)
+                        # print(f"{C_YELLOW}[YELLOW] Deprecated legacy app: {f}{C_RESET}")
+                except: pass
 
     def run(self):
         while self.running:
