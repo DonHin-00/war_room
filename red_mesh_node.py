@@ -8,6 +8,7 @@ import sys
 import os
 import random
 import uuid
+import secrets
 
 # Add root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +79,17 @@ class RedMeshNode:
 
     def reproduce(self):
         """Evolutionary Replication."""
+        # Safety: Check global node count to prevent Fork Bomb
+        try:
+            # We estimate count by checking process list or topology
+            # Using topology is safer as it's shared state
+            topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
+            red_nodes = [k for k,v in topo.items() if v['type'] == 'RED' and time.time() - v.get('last_seen', 0) < 10]
+            if len(red_nodes) >= config.MAX_NODES:
+                logger.warning("⚠️ Overpopulation: Reproduction halted.")
+                return
+        except Exception: return
+
         # Only reproduce if we survived long enough
         age = time.time() - self.start_time
         if age > 15: # Fast evolution for sim
@@ -137,8 +149,7 @@ class RedMeshNode:
                     logger.info(f"Executing Mesh Command: {cmd}")
 
             except Exception as e:
-                # logger.error(f"Receive error: {e}")
-                pass
+                logger.error(f"Receive error: {e}")
 
     def drop_stego(self):
         """Drop covert channel payload."""

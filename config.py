@@ -38,6 +38,7 @@ MAX_ALERT = 5
 MAX_DIR_SIZE_MB = 100  # 100MB limit for simulation data
 MAX_MEMORY_MB = 50     # 50MB RAM limit per agent
 MAX_CPU_PERCENT = 80   # Not easily enforceable via resource module, but noted.
+MAX_NODES = 10         # Limit active Red Mesh nodes to prevent Fork Bomb
 
 # Ensure directories exist
 for d in [SIMULATION_DATA_DIR, PERSISTENCE_DIR, BACKUP_DIR, NETWORK_BUS_DIR, MODELS_DIR, LOGS_DIR]:

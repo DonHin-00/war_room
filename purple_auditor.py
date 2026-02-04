@@ -46,6 +46,20 @@ class PurpleAuditor:
                         logger.warning(f"PURPLE: Insecure file permission detected on {f}")
                         violations += 1
                 except Exception: pass
+
+        # Check for Fork Bomb Risk (Process Count)
+        red_count = 0
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            try:
+                cmd = " ".join(proc.info['cmdline'] or [])
+                if "red_mesh_node.py" in cmd:
+                    red_count += 1
+            except Exception: pass
+
+        if red_count > config.MAX_NODES + 2: # Buffer
+            logger.critical(f"PURPLE: Red Node Count Critical: {red_count} > {config.MAX_NODES}")
+            violations += 1
+
         return violations
 
     def run(self):
@@ -59,6 +73,11 @@ class PurpleAuditor:
 
             violations = self.audit_integrity()
             if violations > 0: status = "INSECURE"
+
+            # Insider Threat Detection
+            # Check topology for rogue agents (based on rapid trust decay or spam)
+            # Since trust_db is internal to blue agents, we can check logs for "Trust Drop"
+            # Or scan log files
 
             # Log to audit trail
             entry = {
