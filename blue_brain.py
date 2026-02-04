@@ -14,6 +14,7 @@ import sys
 import logging
 import hashlib
 import collections
+import json
 from typing import Dict, Any, List, Deque, Set
 
 import utils
@@ -24,9 +25,7 @@ utils.setup_logging(config.PATHS["LOG_BLUE"])
 logger = logging.getLogger("BlueTeam")
 
 class SignatureDatabase:
-    """
-    Manages known bad file hashes (Adaptive Immunity).
-    """
+    """Manages known bad file hashes (Adaptive Immunity)."""
     def __init__(self, filepath: str):
         self.filepath = filepath
         self.signatures: Set[str] = set()
@@ -41,7 +40,6 @@ class SignatureDatabase:
         utils.safe_json_write(self.filepath, list(self.signatures))
 
     def add_signature(self, file_content: bytes):
-        """Hashes content and adds to DB."""
         file_hash = hashlib.sha256(file_content).hexdigest()
         if file_hash not in self.signatures:
             self.signatures.add(file_hash)
@@ -64,9 +62,13 @@ class BlueDefender:
         self.running = True
         self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
         self.signature_db = SignatureDatabase(config.PATHS["SIGNATURES"])
+        self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
 
         self.threat_history: Deque[int] = collections.deque(maxlen=config.BLUE["THRESHOLDS"]["ANOMALY_WINDOW"])
         self.traps_deployed = False
+
+        # Backup system
+        self.backups: Dict[str, bytes] = {}
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
@@ -97,6 +99,51 @@ class BlueDefender:
         self.traps_deployed = True
         logger.info("NASTY DEFENSES DEPLOYED.")
 
+    def perform_backup(self):
+        """Simulates backing up 'critical' files."""
+        # For simulation, we just store content of some files in memory or a backup dir.
+        # Let's say we backup random safe files.
+        try:
+            with os.scandir(config.PATHS["WAR_ZONE"]) as it:
+                for entry in it:
+                    if entry.is_file() and not entry.name.endswith(".enc") and not utils.is_tar_pit(entry.path):
+                        # Backup logic
+                        try:
+                            content = utils.safe_file_read(entry.path)
+                            self.backups[entry.name] = content
+                        except: pass
+            return 1
+        except: return 0
+
+    def restore_data(self):
+        """Restores files if they are missing or encrypted."""
+        restored = 0
+        for fname, content in self.backups.items():
+            fpath = os.path.join(config.PATHS["WAR_ZONE"], fname)
+            enc_path = fpath + ".enc"
+
+            # Check if encrypted version exists or original missing
+            if os.path.exists(enc_path):
+                os.remove(enc_path)
+                with open(fpath, 'w') as f: f.write(content) # Not binary safe in backup dict? assuming str
+                restored += 1
+            elif not os.path.exists(fpath):
+                with open(fpath, 'w') as f: f.write(content)
+                restored += 1
+        return restored
+
+    def generate_incident_report(self, threat_type, threat_path):
+        """Generates a JSON incident report."""
+        report = {
+            "timestamp": time.time(),
+            "type": threat_type,
+            "path": threat_path,
+            "action": "MITIGATED",
+            "signature": "HEURISTIC_MATCH"
+        }
+        fname = f"ir_{int(time.time())}_{random.randint(1000,9999)}.json"
+        utils.safe_json_write(os.path.join(config.PATHS["INCIDENTS"], fname), report)
+
     def engage(self):
         logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61 + Adaptive Immunity")
         self.load_memory()
@@ -114,17 +161,25 @@ class BlueDefender:
 
                 visible_threats = []
                 all_threats = []
+                encrypted_files = []
+                c2_beacons = []
 
                 with os.scandir(config.PATHS["WAR_ZONE"]) as it:
                     for entry in it:
                         if utils.is_tar_pit(entry.path) or utils.is_honeypot(entry.path):
                             continue
                         if entry.is_file():
-                            all_threats.append(entry.path)
-                            if "malware" in entry.name:
-                                visible_threats.append(entry.path)
+                            path = entry.path
+                            if path.endswith(".enc"):
+                                encrypted_files.append(path)
+                            elif "c2_beacon" in entry.name:
+                                c2_beacons.append(path)
+                            else:
+                                all_threats.append(path)
+                                if "malware" in entry.name:
+                                    visible_threats.append(path)
 
-                threat_count = len(all_threats)
+                threat_count = len(all_threats) + len(encrypted_files)
 
                 anomaly_detected = self.detect_anomaly(threat_count)
                 if anomaly_detected and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
@@ -150,23 +205,33 @@ class BlueDefender:
 
                 # 4. EXECUTION
                 mitigated = 0
+                details = {}
 
                 if action == "DEPLOY_TRAP" or action == "DEPLOY_DECOY":
                     if not self.traps_deployed:
                         self.deploy_nasty_defenses()
+                        details = {"defense": "traps_deployed"}
+
+                elif action == "BACKUP_CRITICAL":
+                    count = self.perform_backup()
+                    details = {"action": "backup", "count": count}
+
+                elif action == "RESTORE_DATA":
+                    if encrypted_files:
+                        count = self.restore_data()
+                        if count > 0:
+                            mitigated += 2
+                            details = {"action": "restore", "count": count}
 
                 elif action == "SIGNATURE_SCAN":
-                    # Fast scan based on known hashes
-                    for t in all_threats:
+                    for t in all_threats + c2_beacons:
                         try:
-                            # Safe read first 4KB for hashing (optimization)
                             data = utils.safe_file_read(t, timeout=0.1)
-                            # Actually, for hash we need full file, but let's assume
-                            # we only hash headers for speed in simulation or small files.
-                            # In simulation, files are small.
-                            if self.signature_db.check_signature(data):
+                            # Simple C2 signature check or hash check
+                            if self.signature_db.check_signature(data) or "HEARTBEAT" in str(data):
                                 os.remove(t)
                                 mitigated += 1
+                                self.generate_incident_report("KNOWN_THREAT", t)
                         except: pass
 
                 elif action == "HEURISTIC_SCAN":
@@ -175,12 +240,11 @@ class BlueDefender:
                             data = utils.safe_file_read(t, timeout=0.1)
                             entropy = utils.calculate_entropy(data)
 
-                            # Detection Logic
                             if ".sys" in t or entropy > config.BLUE["THRESHOLDS"]["ENTROPY"]:
                                 os.remove(t)
                                 mitigated += 1
-                                # LEARN THE THREAT
                                 self.signature_db.add_signature(data)
+                                self.generate_incident_report("HEURISTIC_THREAT", t)
                         except: pass
 
                 # 5. REWARDS
@@ -190,6 +254,7 @@ class BlueDefender:
                 if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE["REWARDS"]["PATIENCE"]
                 if action == "IGNORE" and threat_count > 0: reward = config.BLUE["REWARDS"]["PENALTY_NEGLIGENCE"]
                 if anomaly_detected and action == "HEURISTIC_SCAN": reward += config.BLUE["REWARDS"]["ANOMALY_BONUS"]
+                if action == "RESTORE_DATA" and mitigated > 0: reward += config.BLUE["REWARDS"]["RESTORE_SUCCESS"]
 
                 # 6. LEARN
                 current_q_key = f"{state_key}_{action}"
@@ -203,11 +268,16 @@ class BlueDefender:
                 new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
                 self.q_table[current_q_key] = new_val
 
-                # Sync every iteration for Blue (Sentinel must be reliable),
-                # but could optimize if needed. Sticking to robust.
                 self.sync_memory()
 
-                # 7. UPDATE WAR STATE
+                # 7. OPS LOGGING
+                self.audit_logger.log_event("BLUE", action, {
+                    "mitigated": mitigated,
+                    "alert_level": current_alert,
+                    **details
+                })
+
+                # 8. UPDATE WAR STATE
                 if mitigated > 0 and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
                     self.state_manager.update_war_state({'blue_alert_level': min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)})
                 elif mitigated == 0 and current_alert > config.SYSTEM["MIN_ALERT_LEVEL"] and action == "OBSERVE":

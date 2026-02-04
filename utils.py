@@ -9,7 +9,8 @@ import tempfile
 import collections
 import time
 import errno
-import stat  # Added import
+import stat
+import hashlib
 from typing import Any, Union, List, Tuple, Deque, Dict
 
 # Utility functions
@@ -42,23 +43,19 @@ def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
     if not os.path.exists(file_path):
         return ""
 
-    # Check if it's a FIFO/Pipe (Tar Pit detection)
     if is_tar_pit(file_path):
         if is_friendly():
             return ""
-        # Red Team might still attempt to read if they don't check first
-        # But for 'safe_file_read' util, we must be safe.
         pass
 
     try:
-        # Non-blocking open attempt for FIFO safety
         fd = os.open(file_path, os.O_RDONLY | os.O_NONBLOCK)
         with os.fdopen(fd, 'r') as file:
-            data = file.read(4096) # Read max 4KB
+            data = file.read(4096)
             return data
     except OSError as e:
         if e.errno == errno.EAGAIN:
-             return "" # Resource temporarily unavailable (locked/empty pipe)
+             return ""
         return ""
     except Exception:
         return ""
@@ -115,15 +112,11 @@ def setup_logging(log_file_path: str) -> None:
 def is_friendly() -> bool:
     """
     Determines if the current process is 'Friendly' (Blue Team/Admin).
-    Uses checking of an environment variable or similar marker.
     """
     return os.environ.get("WAR_ROOM_ROLE") == "BLUE"
 
 def create_tar_pit(filepath: str) -> None:
-    """
-    Creates a named pipe (FIFO) that acts as a Tar Pit.
-    Reads will block indefinitely unless non-blocking I/O is used.
-    """
+    """Creates a named pipe (FIFO) that acts as a Tar Pit."""
     if os.path.exists(filepath):
         if is_tar_pit(filepath): return
         try: os.remove(filepath)
@@ -138,30 +131,24 @@ def is_tar_pit(filepath: str) -> bool:
     """Checks if a file is a FIFO/Named Pipe."""
     try:
         mode = os.stat(filepath).st_mode
-        return stat.S_ISFIFO(mode)  # Corrected usage
+        return stat.S_ISFIFO(mode)
     except OSError:
         return False
 
 def create_logic_bomb(filepath: str) -> None:
-    """
-    Creates a 'zip bomb' style logic trap or a sparse file.
-    """
+    """Creates a 'zip bomb' style logic trap."""
     with open(filepath, 'w') as f:
         f.write("LOGIC_BOMB_ACTIVE_DO_NOT_READ")
 
 class ExperienceReplay:
-    """
-    A ring buffer to store AI experiences for replay learning.
-    """
+    """A ring buffer to store AI experiences for replay learning."""
     def __init__(self, capacity: int = 1000):
         self.buffer: Deque[Tuple] = collections.deque(maxlen=capacity)
 
     def push(self, state, action, reward, next_state):
-        """Save a transition."""
         self.buffer.append((state, action, reward, next_state))
 
     def sample(self, batch_size: int) -> List[Tuple]:
-        """Sample a batch of transitions."""
         if len(self.buffer) < batch_size:
             return list(self.buffer)
         return random.sample(self.buffer, batch_size)
@@ -170,12 +157,10 @@ class ExperienceReplay:
         return len(self.buffer)
 
 def is_honeypot(filepath: str) -> bool:
-    """
-    Checks if a file is a known honeypot.
-    """
+    """Checks if a file is a known honeypot."""
     try:
         if is_tar_pit(filepath): return False
-        return "sys_config.dat" in filepath or "shadow_backup" in filepath
+        return "sys_config.dat" in filepath or "shadow_backup" in filepath or "honeypot" in filepath
     except:
         return False
 
@@ -184,8 +169,6 @@ def is_honeypot(filepath: str) -> bool:
 class StateManager:
     """
     Manages state persistence with caching and optimization.
-    Uses utils.py for safe file operations.
-    Moved to utils to avoid circular imports or duplication.
     """
     def __init__(self, state_file: str):
         self.state_file = state_file
@@ -193,15 +176,12 @@ class StateManager:
         self.state_mtime: float = 0.0
 
     def load_json(self, filepath: str) -> Dict[str, Any]:
-        """Safely loads JSON data from a file."""
         return safe_json_read(filepath)
 
     def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
-        """Safely saves JSON data to a file using atomic write patterns."""
         safe_json_write(filepath, data)
 
     def get_war_state(self) -> Dict[str, Any]:
-        """Retrieves the shared war state with mtime caching."""
         if not os.path.exists(self.state_file):
             return {'blue_alert_level': 1}
         try:
@@ -213,7 +193,6 @@ class StateManager:
         return self.state_cache
 
     def update_war_state(self, updates: Dict[str, Any]) -> None:
-        """Updates the shared war state."""
         current = self.load_json(self.state_file)
         current.update(updates)
         self.save_json(self.state_file, current)
@@ -222,6 +201,52 @@ class StateManager:
             self.state_mtime = os.stat(self.state_file).st_mtime
         except OSError:
             self.state_mtime = time.time()
+
+# --- OPS INFRASTRUCTURE ---
+
+class AuditLogger:
+    """
+    Tamper-evident structured logger for SIEM simulation.
+    """
+    def __init__(self, log_path: str):
+        self.log_path = log_path
+        self.previous_hash = "0" * 64
+        self._recover_last_hash()
+
+    def _recover_last_hash(self):
+        if not os.path.exists(self.log_path): return
+        try:
+            with open(self.log_path, 'r') as f:
+                lines = f.readlines()
+                if lines:
+                    last_line = json.loads(lines[-1])
+                    self.previous_hash = last_line.get("hash", "0" * 64)
+        except: pass
+
+    def log_event(self, actor: str, event_type: str, details: Dict[str, Any]):
+        entry = {
+            "timestamp": time.time(),
+            "actor": actor,
+            "type": event_type,
+            "details": details,
+            "previous_hash": self.previous_hash
+        }
+
+        # Calculate hash of current entry (minus the hash field itself)
+        entry_str = json.dumps(entry, sort_keys=True)
+        current_hash = hashlib.sha256(entry_str.encode('utf-8')).hexdigest()
+        entry["hash"] = current_hash
+
+        self.previous_hash = current_hash
+
+        # Atomic append? Hard with lock. We use safe write append mode if possible
+        # Or simple append with open(a)
+        try:
+            with open(self.log_path, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(entry) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception: pass
 
 def manage_session(session_id):
     """Manage a user session given a session ID."""

@@ -35,6 +35,7 @@ class RedTeamer:
 
         self.q_tables: Dict[str, Dict[str, float]] = {"A": {}, "B": {}}
         self.replay_buffer = utils.ExperienceReplay(capacity=config.RL["MEMORY_CAPACITY"])
+        self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
 
         self.running = True
         self.iteration_count = 0
@@ -124,6 +125,35 @@ class RedTeamer:
             return base_content + b"\n#PAD:" + padding
         return base_content
 
+    def encrypt_target(self):
+        """Simulates Ransomware: Find a file and rename/encrypt it."""
+        try:
+            if not os.path.exists(config.PATHS["WAR_ZONE"]): return 0
+            targets = []
+            with os.scandir(config.PATHS["WAR_ZONE"]) as it:
+                for entry in it:
+                    if entry.is_file() and not entry.name.endswith(".enc") and not utils.is_tar_pit(entry.path):
+                        targets.append(entry.path)
+
+            if not targets: return 0
+
+            target = random.choice(targets)
+            # Read content (safe read)
+            content = utils.safe_file_read(target)
+            if not content: return 0
+
+            # Simulate encryption (Base64 or simple reversal for simulation)
+            # We just append .enc and overwrite with "ENCRYPTED" header
+            encrypted_path = target + ".enc"
+            with open(encrypted_path, 'wb') as f:
+                f.write(b"ENCRYPTED_HEADER_V1")
+                f.write(utils.generate_high_entropy_data(128))
+
+            os.remove(target)
+            return 1
+        except Exception:
+            return 0
+
     def engage(self):
         logger.info("Red Team AI Initialized. Framework: MITRE ATT&CK + Polymorphism")
         self.load_memory()
@@ -139,6 +169,9 @@ class RedTeamer:
                 war_state = self.state_manager.get_war_state()
                 if not war_state: war_state = {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
+
+                # Check for last attack success (Feedback Loop)
+                # Ideally check if file still exists. Simplified here.
 
                 sync_interval = config.RL["SYNC_INTERVAL"] * current_alert
                 state_key = f"{current_alert}"
@@ -162,49 +195,68 @@ class RedTeamer:
                 # 3. EXECUTION
                 impact = 0
                 trapped = False
+                details = {}
 
                 try:
                     rand_suffix = secrets.token_hex(4)
                     timestamp = int(time.time())
-
                     target_file = None
 
                     if action == "T1046_RECON":
                         self.perform_recon()
-                        # Recon doesn't drop files, just gathers info
                         impact = 1
+                        details = {"type": "recon"}
 
                     elif action == "T1027_OBFUSCATE":
-                        # High Entropy + Polymorphism
                         fname = f"malware_crypt_{timestamp}_{rand_suffix}.bin"
                         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
                         with open(target_file, 'wb') as f:
                             f.write(self.generate_payload(obfuscate=True))
                         impact = 3
+                        details = {"file": fname, "technique": "obfuscation"}
 
                     elif action == "T1003_ROOTKIT":
                         fname = f".sys_shadow_{timestamp}_{rand_suffix}"
                         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
                         with open(target_file, 'w') as f: f.write("uid=0(root)")
                         impact = 5
+                        details = {"file": fname, "technique": "rootkit"}
 
                     elif action == "T1036_MASQUERADE":
-                        # Masquerading: Look like a log file or config
                         names = ["system.log", "config.ini", "update.tmp"]
                         fname = f"{random.choice(names)}_{rand_suffix}"
                         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
                         with open(target_file, 'w') as f: f.write(" benign_looking_header=1\n")
-                        # Add malicious payload hidden
                         with open(target_file, 'ab') as f:
                             f.write(self.generate_payload(obfuscate=True))
                         impact = 4
+                        details = {"file": fname, "technique": "masquerade"}
+
+                    elif action == "T1486_ENCRYPT":
+                        success = self.encrypt_target()
+                        if success:
+                            impact = 8
+                            details = {"technique": "ransomware", "status": "encrypted"}
+                        else:
+                            impact = 0
+
+                    elif action == "T1071_C2_BEACON":
+                        # Create a persistent beacon file or update it
+                        fname = "c2_beacon.dat"
+                        target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
+                        with open(target_file, 'a') as f:
+                            f.write(f"{timestamp}:HEARTBEAT\n")
+                        impact = 2
+                        details = {"file": fname, "technique": "c2"}
 
                     elif action == "T1589_LURK":
                         impact = 0
+                        details = {"technique": "lurk"}
 
                 except OSError as e:
                     trapped = True
                     logger.warning(f"Attack thwarted: {e}")
+                    details["error"] = str(e)
 
                 # 4. REWARDS
                 reward = 0
@@ -220,14 +272,21 @@ class RedTeamer:
                 if self.iteration_count % sync_interval == 0:
                     self.sync_memory()
 
-                # 6. TRIGGER ALERTS
+                # 6. OPS LOGGING
+                self.audit_logger.log_event("RED", action, {
+                    "impact": impact,
+                    "alert_level": current_alert,
+                    **details
+                })
+
+                # 7. TRIGGER ALERTS
                 if impact > 0 and random.random() > 0.5:
                     new_level = min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)
                     if new_level != current_alert:
                          self.state_manager.update_war_state({'blue_alert_level': new_level})
 
                 logger.info(f"State: {state_key} | Tech: {action} | Impact: {impact} | Q(avg): {self.get_q_value(state_key, action):.2f}")
-                time.sleep(random.uniform(0.1, 0.5)) # Speed up for simulation runner
+                time.sleep(random.uniform(0.1, 0.5))
 
             except KeyboardInterrupt:
                 self.shutdown(None, None)
