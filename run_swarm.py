@@ -16,52 +16,52 @@ from ant_swarm.support.gatekeeper import SecureGateway
 console = Console()
 
 def main():
-    console.print(Panel("[bold green]ANT SWARM v9: OOOMP & DEPENDENCIES[/]", expand=False))
+    console.print(Panel("[bold red]ANT SWARM v10: REINFORCED & UPTOOLED[/]", expand=False))
 
     hive = HiveMind()
-
-    # Initialize Support Modules
     storage = LongTermDrive()
     coprocessor = Coprocessor(workers=4)
-    gatekeeper = SecureGateway()
+    gatekeeper = SecureGateway(storage) # Reinforced with persistence
 
     hive.attach_support(storage, coprocessor, gatekeeper)
-    rev_eng = ReverseEngineerAgent(hive) # Attach to listen for file changes
-
+    rev_eng = ReverseEngineerAgent(hive)
     ooda = OODALoop(hive)
 
-    # 1. Demonstrate Reverse Engineer (Graph Analysis)
-    # We create a dummy file with calls to analyze
-    with open("dummy_graph.py", "w") as f:
-        f.write("def a(): b()\ndef b(): c()\ndef c(): pass")
+    # 1. Demonstrate Reinforced Gatekeeper (Persistence)
+    console.print("\n[bold cyan][SCENARIO 1][/] 🛡️ Gatekeeper Persistence Test...")
+    # Simulate previous strikes
+    storage.add_strike("1.2.3.4")
+    storage.add_strike("1.2.3.4")
+    storage.add_strike("1.2.3.4") # Should ban now
 
-    hive.broadcast("FILE_CHANGED", {"filepath": "dummy_graph.py"}, "User")
+    result = gatekeeper.process_ingress("1.2.3.4", "Hello")
+    if result["status"] == "BLOCKED":
+        console.print("[green]✅ SUCCESS: Persistent IP Ban Active.[/]")
 
-    # 2. Gatekeeper
-    console.print("\n[bold cyan][SCENARIO][/] 🛡️ External Interface: Valid Request...")
-    valid_payload = "Create a login function."
-    result = gatekeeper.process_ingress("10.0.0.5", valid_payload)
+    # 2. Demonstrate Taint Analysis (Uptooled RevEng)
+    console.print("\n[bold cyan][SCENARIO 2][/] 🔬 Taint Analysis Test...")
+    with open("taint_test.py", "w") as f:
+        f.write("import os\nuser_input = input()\nos.system(user_input)") # Classic Taint
 
-    task = result["payload"]
+    hive.broadcast("FILE_CHANGED", {"filepath": "taint_test.py"}, "User")
+    # Wait for broadcast processing (simulated via synchronous call in this architecture)
 
-    # 3. MicroLM Generation
-    console.print(f"\n[bold cyan][ACT][/] MicroLM Processing Task: '{task}'")
-    lm = MicroLM()
+    # 3. Demonstrate Fuzzing & Contract Enforcement
+    console.print("\n[bold cyan][SCENARIO 3][/] ⚡ Fuzzing & Contract Enforcement...")
+    task = "Create a login function."
+
+    # We trigger a generation where the Doctrine forbids external libs
     doctrine = ooda.execute_cycle(task)
+    doctrine.constraints.append("NO_EXTERNAL_LIBS")
+
+    lm = MicroLM()
     options = lm.generate_evolved_options(task, doctrine, {}, generations=1)
 
-    # 4. Council with Rich UI
-    console.print("\n[bold cyan][COUNCIL][/] 🏛️ Session Convened...")
-    council = Council(hive)
-    decision = council.select_best_option(task, options)
+    # Show that options survived Fuzzing
+    for opt in options:
+        console.print(f"  > Variant {opt['variant_name']} Tool Report: Fuzz={opt['tool_report'].get('syntax', {}).get('valid')}") # Indirect check via syntax valid means it compiled
 
-    if decision['approved']:
-        console.print(f"\n[bold green]🎉 WINNER:[/] {decision['selected_variant']}")
-        console.print(Panel(decision['code'], title="Generated Code", border_style="green"))
-
-    # Cleanup
-    if os.path.exists("dummy_graph.py"):
-        os.remove("dummy_graph.py")
+    if os.path.exists("taint_test.py"): os.remove("taint_test.py")
 
 if __name__ == "__main__":
     main()

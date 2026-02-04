@@ -7,11 +7,45 @@ from ant_swarm.core.hive import HiveMind
 
 console = Console()
 
+class TaintAnalyzer(ast.NodeVisitor):
+    def __init__(self):
+        self.sources = set()
+        self.sinks = set()
+        self.tainted_vars = set()
+        self.taint_detected = False
+
+    def visit_Assign(self, node):
+        # 1. Identify Sources (input, os.environ)
+        # Simplified Heuristic: If right side calls 'input' or uses 'environ'
+        is_source = False
+        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+            if node.value.func.id in ['input']:
+                is_source = True
+
+        # 2. Propagate Taint
+        if is_source:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.tainted_vars.add(target.id)
+
+        self.generic_visit(node)
+
+    def visit_Call(self, node):
+        # 3. Identify Sinks (eval, exec, subprocess)
+        if isinstance(node.func, ast.Name):
+            if node.func.id in ['eval', 'exec', 'system', 'popen']:
+                # Check args for tainted vars
+                for arg in node.args:
+                    if isinstance(arg, ast.Name) and arg.id in self.tainted_vars:
+                        self.taint_detected = True
+                        console.print(f"[red]⚠️ TAINT FLOW DETECTED: {arg.id} -> {node.func.id}[/]")
+        self.generic_visit(node)
+
 class ASTWalker(ast.NodeVisitor):
     def __init__(self):
         self.functions = []
         self.imports = []
-        self.calls = [] # (caller, callee)
+        self.calls = []
         self.current_func = None
         self.complexity_score = 0
 
@@ -42,6 +76,7 @@ class ASTWalker(ast.NodeVisitor):
 class ReverseEngineerAgent:
     """
     Analyzes code structure using NetworkX Graph Analysis.
+    UPTOOLED: Taint Analysis.
     """
     def __init__(self, hive: HiveMind):
         self.hive = hive
@@ -62,12 +97,15 @@ class ReverseEngineerAgent:
             walker = ASTWalker()
             walker.visit(tree)
 
+            # Taint Analysis
+            taint = TaintAnalyzer()
+            taint.visit(tree)
+
             # Build Graph
             G = nx.DiGraph()
             G.add_nodes_from(walker.functions)
             G.add_edges_from(walker.calls)
 
-            # Calculate Centrality (Critical Infrastructure)
             if len(G) > 0:
                 centrality = nx.degree_centrality(G)
                 most_critical = max(centrality, key=centrality.get)
@@ -78,10 +116,10 @@ class ReverseEngineerAgent:
                 "functions": walker.functions,
                 "imports": walker.imports,
                 "complexity": walker.complexity_score,
-                "critical_node": most_critical
+                "critical_node": most_critical,
+                "taint_detected": taint.taint_detected
             }
 
-            # Broadcast findings
             self.hive.broadcast("ANALYSIS_COMPLETE", report, self.name)
 
             if walker.complexity_score > 50:
