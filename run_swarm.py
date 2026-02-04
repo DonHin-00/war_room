@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
+from rich.console import Console
+from rich.panel import Panel
 from ant_swarm.core.hive import HiveMind
 from ant_swarm.core.ooda import OODALoop
 from ant_swarm.core.micro_lm import MicroLM
@@ -11,8 +13,10 @@ from ant_swarm.support.external_storage import LongTermDrive
 from ant_swarm.support.coprocessor import Coprocessor
 from ant_swarm.support.gatekeeper import SecureGateway
 
+console = Console()
+
 def main():
-    print("=== ANT SWARM v8: EXTERNAL MODULES & GATEKEEPER ===\n")
+    console.print(Panel("[bold green]ANT SWARM v9: OOOMP & DEPENDENCIES[/]", expand=False))
 
     hive = HiveMind()
 
@@ -21,48 +25,43 @@ def main():
     coprocessor = Coprocessor(workers=4)
     gatekeeper = SecureGateway()
 
-    # Attach "Hanging Off" Modules
     hive.attach_support(storage, coprocessor, gatekeeper)
+    rev_eng = ReverseEngineerAgent(hive) # Attach to listen for file changes
 
     ooda = OODALoop(hive)
 
-    # 1. Demonstrate Gatekeeper (Attack)
-    print("\n[SCENARIO] 🛡️ External Interface: Processing Ingress...")
-    attack_payload = "' OR 1=1; DROP TABLE users; --"
-    result = gatekeeper.process_ingress("192.168.1.666", attack_payload)
-    if result["status"] == "REJECTED":
-        print("  - Attack Successfully Blocked.")
+    # 1. Demonstrate Reverse Engineer (Graph Analysis)
+    # We create a dummy file with calls to analyze
+    with open("dummy_graph.py", "w") as f:
+        f.write("def a(): b()\ndef b(): c()\ndef c(): pass")
 
-    # 2. Demonstrate Gatekeeper (Valid)
-    print("\n[SCENARIO] 🛡️ External Interface: Valid Request...")
+    hive.broadcast("FILE_CHANGED", {"filepath": "dummy_graph.py"}, "User")
+
+    # 2. Gatekeeper
+    console.print("\n[bold cyan][SCENARIO][/] 🛡️ External Interface: Valid Request...")
     valid_payload = "Create a login function."
     result = gatekeeper.process_ingress("10.0.0.5", valid_payload)
-    if result["status"] != "ACCEPTED":
-        print("  - Error: Valid request blocked.")
-        sys.exit(1)
 
     task = result["payload"]
 
     # 3. MicroLM Generation
-    print(f"\n[ACT] MicroLM Processing Task: '{task}'")
+    console.print(f"\n[bold cyan][ACT][/] MicroLM Processing Task: '{task}'")
     lm = MicroLM()
     doctrine = ooda.execute_cycle(task)
     options = lm.generate_evolved_options(task, doctrine, {}, generations=1)
 
-    # 4. Demonstrate Coprocessor Offloading (War Games)
-    print("\n[COPROCESSOR] 🧠 Offloading Heavy War Games Simulation...")
-    # We manually simulate the Council using the Coprocessor here for demo
-    # In production, Council would hold a ref to Hive.coprocessor
+    # 4. Council with Rich UI
+    console.print("\n[bold cyan][COUNCIL][/] 🏛️ Session Convened...")
+    council = Council(hive)
+    decision = council.select_best_option(task, options)
 
-    for opt in options:
-        # Use the Coprocessor to run the parallel simulation
-        survival = coprocessor.run_parallel_wargames(opt['code'], iterations=100)
-        print(f"  > Variant '{opt['variant_name']}' Survival: {survival:.1%}")
+    if decision['approved']:
+        console.print(f"\n[bold green]🎉 WINNER:[/] {decision['selected_variant']}")
+        console.print(Panel(decision['code'], title="Generated Code", border_style="green"))
 
-    # 5. External Storage Persistence
-    print("\n[STORAGE] 💾 Persisting results to LongTermDrive...")
-    # Simulate a win
-    hive.record_success(task, options[0], {})
+    # Cleanup
+    if os.path.exists("dummy_graph.py"):
+        os.remove("dummy_graph.py")
 
 if __name__ == "__main__":
     main()

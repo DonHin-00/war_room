@@ -1,8 +1,14 @@
 import time
 from typing import Dict, Any, List, Callable
 from collections import defaultdict
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.style import Style
 from ant_swarm.memory.hierarchical import SharedMemory
 from ant_swarm.memory.evolution import EvolutionaryMemory
+
+console = Console()
 
 class Signal:
     def __init__(self, type: str, data: Any, source: str):
@@ -28,7 +34,8 @@ class HiveState(SharedMemory):
     def set_defcon(self, level: int):
         level = max(1, min(5, level))
         if self.defcon != level:
-            print(f"[HIVE STATE] 🚨 DEFCON CHANGED: {self.defcon} -> {level}")
+            colors = {5: "green", 4: "yellow", 3: "orange1", 2: "red", 1: "bright_red blink"}
+            console.print(Panel(f"🚨 DEFCON CHANGED: {self.defcon} -> {level}", style=f"bold {colors[level]}"))
             self.defcon = level
             self._update_mood_from_defcon()
 
@@ -38,7 +45,7 @@ class HiveState(SharedMemory):
 
     def apply_learning(self, weights: Dict[str, float]):
         if weights:
-            print(f"[HIVE STATE] 🧠 Integrating Learned Wisdom: {weights}")
+            console.print(f"[bold cyan][HIVE STATE][/] 🧠 Integrating Learned Wisdom: {weights}")
             self.learned_bias = weights
 
     def _assess_defcon(self):
@@ -62,9 +69,6 @@ class HiveState(SharedMemory):
         }
         self.mood = moods[self.defcon]
 
-    def set_mood(self, mood: str):
-        self.mood = mood
-
 class SignalBus:
     def __init__(self):
         self.subscribers: Dict[str, List[Callable[[Signal], None]]] = defaultdict(list)
@@ -73,7 +77,7 @@ class SignalBus:
         self.subscribers[signal_type].append(callback)
 
     def publish(self, signal: Signal):
-        print(f"[SIGNAL BUS] 📡 Broadcasting {signal.type} from {signal.source}")
+        console.print(f"[dim][SIGNAL BUS][/] 📡 Broadcasting [bold]{signal.type}[/] from {signal.source}")
         if signal.type in self.subscribers:
             for callback in self.subscribers[signal.type]:
                 callback(signal)
@@ -81,25 +85,23 @@ class SignalBus:
 class HiveMind:
     """
     The Central Orchestrator.
-    NOW WITH EXTERNAL SUPPORT MODULES (Hanging Off).
+    With Rich UI Integration.
     """
     def __init__(self):
         self.memory = HiveState()
         self.bus = SignalBus()
         self.evolution = EvolutionaryMemory()
         self.mirage = None
-
-        # Support Modules
         self.storage = None
         self.coprocessor = None
         self.gatekeeper = None
 
     def attach_mirage(self, mirage_layer):
-        print("[HIVE] 🔗 Attaching Deception Module (Mirage Layer)...")
+        console.print("[bold blue][HIVE][/] 🔗 Attaching Deception Module (Mirage Layer)...")
         self.mirage = mirage_layer
 
     def attach_support(self, storage, coprocessor, gatekeeper):
-        print("[HIVE] 🔗 Attaching External Support Modules (Storage, Coprocessor, Gatekeeper)...")
+        console.print("[bold blue][HIVE][/] 🔗 Attaching External Support Modules (Storage, Coprocessor, Gatekeeper)...")
         self.storage = storage
         self.coprocessor = coprocessor
         self.gatekeeper = gatekeeper
@@ -110,17 +112,14 @@ class HiveMind:
         self.memory.active_signals.append(sig)
 
     def autotune(self):
-        print("[HIVE] 🧬 Initiating Meta-Learning Autotune...")
+        console.print("[bold blue][HIVE][/] 🧬 Initiating Meta-Learning Autotune...")
         optimal = self.evolution.get_optimal_weights("login")
         if optimal:
             self.memory.apply_learning(optimal)
         else:
-            print("[HIVE] Not enough data to evolve yet.")
+            console.print("[dim][HIVE][/] Not enough data to evolve yet.")
 
     def record_success(self, task: str, winner: Dict, context: Dict):
-        # 1. Save to Evolution (JSON)
         self.evolution.record_cycle(task, winner, context)
-
-        # 2. Save to External Storage (SQLite) if available
         if self.storage:
-            self.storage.save_war_story(task, winner.get("code", ""), 0.99) # Mock rate for now
+            self.storage.save_war_story(task, winner.get("code", ""), 0.99)

@@ -1,13 +1,23 @@
 import random
 from typing import List, Dict, Any
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import track
 from ant_swarm.agents.specialists import SecurityAgent, PerformanceAgent, MaintainabilityAgent
 from ant_swarm.core.hive import HiveMind
 from ant_swarm.tools.toolbox import Toolbox
+
+console = Console()
 
 class WarGames:
     @staticmethod
     def run_simulation(code: str, iterations: int = 50) -> float:
         survived = 0
+        # OOOMP: Visual Progress Bar for War Games
+        # Only show if not offloaded (Coprocessor handles its own or is silent)
+        # But for 'Council' usage, we might want it silent if automated, or visible for demo
+        # Let's keep it simple here.
         for _ in range(iterations):
             attack_vector = random.choice(["injection", "dos", "logic_bomb", "fuzzing"])
             if WarGames._survives_attack(code, attack_vector):
@@ -23,8 +33,7 @@ class WarGames:
 
 class Council:
     """
-    Upgraded Hive Council.
-    Supports Evolution (Recording Success).
+    Upgraded Hive Council with Rich UI.
     """
     def __init__(self, hive: HiveMind):
         self.hive = hive
@@ -35,59 +44,56 @@ class Council:
         self.peers = [self.security, self.performance, self.maintainability]
 
     def select_best_option(self, task: str, options: List[Dict[str, Any]]) -> Dict[str, Any]:
-        print(f"\n--- COUNCIL SESSION START (DEFCON: {self.memory.defcon}) ---")
+        console.print(f"\n[bold underline]🏛️  COUNCIL SESSION START[/] (DEFCON: {self.memory.defcon})")
 
         best_option = None
         best_score = -999
         all_scores = {}
+
+        table = Table(title="Option Evaluation Matrix", show_header=True, header_style="bold magenta")
+        table.add_column("Variant", style="cyan")
+        table.add_column("Status", justify="center")
+        table.add_column("Survival", justify="right")
+        table.add_column("Score", justify="right")
 
         for opt in options:
             score = 0
             variant = opt['variant_name']
             code = opt['code']
             tools = opt['tool_report']
-            thoughts = opt.get('thoughts', [])
-            improvements = opt.get('improvements', [])
-
-            print(f"Evaluating Option '{variant}'...")
-
-            # Show the Work
-            if thoughts:
-                print("  🧠 Thought Process:")
-                for t in thoughts: print(f"    - {t}")
-            if improvements:
-                print("  ✨ Active Improvements:")
-                for i in improvements: print(f"    + {i}")
 
             # 1. TOOL AUDIT
-            if not tools['syntax']['valid']: continue
-            if not tools['security']['safe']: continue
+            status = "[green]PASS[/]"
+            if not tools['syntax']['valid']: status = "[red]SYNTAX FAIL[/]"
+            elif not tools['security']['safe']: status = "[red]SECURITY FAIL[/]"
 
-            # 2. WAR GAMES
-            survival_prob = WarGames.run_simulation(code)
-            print(f"  🛡️ War Games Survival Rate: {survival_prob:.1%}")
+            survival_prob = 0.0
 
-            score += survival_prob * 100
+            if "FAIL" not in status:
+                # 2. WAR GAMES
+                survival_prob = WarGames.run_simulation(code)
+                score += survival_prob * 100
 
-            if self.memory.defcon <= 2 and survival_prob < 0.9:
-                print(f"  - REJECTED: Survival rate too low for DEFCON {self.memory.defcon}")
-                continue
+                # Penalize based on DEFCON
+                if self.memory.defcon <= 2 and survival_prob < 0.9:
+                    status = "[red]TOO RISKY[/]"
+                    score = 0
+                else:
+                     if self.memory.mood == "WAR_ROOM" and variant == "Safe": score += 20
 
-            if self.memory.mood == "WAR_ROOM" and variant == "Safe": score += 20
-
-            print(f"  - Final Score: {score:.1f}")
             all_scores[variant] = score
 
-            if score > best_score:
+            table.add_row(variant, status, f"{survival_prob:.1%}", f"{score:.1f}")
+
+            if "FAIL" not in status and "RISKY" not in status and score > best_score:
                 best_score = score
                 best_option = opt
 
-        print("--- COUNCIL SESSION END ---\n")
+        console.print(table)
+        console.print("[bold underline]🏛️  COUNCIL SESSION END[/]\n")
 
         if best_option:
-            # RECORD SUCCESS FOR EVOLUTION
             self.hive.record_success(task, best_option, {"scores": all_scores, "mood": self.memory.mood})
-
             return {
                 "approved": True,
                 "selected_variant": best_option['variant_name'],
