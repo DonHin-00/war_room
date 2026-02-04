@@ -11,207 +11,187 @@ import time
 import json
 import random
 import math
+import signal
+import sys
+import hashlib
+
 import utils
-
-# --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-SIGNATURE_FILE = os.path.join(BASE_DIR, "signatures.json")
-WATCH_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
-
-# --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
-ALPHA = 0.4             # Learning Rate (How fast we accept new info)
-ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
-GAMMA = 0.9             # Discount Factor (How much we care about the future)
-EPSILON = 0.3           # Exploration Rate (Curiosity)
-EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
-MIN_EPSILON = 0.01      # Always keep 1% curiosity
-
-# --- REWARD CONFIGURATION (AI PERSONALITY) ---
-# Tweak these to change how the Defender behaves!
-R_MITIGATION = 25       # Reward for killing a threat
-R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
-P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
-P_NEGLIGENCE = -50      # Penalty for ignoring active malware
-MAX_ALERT = 5
-MIN_ALERT = 1
+import config
 
 # --- VISUALS ---
 C_BLUE = "\033[94m"
 C_CYAN = "\033[96m"
 C_RESET = "\033[0m"
 
-# --- DEFENSIVE UTILITIES ---
+class BlueDefender:
+    def __init__(self):
+        self.running = True
+        self.epsilon = config.AI_PARAMS['EPSILON_START']
+        self.alpha = config.AI_PARAMS['ALPHA']
+        self.q_table = {}
+        self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
-def calculate_shannon_entropy(filepath):
-    """Detects High Entropy (Encrypted/Obfuscated) files."""
-    try:
-        with open(filepath, 'rb') as f:
-            data = f.read()
-            return utils.calculate_entropy(data)
-    except: return 0
+        # Signal Handling
+        signal.signal(signal.SIGINT, self.shutdown)
+        signal.signal(signal.SIGTERM, self.shutdown)
 
-MEMORY_CACHE = {}
+        self.setup()
 
-def access_memory(filepath, data=None):
-    """Atomic JSON I/O with read caching."""
-    global MEMORY_CACHE
+    def setup(self):
+        print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
+        self.q_table = utils.access_memory(config.Q_TABLE_BLUE) or {}
+        if not os.path.exists(config.INCIDENT_DIR):
+            os.makedirs(config.INCIDENT_DIR)
 
-    # WRITE: Always write to disk if data is provided
-    if data is not None:
+    def shutdown(self, signum, frame):
+        print(f"\n{C_CYAN}[SYSTEM] Blue Team shutting down gracefully...{C_RESET}")
+        utils.access_memory(config.Q_TABLE_BLUE, self.q_table)
+        self.running = False
+        sys.exit(0)
+
+    def get_state(self, current_alert):
+        visible_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, 'malware_*'))
+        hidden_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, '.sys_*'))
+        c2_beacons = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.c2_beacon'))
+
+        all_threats = visible_threats + hidden_threats + c2_beacons
+        threat_count = len(all_threats)
+
+        return f"{current_alert}_{threat_count}", visible_threats, hidden_threats, c2_beacons, all_threats
+
+    def choose_action(self, state_key):
+        if random.random() < self.epsilon:
+            return random.choice(config.BLUE_ACTIONS)
+        else:
+            known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS}
+            return max(known, key=known.get)
+
+    def report_incident(self, filepath, threat_type, action_taken):
+        """Generate a forensic incident report."""
         try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-            # Update cache timestamp to avoid immediate re-read
+            timestamp = time.time()
+            file_hash = "unknown"
             if os.path.exists(filepath):
-                 MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
-        except: pass
-        return {}
-
-    # READ: Check modification time
-    if os.path.exists(filepath):
-        try:
-            mtime = os.path.getmtime(filepath)
-            if filepath in MEMORY_CACHE:
-                cached_mtime, cached_data = MEMORY_CACHE[filepath]
-                if mtime == cached_mtime:
-                    return cached_data
-
-            # File changed or not in cache, read it
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-                # Validation for state file
-                if "war_state.json" in filepath and not utils.validate_state(data):
-                    return {}
-                MEMORY_CACHE[filepath] = (mtime, data)
-                return data
-        except: return {}
-    return {}
-
-# --- MAIN LOOP ---
-
-def engage_defense():
-    global EPSILON, ALPHA
-    print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
-    
-    # Load Q-Table once at startup
-    q_table = access_memory(Q_TABLE_FILE)
-    if not q_table: q_table = {}
-
-    iteration_count = 0
-    SYNC_INTERVAL = 10
-
-    while True:
-        try:
-            iteration_count += 1
-
-            # 1. PREPARATION
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            # q_table is now in memory
+                 with open(filepath, 'rb') as f:
+                     file_hash = hashlib.sha256(f.read()).hexdigest()
             
-            current_alert = war_state.get('blue_alert_level', 1)
+            report = {
+                'id': hashlib.md5(f"{timestamp}{filepath}".encode()).hexdigest(),
+                'timestamp': timestamp,
+                'threat_type': threat_type,
+                'filepath': filepath,
+                'file_hash': file_hash,
+                'action': action_taken,
+                'status': 'MITIGATED'
+            }
             
-            # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
-            
-            threat_count = len(all_threats)
-            state_key = f"{current_alert}_{threat_count}"
-            
-            # 3. DECISION
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
-            else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
-            
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+            report_path = os.path.join(config.INCIDENT_DIR, f"report_{report['id']}.json")
+            utils.secure_create(report_path, json.dumps(report, indent=4))
+            self.audit_logger.log_event("BLUE", "INCIDENT_REPORT", f"Report {report['id']} generated for {filepath}")
+        except Exception as e:
+            print(f"Reporting Error: {e}")
 
-            # 4. ERADICATION
-            mitigated = 0
-            
-            if action == "SIGNATURE_SCAN":
-                # Check known signatures
-                known_sigs = access_memory(SIGNATURE_FILE)
-                if not known_sigs: known_sigs = {}
+    def run(self):
+        iteration = 0
+        while self.running:
+            try:
+                iteration += 1
 
-                for t in all_threats: # Now scans all threats against DB
-                    try:
-                        sz = os.path.getsize(t)
-                        if str(sz) in known_sigs:
-                            os.remove(t)
-                            mitigated += 1
-                    except: pass
+                # 1. OBSERVE
+                war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
+                current_alert = war_state.get('blue_alert_level', 1)
 
-                # Fallback to simple removal of visible
-                for t in visible_threats:
-                    if os.path.exists(t):
-                        try: os.remove(t); mitigated += 1
-                        except: pass
+                state_key, visible, hidden, c2, all_threats = self.get_state(current_alert)
+                threat_count = len(all_threats)
+
+                # 2. DECIDE
+                action = self.choose_action(state_key)
+
+                # Decay Epsilon/Alpha
+                self.epsilon = max(config.AI_PARAMS['MIN_EPSILON'], self.epsilon * config.AI_PARAMS['EPSILON_DECAY'])
+                self.alpha = max(0.1, self.alpha * config.AI_PARAMS['ALPHA_DECAY'])
+
+                # 3. ACT
+                mitigated = 0
+
+                if action == "SIGNATURE_SCAN":
+                    # Check known signatures
+                    known_sigs = utils.access_memory(config.SIGNATURE_FILE) or {}
                     
-            elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    entropy = calculate_shannon_entropy(t)
-                    if ".sys" in t or entropy > 3.5:
+                    for t in all_threats:
                         try:
-                            # Learn the signature!
                             sz = os.path.getsize(t)
-
-                            # Atomic update of signatures
-                            sigs = access_memory(SIGNATURE_FILE)
-                            if not sigs: sigs = {}
-                            if str(sz) not in sigs:
-                                sigs[str(sz)] = entropy
-                                access_memory(SIGNATURE_FILE, sigs)
-                                print(f"{C_BLUE}[BLUE LEARNING] Learned signature: Size {sz} | Entropy {entropy:.2f}{C_RESET}")
-
-                            os.remove(t)
-                            mitigated += 1
+                            if str(sz) in known_sigs:
+                                self.report_incident(t, "KNOWN_SIGNATURE", "DELETE")
+                                os.remove(t)
+                                mitigated += 1
                         except: pass
-            
-            elif action == "OBSERVE": pass
-            elif action == "IGNORE": pass
 
-            # 5. REWARD CALCULATION
-            reward = 0
-            if mitigated > 0: reward = R_MITIGATION
-            if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
-            if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
-            if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-            
-            # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
+                    # Visible cleanup
+                    for t in visible:
+                        if os.path.exists(t):
+                            try:
+                                self.report_incident(t, "VISIBLE_THREAT", "DELETE")
+                                os.remove(t); mitigated += 1
+                            except: pass
 
-            # Sync to disk periodically
-            if iteration_count % SYNC_INTERVAL == 0:
-                access_memory(Q_TABLE_FILE, q_table)
-            
-            # 7. UPDATE WAR STATE
-            if mitigated > 0 and current_alert < MAX_ALERT:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-            elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+                elif action == "HEURISTIC_SCAN":
+                    for t in all_threats:
+                        entropy = utils.calculate_entropy(t)
+                        # Detect C2 beacons (usually small, specific pattern) or High Entropy
+                        is_c2 = t.endswith(".c2_beacon")
+
+                        if ".sys" in t or entropy > 3.5 or is_c2:
+                            try:
+                                # Learn Signature
+                                sz = os.path.getsize(t)
+                                sigs = utils.access_memory(config.SIGNATURE_FILE) or {}
+                                if str(sz) not in sigs:
+                                    sigs[str(sz)] = entropy
+                                    utils.access_memory(config.SIGNATURE_FILE, sigs)
+                                    print(f"{C_BLUE}[BLUE LEARNING] Learned signature: Size {sz} | Entropy {entropy:.2f}{C_RESET}")
+
+                                threat_type = "C2_BEACON" if is_c2 else ("HIDDEN_ROOTKIT" if ".sys" in t else "HIGH_ENTROPY")
+                                self.report_incident(t, threat_type, "DELETE")
+
+                                os.remove(t)
+                                mitigated += 1
+                            except: pass
+
+                # 4. REWARD
+                reward = 0
+                if mitigated > 0: reward = config.BLUE_REWARDS['MITIGATION']
+                if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.BLUE_REWARDS['WASTE']
+                if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE_REWARDS['PATIENCE']
+                if action == "IGNORE" and threat_count > 0: reward = config.BLUE_REWARDS['NEGLIGENCE']
                 
-            access_memory(STATE_FILE, war_state)
-            
-            # LOG
-            icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
-            
-            time.sleep(0.5 if current_alert >= 4 else 1.0)
+                # 5. LEARN (Q-Learning)
+                old_val = self.q_table.get(f"{state_key}_{action}", 0)
+                next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS])
+                new_val = old_val + self.alpha * (reward + config.AI_PARAMS['GAMMA'] * next_max - old_val)
+                self.q_table[f"{state_key}_{action}"] = new_val
 
-        except KeyboardInterrupt:
-            break
-        except Exception:
-            time.sleep(1)
+                if iteration % config.AI_PARAMS['SYNC_INTERVAL'] == 0:
+                    utils.access_memory(config.Q_TABLE_BLUE, self.q_table)
+
+                # 6. UPDATE STATE
+                if mitigated > 0 and current_alert < config.MAX_ALERT:
+                    war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
+                elif mitigated == 0 and current_alert > config.MIN_ALERT and action == "OBSERVE":
+                    war_state['blue_alert_level'] = max(config.MIN_ALERT, current_alert - 1)
+
+                utils.access_memory(config.STATE_FILE, war_state)
+
+                # LOG
+                icon = "🛡️" if mitigated == 0 else "⚔️"
+                print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
+
+                time.sleep(0.5 if current_alert >= 4 else 1.0)
+
+            except Exception as e:
+                # print(f"Blue Error: {e}")
+                time.sleep(1)
 
 if __name__ == "__main__":
-    engage_defense()
+    bot = BlueDefender()
+    bot.run()

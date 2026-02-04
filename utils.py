@@ -64,6 +64,41 @@ def setup_logging(log_file_path):
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s:%(message)s')
 
+MEMORY_CACHE = {}
+
+def access_memory(filepath, data=None):
+    """Atomic JSON I/O with read caching."""
+    global MEMORY_CACHE
+
+    # WRITE: Always write to disk if data is provided
+    if data is not None:
+        try:
+            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            # Update cache timestamp to avoid immediate re-read
+            if os.path.exists(filepath):
+                 MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
+        except: pass
+        return {}
+
+    # READ: Check modification time
+    if os.path.exists(filepath):
+        try:
+            mtime = os.path.getmtime(filepath)
+            if filepath in MEMORY_CACHE:
+                cached_mtime, cached_data = MEMORY_CACHE[filepath]
+                if mtime == cached_mtime:
+                    return cached_data
+
+            # File changed or not in cache, read it
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                # Validation for state file
+                if "war_state.json" in filepath and not validate_state(data):
+                    return {}
+                MEMORY_CACHE[filepath] = (mtime, data)
+                return data
+        except: return {}
+    return {}
 
 class AuditLogger:
     """Tamper-evident audit logger using hash chaining."""
@@ -110,4 +145,3 @@ def manage_session(session_id):
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass
-

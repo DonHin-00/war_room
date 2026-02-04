@@ -9,164 +9,133 @@ import os
 import time
 import json
 import random
+import signal
+import sys
 import utils
-
-# --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
-
-# --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
-ALPHA = 0.4
-ALPHA_DECAY = 0.9999
-GAMMA = 0.9
-EPSILON = 0.3
-EPSILON_DECAY = 0.995
-MIN_EPSILON = 0.01
-
-# --- REWARD CONFIGURATION (ATTACKER PROFILE) ---
-R_IMPACT = 10           # Base points for successful drop
-R_STEALTH = 15          # Points for lurking when heat is high
-R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
-MAX_ALERT = 5
+import config
 
 # --- VISUALS ---
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
-# --- UTILITIES ---
-MEMORY_CACHE = {}
+class RedTeamer:
+    def __init__(self):
+        self.running = True
+        self.epsilon = config.AI_PARAMS['EPSILON_START']
+        self.alpha = config.AI_PARAMS['ALPHA']
+        self.q_table = {}
+        self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
-def access_memory(filepath, data=None):
-    global MEMORY_CACHE
+        # Signal Handling
+        signal.signal(signal.SIGINT, self.shutdown)
+        signal.signal(signal.SIGTERM, self.shutdown)
 
-    if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-            if os.path.exists(filepath):
-                 MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
-        except: pass
-        return {}
+        self.setup()
 
-    if os.path.exists(filepath):
-        try:
-            mtime = os.path.getmtime(filepath)
-            if filepath in MEMORY_CACHE:
-                cached_mtime, cached_data = MEMORY_CACHE[filepath]
-                if mtime == cached_mtime:
-                    return cached_data
+    def setup(self):
+        print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+        self.q_table = utils.access_memory(config.Q_TABLE_RED) or {}
+        if not os.path.exists(config.WAR_ZONE_DIR):
+            try: os.makedirs(config.WAR_ZONE_DIR)
+            except: pass
 
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-                if "war_state.json" in filepath and not utils.validate_state(data):
-                    return {}
-                MEMORY_CACHE[filepath] = (mtime, data)
-                return data
-        except: return {}
-    return {}
+    def shutdown(self, signum, frame):
+        print(f"\n{C_RED}[SYSTEM] Red Team shutting down gracefully...{C_RESET}")
+        utils.access_memory(config.Q_TABLE_RED, self.q_table)
+        self.running = False
+        sys.exit(0)
 
-# --- MAIN LOOP ---
+    def choose_action(self, state_key):
+        if random.random() < self.epsilon:
+            return random.choice(config.RED_ACTIONS)
+        else:
+            known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.RED_ACTIONS}
+            return max(known, key=known.get)
 
-def engage_offense():
-    global EPSILON, ALPHA
-    print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
-    
-    # Load Q-Table once at startup
-    q_table = access_memory(Q_TABLE_FILE)
-    if not q_table: q_table = {}
-
-    iteration_count = 0
-    SYNC_INTERVAL = 10
-
-    while True:
-        try:
-            iteration_count += 1
-
-            # 1. RECON
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            # q_table is now in memory
-            
-            current_alert = war_state.get('blue_alert_level', 1)
-            state_key = f"{current_alert}"
-            
-            # 2. STRATEGY
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
-            else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
+    def run(self):
+        iteration = 0
+        while self.running:
+            try:
+                iteration += 1
                 
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
+                # 1. RECON
+                war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
+                current_alert = war_state.get('blue_alert_level', 1)
+                state_key = f"{current_alert}"
+                
+                # 2. DECIDE
+                action = self.choose_action(state_key)
+                
+                self.epsilon = max(config.AI_PARAMS['MIN_EPSILON'], self.epsilon * config.AI_PARAMS['EPSILON_DECAY'])
+                self.alpha = max(0.1, self.alpha * config.AI_PARAMS['ALPHA_DECAY'])
 
-            # 3. EXECUTION
-            impact = 0
-            
-            if action == "T1046_RECON":
-                # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
-                try: 
-                    utils.secure_create(fname, "echo 'scan'")
-                    impact = 1
-                except: pass
-                
-            elif action == "T1027_OBFUSCATE":
-                # Polymorphic High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
-                try:
-                    # Polymorphism: Random size to evade hash/size signatures
-                    size = random.randint(800, 1200)
-                    # Append random junk to vary entropy slightly? No, os.urandom is max entropy.
-                    # Just changing size defeats size-based signatures.
-                    data = os.urandom(size).decode('latin1')
-                    utils.secure_create(fname, data)
-                    impact = 3
-                except: pass
-                
-            elif action == "T1003_ROOTKIT":
-                # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
-                try:
-                    utils.secure_create(fname, "uid=0(root)")
-                    impact = 5
-                except: pass
-                
-            elif action == "T1589_LURK":
+                # 3. EXECUTE
                 impact = 0
 
-            # 4. REWARDS
-            reward = 0
-            if impact > 0: reward = R_IMPACT
-            if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
-            if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
-            
-            # 5. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            
-            q_table[f"{state_key}_{action}"] = new_val
+                if action == "T1046_RECON":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"malware_bait_{int(time.time())}.sh")
+                    try:
+                        utils.secure_create(fname, "echo 'scan'")
+                        impact = 1
+                    except: pass
 
-            # Sync to disk periodically
-            if iteration_count % SYNC_INTERVAL == 0:
-                access_memory(Q_TABLE_FILE, q_table)
-            
-            # 6. TRIGGER ALERTS
-            if impact > 0 and random.random() > 0.5:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                access_memory(STATE_FILE, war_state)
-            
-            print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
-            
-            time.sleep(random.uniform(0.5, 1.5))
-            
-        except KeyboardInterrupt:
-            break
-        except Exception:
-            time.sleep(1)
+                elif action == "T1027_OBFUSCATE":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
+                    try:
+                        size = random.randint(800, 1200)
+                        data = os.urandom(size).decode('latin1')
+                        utils.secure_create(fname, data)
+                        impact = 3
+                    except: pass
+
+                elif action == "T1003_ROOTKIT":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f".sys_shadow_{int(time.time())}")
+                    try:
+                        utils.secure_create(fname, "uid=0(root)")
+                        impact = 5
+                    except: pass
+
+                elif action == "T1071_C2_BEACON":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"beacon_{int(time.time())}.c2_beacon")
+                    try:
+                        payload = f"BEACON_ID:{random.randint(1000,9999)}"
+                        utils.secure_create(fname, payload)
+                        impact = 4
+                        self.audit_logger.log_event("RED", "C2_BEACON", f"Established beacon at {fname}")
+                    except: pass
+
+                elif action == "T1589_LURK":
+                    impact = 0
+
+                # 4. REWARD
+                reward = 0
+                if impact > 0: reward = config.RED_REWARDS['IMPACT']
+                if current_alert >= 4 and action == "T1589_LURK": reward = config.RED_REWARDS['STEALTH']
+                if current_alert == config.MAX_ALERT and impact > 0: reward = config.RED_REWARDS['CRITICAL']
+                if action == "T1071_C2_BEACON": reward = config.RED_REWARDS['C2_SUCCESS']
+
+                # 5. LEARN
+                old_val = self.q_table.get(f"{state_key}_{action}", 0)
+                next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in config.RED_ACTIONS])
+                new_val = old_val + self.alpha * (reward + config.AI_PARAMS['GAMMA'] * next_max - old_val)
+                self.q_table[f"{state_key}_{action}"] = new_val
+
+                if iteration % config.AI_PARAMS['SYNC_INTERVAL'] == 0:
+                    utils.access_memory(config.Q_TABLE_RED, self.q_table)
+
+                # 6. TRIGGER ALERTS
+                if impact > 0 and random.random() > 0.5:
+                    war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
+                    utils.access_memory(config.STATE_FILE, war_state)
+
+                print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+
+                time.sleep(random.uniform(0.5, 1.5))
+
+            except Exception as e:
+                # print(f"Red Error: {e}")
+                time.sleep(1)
 
 if __name__ == "__main__":
-    engage_offense()
+    bot = RedTeamer()
+    bot.run()
