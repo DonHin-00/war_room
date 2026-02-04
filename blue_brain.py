@@ -12,6 +12,7 @@ import random
 import math
 import sys
 import signal
+import argparse
 
 # Import utils from current directory
 try:
@@ -72,11 +73,17 @@ def access_memory(filepath, data=None):
 # --- MAIN LOOP ---
 
 class BlueDefender:
-    def __init__(self):
+    def __init__(self, reset=False):
         self.running = True
         self.q_table = {}
-        # Load initial Q-table
-        self.q_table = access_memory(Q_TABLE_FILE)
+
+        if reset:
+            print(f"{C_BLUE}[BLUE AI] Resetting Q-Table...{C_RESET}")
+            self.q_table = {}
+            access_memory(Q_TABLE_FILE, self.q_table)
+        else:
+            # Load initial Q-table
+            self.q_table = access_memory(Q_TABLE_FILE)
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.handle_shutdown)
@@ -187,5 +194,10 @@ class BlueDefender:
                 time.sleep(1)
 
 if __name__ == "__main__":
-    defender = BlueDefender()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reset", action="store_true", help="Reset Q-Table")
+    parser.add_argument("--debug", action="store_true", help="Debug mode (unused for now)")
+    args = parser.parse_args()
+
+    defender = BlueDefender(reset=args.reset)
     defender.run()
