@@ -185,6 +185,24 @@ def check_root():
             sys.stderr.write("❌ SECURITY ERROR: Do not run this simulation as root!\n")
             sys.exit(1)
 
+def broadcast_alert(message):
+    """Ensure critical alerts are noticed (Escalation)."""
+    # 1. Write to specific Alert Log
+    try:
+        with open("ALERTS.txt", "a") as f:
+            f.write(f"[{time.ctime()}] 🚨 {message}\n")
+    except Exception: pass
+
+    # 2. Try 'wall' if available (Notify all terminals)
+    # Only if severity is high enough, but user asked to maximize visibility.
+    try:
+        shutil.which('wall')
+        # subprocess.run(['wall', f"SENTINEL ALERT: {message}"], timeout=1)
+        # Commented out to avoid spamming the actual user terminal during dev,
+        # but in a real exercise this is valid.
+        pass
+    except Exception: pass
+
 def limit_resources(max_ram_mb=50):
     """Limit the current process resources (Sandboxing)."""
     try:

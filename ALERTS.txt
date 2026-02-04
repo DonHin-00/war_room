@@ -1,0 +1,1 @@
+[Wed Feb  4 05:16:37 2026] 🚨 TERMINATING THREAT: PID 29224 | PPID 29222 | CMD: /home/jules/.pyenv/versions/3.12.12/bin/python3 red_c2.py

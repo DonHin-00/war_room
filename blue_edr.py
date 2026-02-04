@@ -60,6 +60,24 @@ def find_pid_by_inode(inode):
         except Exception: pass
     return None
 
+def get_process_info(pid):
+    """Get rich metadata for a PID."""
+    info = {"pid": pid, "ppid": "?", "cmd": "?", "uid": "?"}
+    try:
+        # Get Command
+        with open(f"/proc/{pid}/cmdline", 'rb') as f:
+            info["cmd"] = f.read().replace(b'\0', b' ').decode(errors='ignore').strip()
+
+        # Get Status (PPID, UID)
+        with open(f"/proc/{pid}/status", 'r') as f:
+            for line in f:
+                if line.startswith("PPid:"):
+                    info["ppid"] = int(line.split()[1])
+                if line.startswith("Uid:"):
+                    info["uid"] = line.split()[1]
+    except Exception: pass
+    return info
+
 def scan_processes():
     """Signature scan running processes (Memory Scanning Simulation)."""
     # In real life we'd dump memory. Here we hash the executable on disk.
@@ -93,7 +111,11 @@ def hunt():
 
             pid = find_pid_by_inode(inode)
             if pid:
-                logger.critical(f"🔫 TERMINATING PID {pid} (Socket Owner)")
+                meta = get_process_info(pid)
+                msg = f"TERMINATING THREAT: PID {pid} | PPID {meta['ppid']} | CMD: {meta['cmd']}"
+                logger.critical(f"🔫 {msg}")
+                utils.broadcast_alert(msg)
+
                 try:
                     os.kill(pid, signal.SIGKILL)
                     logger.info("✅ Threat Neutralized.")
@@ -105,7 +127,11 @@ def hunt():
         # 2. Process Defense (Memory/Signature)
         malware_pid = scan_processes()
         if malware_pid and malware_pid != os.getpid():
-             logger.critical(f"🦠 MALWARE DETECTED IN MEMORY: PID {malware_pid}")
+             meta = get_process_info(malware_pid)
+             msg = f"MALWARE DETECTED IN MEMORY: PID {malware_pid} | PPID {meta['ppid']} | CMD: {meta['cmd']}"
+             logger.critical(f"🦠 {msg}")
+             utils.broadcast_alert(msg)
+
              try:
                  os.kill(malware_pid, signal.SIGKILL)
                  logger.info("✅ Malware Process Terminated.")

@@ -30,6 +30,15 @@ def get_red_logs():
         except: pass
     return []
 
+def get_alerts():
+    """Tail ALERTS.txt."""
+    if os.path.exists("ALERTS.txt"):
+        try:
+            with open("ALERTS.txt", 'r') as f:
+                return f.readlines()[-5:]
+        except: pass
+    return []
+
 def draw_dashboard(stdscr):
     curses.curs_set(0)
     stdscr.nodelay(1)
@@ -64,9 +73,18 @@ def draw_dashboard(stdscr):
                 stdscr.addstr(4+i, col_red, line.strip()[:w//2-4])
 
         # Separator
-        for y in range(2, h-1):
+        for y in range(2, h-8):
             try: stdscr.addch(y, w//2 - 1, '|')
             except: pass
+
+        # --- BOTTOM: HIGH PRIORITY ALERTS ---
+        stdscr.addstr(h-8, 2, "[ 🚨 INTRUSION ALERTS 🚨 ]", curses.color_pair(2) | curses.A_BLINK)
+        stdscr.hline(h-7, 0, curses.ACS_HLINE, w)
+
+        alerts = get_alerts()
+        for i, line in enumerate(alerts):
+            if h-6+i < h-1:
+                stdscr.addstr(h-6+i, 2, line.strip()[:w-4], curses.color_pair(2))
 
         # Status Bar
         stdscr.addstr(h-1, 0, f"Time: {time.strftime('%H:%M:%S')} | Press 'q' to Quit", curses.A_REVERSE)
