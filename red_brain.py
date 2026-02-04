@@ -233,19 +233,27 @@ class RedTeamer:
                     except OSError: pass
 
                 elif action == "T1071_C2_BEACON":
-                    # Deploy Active Payload
+                    # Deploy Active Payload with Masquerading
                     try:
-                        payload_path = os.path.join(config.BASE_DIR, "payloads", "malware.py")
-                        if os.path.exists(payload_path):
+                        payload_src = os.path.join(config.BASE_DIR, "payloads", "malware.py")
+
+                        # Masquerade: Copy to a system-like name
+                        fake_name = secrets.choice(["cupsd_helper.py", "systemd_journal.py", "cron_job.py"])
+                        payload_dst = os.path.join(config.WAR_ZONE_DIR, fake_name)
+
+                        import shutil
+                        shutil.copy2(payload_src, payload_dst)
+
+                        if os.path.exists(payload_dst):
                             proc = subprocess.Popen(
-                                [sys.executable, payload_path, "--port", str(self.c2_port), "--target", config.WAR_ZONE_DIR],
+                                [sys.executable, payload_dst, "--port", str(self.c2_port), "--target", config.WAR_ZONE_DIR],
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL
                             )
                             self.active_payloads.append(proc)
                             impact = 5
                             C2Handler.current_command = "ENCRYPT" # Command the botnet
-                            self.audit_logger.log_event("RED", "C2_BEACON", f"Deployed Payload PID: {proc.pid}")
+                            self.audit_logger.log_event("RED", "C2_BEACON", f"Deployed Payload PID: {proc.pid} as {fake_name}")
                     except Exception as e:
                         print(e)
 
@@ -308,15 +316,16 @@ class RedTeamer:
                         from payloads.stowaway import Stowaway
                         carrier = Stowaway(mode="CARRIER", target_dir=config.WAR_ZONE_DIR)
 
-                        drop_path = os.path.join(usb_dir, f"drive_{int(time.time())}.dat")
-                        carrier.deploy(drop_path)
+                        # Obfuscated Drop: Pretend to be a PDF
+                        drop_path = os.path.join(usb_dir, f"report_q3_{int(time.time())}.pdf")
+                        final_path = carrier.deploy(drop_path) # deploy might add extension
 
                         # Simulate activation by user (or autorun)
                         # In simulation, we just trigger it immediately for effect
-                        Stowaway.activate(drop_path, config.WAR_ZONE_DIR)
+                        Stowaway.activate(final_path, config.WAR_ZONE_DIR)
 
                         impact = 5
-                        self.audit_logger.log_event("RED", "REPLICATION", f"Stowaway dropped at {drop_path}")
+                        self.audit_logger.log_event("RED", "REPLICATION", f"Stowaway dropped at {final_path}")
                     except Exception as e:
                         # print(f"Stowaway Error: {e}")
                         pass

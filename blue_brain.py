@@ -93,8 +93,9 @@ class BlueDefender:
         pids = []
         try:
             # Use pgrep for more reliable PID detection
-            # -f matches against full command line
-            output = subprocess.check_output(["pgrep", "-f", "payloads/malware.py"], text=True)
+            # -f matches against full command line.
+            # Updated to catch masqueraded names too (system-like py scripts in war_zone)
+            output = subprocess.check_output(["pgrep", "-f", f"{config.WAR_ZONE_DIR}/.*.py"], text=True)
             for pid_str in output.splitlines():
                 if pid_str.isdigit():
                     pids.append(int(pid_str))
@@ -239,7 +240,15 @@ class BlueDefender:
                         entropy = utils.calculate_entropy(content_head)
                         is_c2 = t.endswith(".c2_beacon")
 
-                        if ".sys" in t or entropy > 3.5 or is_c2:
+                        # Deep Content Inspection: Magic Byte Check
+                        magic_type = utils.analyze_magic(content_head)
+                        is_fake_doc = False
+                        if t.endswith(".pdf") and magic_type != "PDF":
+                            is_fake_doc = True
+                        if t.endswith(".png") and magic_type != "PNG":
+                            is_fake_doc = True
+
+                        if ".sys" in t or entropy > 3.5 or is_c2 or is_fake_doc:
                             try:
                                 # Learn Signature
                                 sz = os.path.getsize(t)
