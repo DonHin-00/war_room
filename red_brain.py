@@ -89,10 +89,17 @@ def engage_offense():
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
+                # High Entropy Binary with Polymorphism
+                # 1. Base Name
                 fname = f"{TARGET_DIR}/malware_crypt_{timestamp}.bin"
+
+                # 2. Polymorphic Content (Random padding to change Hash)
+                # In real life, we'd mutate code. Here, we append junk.
+                padding_size = random.randint(1, 256)
+                payload = b"MALICIOUS_PAYLOAD" + os.urandom(1024) + os.urandom(padding_size)
+
                 try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                    with open(fname, 'wb') as f: f.write(payload)
                     impact = 3
                 except: pass
                 

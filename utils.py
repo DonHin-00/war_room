@@ -245,3 +245,52 @@ def manage_session(session_id):
     # Placeholder for session management logic
     pass
 
+class AuditLogger:
+    """Tamper-evident logger using hash chaining."""
+    def __init__(self, log_file="audit.jsonl"):
+        self.log_file = log_file
+        self.last_hash = self._get_last_hash()
+
+    def _get_last_hash(self):
+        if not os.path.exists(self.log_file):
+            return "0" * 64
+        try:
+            # Read last line
+            with open(self.log_file, 'rb') as f:
+                try:  # Handle empty file
+                    f.seek(-2, os.SEEK_END)
+                    while f.read(1) != b'\n':
+                        f.seek(-2, os.SEEK_CUR)
+                except OSError:
+                    f.seek(0)
+                last_line = f.readline().decode()
+                if not last_line: return "0" * 64
+                entry = json.loads(last_line)
+                return entry.get('hash', "0" * 64)
+        except:
+            return "0" * 64
+
+    def log(self, event_type, agent, details):
+        timestamp = time.time()
+        # Create event payload
+        payload = {
+            "timestamp": timestamp,
+            "type": event_type,
+            "agent": agent,
+            "details": details,
+            "prev_hash": self.last_hash
+        }
+
+        # Calculate new hash (Chain)
+        payload_str = json.dumps(payload, sort_keys=True)
+        new_hash = hashlib.sha256(payload_str.encode()).hexdigest()
+        payload['hash'] = new_hash
+
+        # Atomic append
+        try:
+            with open(self.log_file, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(payload) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+            self.last_hash = new_hash
+        except: pass
