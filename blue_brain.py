@@ -12,6 +12,10 @@ import random
 import config
 import utils
 from collections import deque
+import traceback
+import logging
+import signal
+import subprocess
 
 # --- SYSTEM CONFIGURATION ---
 utils.ensure_directories(config.PATHS['WATCH_DIR'])
@@ -57,6 +61,34 @@ def experience_replay(memory, batch_size, q_table, alpha, gamma, actions):
 
     return q_table
 
+def get_suspicious_pids(war_zone_dir):
+    """Find PIDs running scripts inside the war zone."""
+    # Since we can't trust 'ps' output parsing easily across all envs, and we want to emulate detection.
+    # We will use 'pgrep -f war_zone_dir' to find processes running from our sandbox.
+    # This is a realistic 'Heuristic' for process detection in a constrained environment.
+    suspicious_pids = []
+    try:
+        # Check for python scripts running in the war zone
+        cmd = ["pgrep", "-f", war_zone_dir]
+        # Note: pgrep -f matches the full command line.
+        # Red Team launches: python3 /path/to/war_zone_X/malware.py
+
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if result.returncode == 0:
+            pids = result.stdout.strip().split('\n')
+            for pid in pids:
+                if pid.strip():
+                    suspicious_pids.append(int(pid))
+    except: pass
+    return suspicious_pids
+
+def kill_pid(pid):
+    """Kill a process by PID."""
+    try:
+        os.kill(pid, signal.SIGKILL)
+        return True
+    except: return False
+
 # --- MAIN LOOP ---
 
 def engage_defense():
@@ -84,17 +116,30 @@ def engage_defense():
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(config.PATHS['WATCH_DIR'], 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(config.PATHS['WATCH_DIR'], '.sys_*'))
-            all_threats = visible_threats + hidden_threats
-            
+            # File Detection
+            visible_threats = []
+            hidden_threats = []
+
+            with os.scandir(config.PATHS['WATCH_DIR']) as entries:
+                for entry in entries:
+                    if entry.is_file():
+                        if entry.name.startswith("malware_"):
+                            visible_threats.append(entry.path)
+                        elif entry.name.startswith(".sys_"):
+                            hidden_threats.append(entry.path)
+
+            # Process Detection
+            suspicious_pids = get_suspicious_pids(config.PATHS['WATCH_DIR'])
+
             has_visible = 1 if visible_threats else 0
             has_hidden = 1 if hidden_threats else 0
+            has_process = 1 if suspicious_pids else 0
 
-            threat_count = len(all_threats)
+            threat_count = len(visible_threats) + len(hidden_threats) + len(suspicious_pids)
 
-            # Smart State: Alert + Visible + Hidden
-            state_key = f"{current_alert}_{has_visible}_{has_hidden}"
+            # Smart State: Alert + Visible + Hidden + Process
+            # We append Process status to state key
+            state_key = f"{current_alert}_{has_visible}_{has_hidden}_{has_process}"
             
             # 3. DECISION
             if random.random() < epsilon:
@@ -107,15 +152,25 @@ def engage_defense():
             mitigated = 0
             
             if action == "SIGNATURE_SCAN":
+                # Signature scan deletes known malware files
                 for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
+                    try:
+                        os.remove(t)
+                        mitigated += 1
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    if ".sys" in t or utils.calculate_entropy(t) > 3.5:
-                        try: os.remove(t); mitigated += 1
-                        except: pass
+                # Heuristic scan deletes hidden files AND kills suspicious processes
+                all_files = visible_threats + hidden_threats
+                for t in all_files:
+                    try:
+                        os.remove(t)
+                        mitigated += 1
+                    except: pass
+
+                for pid in suspicious_pids:
+                    if kill_pid(pid):
+                        mitigated += 1
             
             elif action == "OBSERVE": pass
             elif action == "IGNORE": pass
@@ -126,7 +181,7 @@ def engage_defense():
             if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.BLUE['REWARDS']['WASTE']
             if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE['REWARDS']['PATIENCE']
             if action == "IGNORE" and threat_count > 0: reward = config.BLUE['REWARDS']['NEGLIGENCE']
-            
+
             # 6. LEARN & MEMORIZE
             if last_state_key is not None and last_action is not None:
                 memory.append((last_state_key, last_action, reward, state_key))
@@ -165,6 +220,8 @@ def engage_defense():
         except KeyboardInterrupt:
             break
         except Exception as e:
+            logging.error(f"CRITICAL ERROR in Blue Brain: {e}")
+            logging.error(traceback.format_exc())
             time.sleep(1)
 
 if __name__ == "__main__":

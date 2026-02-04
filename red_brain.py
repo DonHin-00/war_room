@@ -11,6 +11,11 @@ import random
 import config
 import utils
 from collections import deque
+import traceback
+import logging
+import subprocess
+import socket
+import sys
 
 # --- SYSTEM CONFIGURATION ---
 utils.ensure_directories(config.PATHS['TARGET_DIR'])
@@ -55,8 +60,9 @@ def engage_offense():
     last_state_key = None
     last_action = None
 
-    # Track the last file dropped to see if it survives (Blue Team Defense Check)
-    last_dropped_file = None
+    # Track the last payload: (filename, pid)
+    # If PID is still alive or File exists, it survived.
+    last_payload = None
     
     while True:
         try:
@@ -69,8 +75,21 @@ def engage_offense():
 
             # Check if last attack survived
             attack_survived = 0
-            if last_dropped_file and os.path.exists(last_dropped_file):
-                attack_survived = 1
+            if last_payload:
+                fname, pid = last_payload
+                file_exists = os.path.exists(fname)
+                process_alive = False
+
+                if pid:
+                    # Check if process is still running
+                    try:
+                        os.kill(pid, 0)
+                        process_alive = True
+                    except OSError:
+                        process_alive = False
+
+                if file_exists or process_alive:
+                    attack_survived = 1
 
             # Smart State: Alert + Survival Status
             state_key = f"{current_alert}_{attack_survived}"
@@ -82,55 +101,102 @@ def engage_offense():
                 known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
                 action = max(known, key=known.get)
 
-            # 3. EXECUTION
+            # 3. EXECUTION (REAL EMULATION)
             impact = 0
             target_dir = config.PATHS['TARGET_DIR']
             current_drop = None
+            spawned_pid = None
             
             if action == "T1046_RECON":
-                # Low Entropy Bait
-                fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
+                # Real Recon: Script that lists files recursively (Disk Recon)
+                fname = os.path.join(target_dir, f"malware_recon_{int(time.time())}.py")
                 try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
-                    impact = 1
+                    with open(fname, 'w') as f:
+                        f.write("import os, time\n")
+                        f.write("while True:\n")
+                        f.write(f"    with open('{os.path.join(target_dir, 'recon_log.txt')}', 'w') as log:\n")
+                        f.write("        for root, dirs, files in os.walk('.'):\n")
+                        f.write("            for name in files: log.write(os.path.join(root, name) + '\\n')\n")
+                        f.write("    time.sleep(5)\n")
+
+                    # Execute it
+                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    spawned_pid = proc.pid
+                    impact = 2
                     current_drop = fname
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
-                fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.bin")
+                # Real Obfuscation: Self-modifying / High Entropy script
+                fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.py")
                 try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                    # Write a script that just sleeps but has junk data appended to increase entropy
+                    with open(fname, 'w') as f:
+                        f.write("import time\n")
+                        f.write("time.sleep(60)\n")
+                        f.write("#" + "A" * 1024 + "\n") # High entropy junk
+
+                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    spawned_pid = proc.pid
                     impact = 3
                     current_drop = fname
                 except: pass
                 
             elif action == "T1003_ROOTKIT":
-                # Hidden File
-                fname = os.path.join(target_dir, f".sys_shadow_{int(time.time())}")
+                # Persistence: create a hidden file that monitors its own deletion and recreates itself
+                fname = os.path.join(target_dir, f".sys_persist_{int(time.time())}.py")
                 try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
+                    with open(fname, 'w') as f:
+                        f.write("import time, os\n")
+                        f.write(f"me = '{fname}'\n")
+                        f.write("while True:\n")
+                        f.write("    if not os.path.exists(me):\n")
+                        f.write("        with open(me, 'w') as f: f.write('I am immortal')\n")
+                        f.write("    time.sleep(1)\n")
+
+                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    spawned_pid = proc.pid
                     impact = 5
+                    current_drop = fname
+                except: pass
+
+            elif action == "T1059_COMMAND_SCRIPTING":
+                # Network Listener: Opens a real port on localhost (high port)
+                fname = os.path.join(target_dir, f"malware_c2_{int(time.time())}.py")
+                port = random.randint(10000, 60000)
+                try:
+                    with open(fname, 'w') as f:
+                        f.write("import socket, time\n")
+                        f.write(f"s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n")
+                        f.write(f"s.bind(('127.0.0.1', {port}))\n")
+                        f.write("s.listen(1)\n")
+                        f.write("while True: time.sleep(1)\n")
+
+                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    spawned_pid = proc.pid
+                    impact = 4
                     current_drop = fname
                 except: pass
                 
             elif action == "T1589_LURK":
                 impact = 0
-                current_drop = last_dropped_file # Keep tracking previous file
+                if last_payload:
+                    current_drop = last_payload[0]
+                    spawned_pid = last_payload[1]
 
             # 4. REWARDS
             reward = 0
             if impact > 0: reward = config.RED['REWARDS']['IMPACT']
             if current_alert >= 4 and action == "T1589_LURK": reward = config.RED['REWARDS']['STEALTH']
             if current_alert == config.SIMULATION['MAX_ALERT'] and impact > 0: reward = config.RED['REWARDS']['CRITICAL']
-            
-            # Bonus: If attack survived when we wanted it to (Impact > 0), small bonus
-            if attack_survived and action != "T1589_LURK":
-                reward += 5
 
-            # Penalty: If we tried to attack but previous one was killed instantly, maybe we are being too noisy
-            if not attack_survived and last_dropped_file is not None and action != "T1589_LURK":
-                reward -= 5
+            # Bonus: If previous attack survived
+            if attack_survived and action != "T1589_LURK":
+                reward += 10
+
+            # Penalty: If dead
+            if not attack_survived and last_payload is not None and action != "T1589_LURK":
+                reward -= 10
 
             # 5. LEARN & MEMORIZE
             if last_state_key is not None and last_action is not None:
@@ -147,7 +213,9 @@ def engage_offense():
 
             last_state_key = state_key
             last_action = action
-            last_dropped_file = current_drop
+
+            if current_drop:
+                last_payload = (current_drop, spawned_pid)
             
             # Decay Hyperparameters
             epsilon = max(HP['MIN_EPSILON'], epsilon * HP['EPSILON_DECAY'])
@@ -161,11 +229,13 @@ def engage_offense():
             curr_q = q_table.get(f"{state_key}_{action}", 0)
             print(f"\033[91m[RED AI] \033[0m 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {curr_q:.2f}")
             
-            time.sleep(random.uniform(0.5, 1.5))
+            time.sleep(random.uniform(1.0, 2.0))
             
         except KeyboardInterrupt:
             break
-        except Exception:
+        except Exception as e:
+            logging.error(f"CRITICAL ERROR in Red Brain: {e}")
+            logging.error(traceback.format_exc())
             time.sleep(1)
 
 if __name__ == "__main__":
