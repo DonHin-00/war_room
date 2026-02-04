@@ -23,9 +23,6 @@ utils.setup_logging(config.PATHS["LOG_RED"])
 logger = logging.getLogger("RedTeam")
 
 class RedTeamer:
-    """
-    The Red Team AI Agent with Double Q-Learning, Experience Replay, and Advanced Tactics.
-    """
     def __init__(self):
         self.alpha = config.RL["ALPHA"]
         self.alpha_decay = config.RL["ALPHA_DECAY"]
@@ -41,6 +38,9 @@ class RedTeamer:
         self.iteration_count = 0
 
         self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+
+        # Enforce Limits
+        utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
@@ -101,7 +101,7 @@ class RedTeamer:
             main_table[current_q_key] = new_val
 
     def perform_recon(self):
-        """Safely inspects the environment to find targets or traps."""
+        """Safely inspects the environment."""
         traps_found = 0
         try:
             if not os.path.exists(config.PATHS["WAR_ZONE"]): return 0
@@ -117,16 +117,13 @@ class RedTeamer:
         return traps_found
 
     def generate_payload(self, obfuscate=False):
-        """Generates payload content. Obfuscation adds random high-entropy padding."""
         base_content = b"echo 'malware_payload'"
         if obfuscate:
-            # Polymorphism: Different padding every time
             padding = utils.generate_high_entropy_data(random.randint(512, 4096))
             return base_content + b"\n#PAD:" + padding
         return base_content
 
     def encrypt_target(self):
-        """Simulates Ransomware: Find a file and rename/encrypt it."""
         try:
             if not os.path.exists(config.PATHS["WAR_ZONE"]): return 0
             targets = []
@@ -138,12 +135,9 @@ class RedTeamer:
             if not targets: return 0
 
             target = random.choice(targets)
-            # Read content (safe read)
             content = utils.safe_file_read(target)
             if not content: return 0
 
-            # Simulate encryption (Base64 or simple reversal for simulation)
-            # We just append .enc and overwrite with "ENCRYPTED" header
             encrypted_path = target + ".enc"
             with open(encrypted_path, 'wb') as f:
                 f.write(b"ENCRYPTED_HEADER_V1")
@@ -153,6 +147,29 @@ class RedTeamer:
             return 1
         except Exception:
             return 0
+
+    def inject_process(self):
+        """Creates a 'ghost' process ID file."""
+        if not os.path.exists(config.PATHS["PROC"]):
+            try: os.makedirs(config.PATHS["PROC"], mode=0o700)
+            except: pass
+
+        pid = random.randint(1000, 65535)
+        path = os.path.join(config.PATHS["PROC"], str(pid))
+        try:
+            with open(path, 'w') as f:
+                f.write(f"cmd: malicious_daemon --stealth\nstart: {time.time()}")
+            return 1
+        except: return 0
+
+    def wipe_logs(self):
+        """Attempts to delete the audit log."""
+        try:
+            if os.path.exists(config.PATHS["AUDIT_LOG"]):
+                os.remove(config.PATHS["AUDIT_LOG"])
+                return 1
+        except: pass
+        return 0
 
     def engage(self):
         logger.info("Red Team AI Initialized. Framework: MITRE ATT&CK + Polymorphism")
@@ -169,9 +186,6 @@ class RedTeamer:
                 war_state = self.state_manager.get_war_state()
                 if not war_state: war_state = {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
-
-                # Check for last attack success (Feedback Loop)
-                # Ideally check if file still exists. Simplified here.
 
                 sync_interval = config.RL["SYNC_INTERVAL"] * current_alert
                 state_key = f"{current_alert}"
@@ -200,7 +214,6 @@ class RedTeamer:
                 try:
                     rand_suffix = secrets.token_hex(4)
                     timestamp = int(time.time())
-                    target_file = None
 
                     if action == "T1046_RECON":
                         self.perform_recon()
@@ -233,21 +246,27 @@ class RedTeamer:
                         details = {"file": fname, "technique": "masquerade"}
 
                     elif action == "T1486_ENCRYPT":
-                        success = self.encrypt_target()
-                        if success:
+                        if self.encrypt_target():
                             impact = 8
-                            details = {"technique": "ransomware", "status": "encrypted"}
-                        else:
-                            impact = 0
+                            details = {"technique": "ransomware"}
 
                     elif action == "T1071_C2_BEACON":
-                        # Create a persistent beacon file or update it
                         fname = "c2_beacon.dat"
                         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
                         with open(target_file, 'a') as f:
                             f.write(f"{timestamp}:HEARTBEAT\n")
                         impact = 2
                         details = {"file": fname, "technique": "c2"}
+
+                    elif action == "T1055_INJECTION":
+                        if self.inject_process():
+                            impact = 5
+                            details = {"technique": "injection"}
+
+                    elif action == "T1070_WIPE_LOGS":
+                        if self.wipe_logs():
+                            impact = 10 # High impact if successful (blinded Blue)
+                            details = {"technique": "wiper"}
 
                     elif action == "T1589_LURK":
                         impact = 0
@@ -263,6 +282,7 @@ class RedTeamer:
                 if impact > 0: reward = config.RED["REWARDS"]["IMPACT"]
                 if current_alert >= 4 and action == "T1589_LURK": reward = config.RED["REWARDS"]["STEALTH"]
                 if current_alert == config.SYSTEM["MAX_ALERT_LEVEL"] and impact > 0: reward = config.RED["REWARDS"]["CRITICAL"]
+                if action == "T1055_INJECTION" and impact > 0: reward = config.RED["REWARDS"]["PERSISTENCE"]
                 if trapped: reward = config.RED["REWARDS"]["PENALTY_TRAPPED"]
 
                 # 5. LEARN
@@ -273,6 +293,9 @@ class RedTeamer:
                     self.sync_memory()
 
                 # 6. OPS LOGGING
+                # If we wiped logs, this log might start a new file or fail if deleted.
+                # AuditLogger handles recreation if missing? The handle might be stale if deleted.
+                # Re-init logger if needed? utils.AuditLogger checks.
                 self.audit_logger.log_event("RED", action, {
                     "impact": impact,
                     "alert_level": current_alert,

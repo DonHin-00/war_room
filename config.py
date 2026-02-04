@@ -5,15 +5,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WAR_ZONE_DIR = os.path.join(BASE_DIR, "battlefield")
 DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
 INCIDENT_DIR = os.path.join(DATA_DIR, "incidents")
+PROC_DIR = os.path.join(WAR_ZONE_DIR, ".proc") # Simulated process list
 
 # Ensure directories exist
 os.makedirs(WAR_ZONE_DIR, exist_ok=True, mode=0o700)
 os.makedirs(DATA_DIR, exist_ok=True, mode=0o700)
 os.makedirs(INCIDENT_DIR, exist_ok=True, mode=0o700)
+# PROC_DIR creation handled by agents/runner to ensure freshness
 
 PATHS = {
     "BASE_DIR": BASE_DIR,
     "WAR_ZONE": WAR_ZONE_DIR,
+    "PROC": PROC_DIR,
     "Q_TABLE_RED": os.path.join(DATA_DIR, "red_q_table.json"),
     "Q_TABLE_BLUE": os.path.join(DATA_DIR, "blue_q_table.json"),
     "WAR_STATE": os.path.join(DATA_DIR, "war_state.json"),
@@ -47,13 +50,16 @@ RED = {
         "T1589_LURK",
         "T1036_MASQUERADE",
         "T1486_ENCRYPT",    # Ransomware
-        "T1071_C2_BEACON"   # C2 Communication
+        "T1071_C2_BEACON",  # C2 Communication
+        "T1055_INJECTION",  # Process Injection
+        "T1070_WIPE_LOGS"   # Anti-Forensics
     ],
     "REWARDS": {
         "IMPACT": 10,
         "STEALTH": 15,
         "CRITICAL": 30,
-        "PENALTY_TRAPPED": -20
+        "PENALTY_TRAPPED": -20,
+        "PERSISTENCE": 25   # Reward for successful injection
     }
 }
 
@@ -67,7 +73,9 @@ BLUE = {
         "DEPLOY_TRAP",
         "DEPLOY_DECOY",
         "BACKUP_CRITICAL",  # Backup data
-        "RESTORE_DATA"      # Restore from backup
+        "RESTORE_DATA",     # Restore from backup
+        "HUNT_PROCESSES",   # Kill hidden processes
+        "VERIFY_INTEGRITY"  # Checksum verification
     ],
     "REWARDS": {
         "MITIGATION": 25,
@@ -76,7 +84,8 @@ BLUE = {
         "PENALTY_WASTE": -15,
         "PENALTY_NEGLIGENCE": -50,
         "ANOMALY_BONUS": 20,
-        "RESTORE_SUCCESS": 40
+        "RESTORE_SUCCESS": 40,
+        "INTEGRITY_BONUS": 15
     },
     "THRESHOLDS": {
         "ENTROPY": 3.5,
@@ -88,5 +97,6 @@ BLUE = {
 SYSTEM = {
     "MAX_ALERT_LEVEL": 5,
     "MIN_ALERT_LEVEL": 1,
-    "RESOURCE_LIMIT_MB": 512
+    "RESOURCE_LIMIT_MB": 512, # Hard RAM limit
+    "CPU_LIMIT_SECONDS": 600  # Run time limit
 }

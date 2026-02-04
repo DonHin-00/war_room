@@ -70,6 +70,9 @@ class BlueDefender:
         # Backup system
         self.backups: Dict[str, bytes] = {}
 
+        # Enforce Limits
+        utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
+
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
@@ -101,13 +104,10 @@ class BlueDefender:
 
     def perform_backup(self):
         """Simulates backing up 'critical' files."""
-        # For simulation, we just store content of some files in memory or a backup dir.
-        # Let's say we backup random safe files.
         try:
             with os.scandir(config.PATHS["WAR_ZONE"]) as it:
                 for entry in it:
                     if entry.is_file() and not entry.name.endswith(".enc") and not utils.is_tar_pit(entry.path):
-                        # Backup logic
                         try:
                             content = utils.safe_file_read(entry.path)
                             self.backups[entry.name] = content
@@ -122,10 +122,9 @@ class BlueDefender:
             fpath = os.path.join(config.PATHS["WAR_ZONE"], fname)
             enc_path = fpath + ".enc"
 
-            # Check if encrypted version exists or original missing
             if os.path.exists(enc_path):
                 os.remove(enc_path)
-                with open(fpath, 'w') as f: f.write(content) # Not binary safe in backup dict? assuming str
+                with open(fpath, 'w') as f: f.write(content)
                 restored += 1
             elif not os.path.exists(fpath):
                 with open(fpath, 'w') as f: f.write(content)
@@ -143,6 +142,41 @@ class BlueDefender:
         }
         fname = f"ir_{int(time.time())}_{random.randint(1000,9999)}.json"
         utils.safe_json_write(os.path.join(config.PATHS["INCIDENTS"], fname), report)
+
+    def hunt_processes(self):
+        """Scans the .proc directory and kills unauthorized pids."""
+        killed = 0
+        if not os.path.exists(config.PATHS["PROC"]): return 0
+
+        try:
+            with os.scandir(config.PATHS["PROC"]) as it:
+                for entry in it:
+                    # In simulation, all files in .proc not allowed by Blue are malicious
+                    # Simplified: We just clear the whole proc table if we hunt.
+                    # Or check content.
+                    try:
+                        os.remove(entry.path)
+                        killed += 1
+                    except: pass
+        except: pass
+        return killed
+
+    def verify_integrity(self):
+        """Checks SHA256 of critical files against known good list."""
+        # For simulation, we assume files in backup are "known good" state
+        # If file on disk has different hash than backup, it's modified.
+        compromised = 0
+        for fname, content in self.backups.items():
+            fpath = os.path.join(config.PATHS["WAR_ZONE"], fname)
+            if os.path.exists(fpath):
+                current_hash = utils.calculate_checksum(fpath)
+                backup_hash = hashlib.sha256(content.encode('utf-8') if isinstance(content, str) else content).hexdigest()
+
+                if current_hash != backup_hash:
+                    # Integrity Violation!
+                    logger.warning(f"Integrity Violation: {fname}")
+                    compromised += 1
+        return compromised
 
     def engage(self):
         logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61 + Adaptive Immunity")
@@ -223,12 +257,26 @@ class BlueDefender:
                             mitigated += 2
                             details = {"action": "restore", "count": count}
 
+                elif action == "HUNT_PROCESSES":
+                    killed = self.hunt_processes()
+                    if killed > 0:
+                        mitigated += killed
+                        details = {"action": "hunt", "killed": killed}
+
+                elif action == "VERIFY_INTEGRITY":
+                    compromised = self.verify_integrity()
+                    if compromised > 0:
+                        # If compromised, maybe auto-restore?
+                        self.restore_data()
+                        details = {"action": "integrity_check", "compromised": compromised}
+                        # Reward for finding issues
+                        mitigated += 1
+
                 elif action == "SIGNATURE_SCAN":
                     for t in all_threats + c2_beacons:
                         try:
-                            data = utils.safe_file_read(t, timeout=0.1)
-                            # Simple C2 signature check or hash check
-                            if self.signature_db.check_signature(data) or "HEARTBEAT" in str(data):
+                            # Use new scan_threats util (YARA mock)
+                            if utils.scan_threats(t) or self.signature_db.check_signature(utils.safe_file_read(t).encode('utf-8')):
                                 os.remove(t)
                                 mitigated += 1
                                 self.generate_incident_report("KNOWN_THREAT", t)
@@ -243,7 +291,7 @@ class BlueDefender:
                             if ".sys" in t or entropy > config.BLUE["THRESHOLDS"]["ENTROPY"]:
                                 os.remove(t)
                                 mitigated += 1
-                                self.signature_db.add_signature(data)
+                                self.signature_db.add_signature(data.encode('utf-8') if isinstance(data, str) else data)
                                 self.generate_incident_report("HEURISTIC_THREAT", t)
                         except: pass
 
@@ -255,6 +303,7 @@ class BlueDefender:
                 if action == "IGNORE" and threat_count > 0: reward = config.BLUE["REWARDS"]["PENALTY_NEGLIGENCE"]
                 if anomaly_detected and action == "HEURISTIC_SCAN": reward += config.BLUE["REWARDS"]["ANOMALY_BONUS"]
                 if action == "RESTORE_DATA" and mitigated > 0: reward += config.BLUE["REWARDS"]["RESTORE_SUCCESS"]
+                if action == "VERIFY_INTEGRITY" and mitigated > 0: reward += config.BLUE["REWARDS"]["INTEGRITY_BONUS"]
 
                 # 6. LEARN
                 current_q_key = f"{state_key}_{action}"

@@ -11,6 +11,7 @@ import time
 import errno
 import stat
 import hashlib
+import resource
 from typing import Any, Union, List, Tuple, Deque, Dict
 
 # Utility functions
@@ -106,6 +107,59 @@ def setup_logging(log_file_path: str) -> None:
     logging.basicConfig(filename=log_file_path,
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)s:%(message)s')
+
+# --- HEAVY MACHINERY ---
+
+def limit_resources(ram_mb: int = 512, cpu_seconds: int = 600):
+    """
+    Enforce soft/hard limits on system resources.
+    """
+    try:
+        # RAM
+        limit = ram_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+        # CPU
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 30))
+    except ValueError:
+        pass
+
+def calculate_checksum(file_path: str) -> str:
+    """Calculates SHA256 checksum of a file."""
+    try:
+        sha256 = hashlib.sha256()
+        with open(file_path, 'rb') as f:
+            while True:
+                data = f.read(65536)
+                if not data: break
+                sha256.update(data)
+        return sha256.hexdigest()
+    except Exception:
+        return ""
+
+def scan_threats(file_path: str) -> bool:
+    """
+    Mock YARA scanner.
+    Scans for suspicious byte patterns ("Signatures").
+    """
+    try:
+        # Avoid traps
+        if is_tar_pit(file_path): return False
+
+        # Read small chunk
+        content = safe_file_read(file_path, timeout=0.1)
+        if not content: return False
+
+        # Signatures
+        # 1. Shell script execution
+        if "echo 'malware_payload'" in content: return True
+        # 2. Encrypted header
+        if "ENCRYPTED_HEADER_V1" in content: return True
+        # 3. Beacon
+        if ":HEARTBEAT" in content: return True
+
+        return False
+    except:
+        return False
 
 # --- ADVANCED DEFENSE PRIMITIVES ---
 
@@ -232,15 +286,12 @@ class AuditLogger:
             "previous_hash": self.previous_hash
         }
 
-        # Calculate hash of current entry (minus the hash field itself)
         entry_str = json.dumps(entry, sort_keys=True)
         current_hash = hashlib.sha256(entry_str.encode('utf-8')).hexdigest()
         entry["hash"] = current_hash
 
         self.previous_hash = current_hash
 
-        # Atomic append? Hard with lock. We use safe write append mode if possible
-        # Or simple append with open(a)
         try:
             with open(self.log_path, 'a') as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
@@ -250,5 +301,4 @@ class AuditLogger:
 
 def manage_session(session_id):
     """Manage a user session given a session ID."""
-    # Placeholder for session management logic
     pass
