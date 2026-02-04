@@ -1,0 +1,29 @@
+[
+  {
+    "id": "001",
+    "title": "No Eval",
+    "content": "Never use eval() or exec() due to security risks.",
+    "tags": [
+      "security",
+      "python"
+    ]
+  },
+  {
+    "id": "002",
+    "title": "50 Line Limit",
+    "content": "Functions must not exceed 50 lines to ensure readability.",
+    "tags": [
+      "maintainability",
+      "style"
+    ]
+  },
+  {
+    "id": "003",
+    "title": "Latency Critical",
+    "content": "All I/O must be non-blocking where possible. 1ms delay is unacceptable.",
+    "tags": [
+      "performance",
+      "latency"
+    ]
+  }
+]
