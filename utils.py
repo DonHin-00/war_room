@@ -84,6 +84,22 @@ def secure_create(file_path: str, data: str) -> None:
     except OSError as e:
         logging.error(f"Secure create failed for {file_path}: {e}")
 
+def read_file_head(file_path: str, size: int = 4096) -> bytes:
+    """
+    Read the first N bytes of a file safely.
+
+    Args:
+        file_path: Path to the file.
+        size: Number of bytes to read (default 4096).
+
+    Returns:
+        Bytes read from the file.
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            return f.read(size)
+    except OSError:
+        return b""
 
 def calculate_entropy(data: Union[str, bytes]) -> float:
     """

@@ -219,14 +219,16 @@ class BlueDefender:
                                 if current_hash != baseline_hash:
                                     self.report_incident(path, "INTEGRITY_VIOLATION", "RESTORE")
                                     print(f"{C_BLUE}[DEFENSE] FIM Alert: {path} modified!{C_RESET}")
-                                    mitigated += 1 # Count FIM detection as mitigation step
-                                    # Ideally restore from golden image (not implemented yet)
+                                    mitigated += 1
                             except OSError: pass
 
                     # 3. File Scan
                     for t in all_threats:
                         if not os.path.exists(t): continue
-                        entropy = utils.calculate_entropy(t)
+
+                        # Correct: Read file content for entropy calculation
+                        content_head = utils.read_file_head(t, 4096)
+                        entropy = utils.calculate_entropy(content_head)
                         is_c2 = t.endswith(".c2_beacon")
 
                         if ".sys" in t or entropy > 3.5 or is_c2:
@@ -307,6 +309,14 @@ class BlueDefender:
                     war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
                 elif mitigated == 0 and current_alert > config.MIN_ALERT and action == "OBSERVE":
                     war_state['blue_alert_level'] = max(config.MIN_ALERT, current_alert - 1)
+
+                # Deep Clean Protocol at MAX ALERT
+                if current_alert == config.MAX_ALERT and threat_count > 10:
+                    print(f"{C_BLUE}[DEFENSE] ALERT MAX: Initiating Deep Clean Protocol...{C_RESET}")
+                    try:
+                        cleaner_path = os.path.join(config.BASE_DIR, "tools", "clean.py")
+                        subprocess.run([sys.executable, cleaner_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except: pass
 
                 utils.access_memory(config.STATE_FILE, war_state)
 
