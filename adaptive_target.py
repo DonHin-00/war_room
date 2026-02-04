@@ -14,6 +14,11 @@ class AdaptiveTarget:
         self.watch_dir = config.TARGET_DIR
         self.compromised = False
         self.defense_level = 1
+        self.lockdown_mode = False
+
+        # HIDS Baseline (Simulated)
+        self.critical_files = {"/etc/passwd": "root:x:0:0:...", "/var/www/index.html": "<html>"}
+        self.file_hashes = {k: utils.calculate_sha256(k) for k in self.critical_files} # Mock
 
         # Initial Vulnerabilities
         self.vulns = [
@@ -68,6 +73,14 @@ class AdaptiveTarget:
 
     def handle_request(self, filepath):
         try:
+            # HIDS Check (Periodic)
+            if random.random() < 0.05: self.run_hids()
+
+            # Lockdown Check
+            if self.lockdown_mode:
+                utils.secure_delete(filepath)
+                return
+
             content = utils.safe_file_read(filepath)
             if not content: return
 
@@ -130,6 +143,18 @@ class AdaptiveTarget:
             except OSError: pass
 
             utils.adaptive_sleep(1.0, 0.0)
+
+    def run_hids(self):
+        """Simulated Host Intrusion Detection System."""
+        # Check for unexpected files in root (simulated) or modifications
+        # Here we verify if we are in DEFCON 1 (Lockdown) via DB
+        state = utils.DB.get_state("blue_alert_level", 1)
+        if state >= 5 and not self.lockdown_mode:
+            self.lockdown_mode = True
+            self.logger.warning("HIDS: ENTERING LOCKDOWN MODE (DEFCON 5 detected).")
+        elif state < 5 and self.lockdown_mode:
+            self.lockdown_mode = False
+            self.logger.info("HIDS: Lockdown lifted.")
 
 if __name__ == "__main__":
     target = AdaptiveTarget()

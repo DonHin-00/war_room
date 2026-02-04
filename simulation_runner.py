@@ -50,7 +50,12 @@ def main():
     target = subprocess.Popen(["python3", "-u", "adaptive_target.py"], env=clean_env)
     processes.append(target)
 
-    # 4. Start Proxy War (Optional)
+    # 4. Start SOC (The "Overwatch")
+    print("\033[94m[SIMULATION] Activating Security Operations Center (SOC)...\033[0m")
+    soc = subprocess.Popen(["python3", "-u", "soc_core.py"], env=clean_env)
+    processes.append(soc)
+
+    # 5. Start Proxy War (Optional)
     if args.proxy:
         print("\033[95m[SIMULATION] Launching Proxy War Emulation...\033[0m")
         proxy = subprocess.Popen(["python3", "-u", "proxy_war.py", str(args.duration)], env=clean_env)

@@ -21,7 +21,7 @@ TARGET_DIR = config.TARGET_DIR
 logger = utils.setup_logging("RED", os.path.join(config.LOG_DIR, "red.log"))
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP", "T1190_WEB_EXPLOIT"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP", "T1190_WEB_EXPLOIT", "T1003_CREDENTIAL_DUMPING"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -203,9 +203,23 @@ def engage_offense():
                     last_web_attack_id = None
                 elif os.path.exists(resp_403):
                     reward -= 5 # Penalty for getting blocked
-                    logger.info(f"ATTACK BLOCKED: {last_web_attack_id} failed.")
+                    logger.info(f"ATTACK BLOCKED: {last_web_attack_id} failed. Evasively sleeping...")
                     utils.secure_delete(resp_403)
                     last_web_attack_id = None
+                    utils.adaptive_sleep(2.0, 0.0) # Wait out the SOC correlation window
+
+            elif action == "T1003_CREDENTIAL_DUMPING":
+                # Simulated Credential Access
+                try:
+                    # Look for leaked DBs from successful SQLi
+                    dumps = [f.path for f in os.scandir(TARGET_DIR) if "leaked" in f.name]
+                    if dumps:
+                        logger.info("CREDENTIALS ACQUIRED from Previous Breach!")
+                        reward += 15
+                        # Steal and delete (simulated exfil)
+                        utils.secure_delete(dumps[0])
+                        impact = 9
+                except: pass
 
             # 4. REWARDS
             reward = 0
