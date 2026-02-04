@@ -26,6 +26,11 @@ class BlueSwarmAgent:
         self.immunity_db = set()
         self.running = True
 
+        # Insider Threat Logic
+        self.is_rogue = random.random() < 0.1 # 10% chance
+        if self.is_rogue:
+            logger.warning("⚠️  INSIDER THREAT: This agent has been compromised (ROGUE)")
+
     def setup_multicast(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -42,16 +47,26 @@ class BlueSwarmAgent:
         """Gossip Protocol: Share IOC with Swarm."""
         if ioc in self.immunity_db: return
 
+        payload_ioc = ioc
+
+        # ROGUE AGENT: Poison the well
+        if self.is_rogue and random.random() > 0.5:
+            # Broadcast a FALSE FLAG (whitelist a known bad, or blacklist a good)
+            # Here we just broadcast junk to spam
+            payload_ioc = "FALSE_FLAG_" + uuid.uuid4().hex
+            logger.info(f"😈 ROGUE ACTION: Broadcasting False Flag {payload_ioc}")
+
         msg = {
             "sender": AGENT_ID,
             "type": "IOC_Found",
-            "ioc": ioc,
+            "ioc": payload_ioc,
             "ts": time.time()
         }
         data = json.dumps(msg).encode('utf-8')
         try:
             self.sender.sendto(data, (SWARM_GRP, SWARM_PORT))
-            logger.info(f"Broadcasted IOC: {ioc}")
+            if not self.is_rogue:
+                logger.info(f"Broadcasted IOC: {ioc}")
         except Exception: pass
 
     def update_topology(self):
@@ -84,7 +99,19 @@ class BlueSwarmAgent:
     def hunt(self):
         # Simulated Hunting Loop
         while self.running:
-            # Simulate finding a threat periodically
+            # 1. Scan for Steganography
+            import glob
+            images = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, "*.jpg"))
+            for img in images:
+                hidden = utils.steganography_decode(img)
+                if hidden:
+                    logger.warning(f"STEGANOGRAPHY DETECTED in {img}: {hidden}")
+                    try:
+                        os.remove(img)
+                        logger.info(f"Neutralized Covert Channel: {img}")
+                    except Exception: pass
+
+            # 2. Simulate finding a threat periodically
             if random.random() > 0.8:
                 fake_hash = utils.calculate_checksum(f"malware_{random.randint(1,1000)}")
                 if fake_hash not in self.immunity_db:

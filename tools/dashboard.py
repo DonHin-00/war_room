@@ -79,24 +79,60 @@ def draw_dashboard(stdscr):
         # Dynamic ASCII Mesh
         topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
 
-        red_nodes = [k for k,v in topo.items() if v['type'] == 'RED']
-        blue_nodes = [k for k,v in topo.items() if v['type'] == 'BLUE']
+        red_nodes = [v for k,v in topo.items() if v['type'] == 'RED']
+        blue_nodes = [v for k,v in topo.items() if v['type'] == 'BLUE']
+
+        # --- LEFT PANEL: EVOLUTION MONITOR ---
+        # Calculate Average Genes
+        avg_jitter = 0
+        avg_aggro = 0
+        stealth_count = 0
+
+        if red_nodes:
+            for r in red_nodes:
+                genes = r.get('genes', {})
+                avg_jitter += genes.get('jitter', 0)
+                avg_aggro += genes.get('aggression', 0)
+                if genes.get('stealth'): stealth_count += 1
+
+            avg_jitter /= len(red_nodes)
+            avg_aggro /= len(red_nodes)
+            stealth_pct = (stealth_count / len(red_nodes)) * 100
+
+            stdscr.addstr(2, 2, "[ EVOLUTIONARY METRICS ]", curses.color_pair(2))
+            stdscr.addstr(4, 2, f"Avg Jitter: {avg_jitter:.2f}s")
+            stdscr.addstr(5, 2, f"Avg Aggro:  {avg_aggro:.2f}")
+            stdscr.addstr(6, 2, f"Stealth %:  {stealth_pct:.1f}%")
+
+            # Meta Analysis
+            meta = "BALANCED"
+            if avg_aggro > 0.8: meta = "ZERG RUSH"
+            if stealth_pct > 80: meta = "NINJA"
+            stdscr.addstr(8, 2, f"META: {meta}", curses.A_BLINK)
 
         # Simple Circle Layout
         try:
-            # Red Line
-            red_str = " <-> ".join([f"(R:{n[:4]})" for n in red_nodes[:3]])
+            # Red Line (Show Node IDs)
+            # red_nodes is a list of dicts now, need keys?
+            # We need to restructure how we read topo to get IDs.
+            # Reread strictly for IDs or just use the dicts if they had ID inside.
+            # They don't have ID inside value.
+
+            red_ids = [k for k,v in topo.items() if v['type'] == 'RED']
+            blue_ids = [k for k,v in topo.items() if v['type'] == 'BLUE']
+
+            red_str = " <-> ".join([f"(R:{n[:4]})" for n in red_ids[:3]])
             stdscr.addstr(center_y - 2, max(0, center_x - len(red_str)//2), red_str, curses.color_pair(2))
 
             # Vs
             stdscr.addstr(center_y, center_x - 2, " VS ", curses.A_BOLD)
 
             # Blue Line
-            blue_str = " <-> ".join([f"(B:{n[:4]})" for n in blue_nodes[:3]])
+            blue_str = " <-> ".join([f"(B:{n[:4]})" for n in blue_ids[:3]])
             stdscr.addstr(center_y + 2, max(0, center_x - len(blue_str)//2), blue_str, curses.color_pair(1))
 
-            if len(red_nodes) > 3 or len(blue_nodes) > 3:
-                stdscr.addstr(center_y + 4, center_x - 10, f"+ {len(red_nodes)-3} Red, {len(blue_nodes)-3} Blue hidden")
+            if len(red_ids) > 3 or len(blue_ids) > 3:
+                stdscr.addstr(center_y + 4, center_x - 10, f"+ {len(red_ids)-3} Red, {len(blue_ids)-3} Blue hidden")
 
         except: pass
 

@@ -477,3 +477,33 @@ def secure_restore(filename, backup_dir, restore_dir):
     except Exception as e:
         logger.error(f"Restore failed: {e}")
         return False
+
+def steganography_encode(data, image_path):
+    """Hide data in an image footer."""
+    # Simulated: Append Base64 data to end of file
+    import base64
+    try:
+        encoded = base64.b64encode(json.dumps(data).encode()).decode()
+        marker = b"\xFF\xD9" # JPG EOF
+
+        # Ensure file exists/create dummy
+        if not os.path.exists(image_path):
+            with open(image_path, 'wb') as f:
+                f.write(b'\xFF\xD8\xFF\xE0' + b'\x00'*100) # Dummy header
+
+        with open(image_path, 'ab') as f:
+            f.write(marker + b"STEG:" + encoded.encode())
+        return True
+    except Exception: return False
+
+def steganography_decode(image_path):
+    """Extract hidden data from image."""
+    try:
+        with open(image_path, 'rb') as f:
+            content = f.read()
+            if b"STEG:" in content:
+                raw = content.split(b"STEG:")[1]
+                import base64
+                return json.loads(base64.b64decode(raw).decode())
+    except Exception: pass
+    return None

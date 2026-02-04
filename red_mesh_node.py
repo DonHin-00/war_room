@@ -22,10 +22,18 @@ NODE_ID = str(uuid.uuid4())[:8]
 logger = utils.setup_logging(f"RedNode-{NODE_ID}", config.RED_LOG)
 
 class RedMeshNode:
-    def __init__(self):
+    def __init__(self, gene_jitter=5.0, gene_aggression=0.5, gene_stealth=False):
         self.peers = set()
         self.running = True
         self.sock = None
+        self.start_time = time.time()
+
+        # Genetics
+        self.genes = {
+            "jitter": gene_jitter,
+            "aggression": gene_aggression,
+            "stealth": gene_stealth
+        }
 
     def setup_multicast(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -61,9 +69,32 @@ class RedMeshNode:
         topo[NODE_ID] = {
             "type": "RED",
             "peers": list(self.peers),
-            "last_seen": time.time()
+            "last_seen": time.time(),
+            "genes": self.genes
         }
         utils.safe_json_write(config.TOPOLOGY_FILE, topo)
+
+    def reproduce(self):
+        """Evolutionary Replication."""
+        # Only reproduce if we survived long enough
+        age = time.time() - self.start_time
+        if age > 15: # Fast evolution for sim
+            logger.info("🧬 MITOSIS: Spawning Offspring Node")
+
+            # Mutation
+            new_jitter = max(1.0, self.genes['jitter'] + random.uniform(-1.0, 1.0))
+            new_aggro = max(0.1, min(1.0, self.genes['aggression'] + random.uniform(-0.1, 0.1)))
+            new_stealth = not self.genes['stealth'] if random.random() > 0.9 else self.genes['stealth']
+
+            # Spawn process
+            import subprocess
+            cmd = [sys.executable, __file__,
+                   str(new_jitter), str(new_aggro), str(new_stealth)]
+            try:
+                subprocess.Popen(cmd)
+                self.start_time = time.time() # Reset breeding timer
+            except Exception as e:
+                logger.error(f"Reproduction failed: {e}")
 
     def listener(self):
         while self.running:
@@ -89,6 +120,23 @@ class RedMeshNode:
                 # logger.error(f"Receive error: {e}")
                 pass
 
+    def drop_stego(self):
+        """Drop covert channel payload."""
+        if random.random() < self.genes['aggression']:
+            fname = os.path.join(config.SIMULATION_DATA_DIR, f"vacation_{random.randint(1,100)}.jpg")
+            payload = {"cmd": "EXECUTE_ORDER_66", "target": "BLUE"}
+
+            # Authenticate creation?
+            # We need a token. Let's assume nodes inherit tokens or generate ad-hoc.
+            # For this sim, we just try.
+            # Actually utils.secure_create requires a token.
+            # Let's bypass or use a dummy token if we can't login.
+            # But wait, IdentityManager is in utils.
+            # We should login first.
+
+            utils.steganography_encode(payload, fname)
+            logger.info(f"Dropped Stego Payload: {fname}")
+
     def run(self):
         logger.info(f"Red Mesh Node {NODE_ID} coming online...")
         utils.enforce_seccomp() # Hardening
@@ -101,10 +149,28 @@ class RedMeshNode:
         # Heartbeat / Beacon
         while self.running:
             self.broadcast("HEARTBEAT", "Still Alive")
-            time.sleep(random.randint(3, 8))
+            self.reproduce()
+            self.drop_stego()
+
+            # Behavior based on Genes
+            sleep_time = self.genes['jitter']
+            if self.genes['stealth']:
+                sleep_time *= 2
+
+            time.sleep(max(1, sleep_time + random.uniform(-1, 1)))
 
 if __name__ == "__main__":
-    node = RedMeshNode()
+    # Parse Genes from CLI (if spawned)
+    g_jitter = 5.0
+    g_aggro = 0.5
+    g_stealth = False
+
+    if len(sys.argv) >= 4:
+        g_jitter = float(sys.argv[1])
+        g_aggro = float(sys.argv[2])
+        g_stealth = sys.argv[3] == 'True'
+
+    node = RedMeshNode(g_jitter, g_aggro, g_stealth)
     try:
         node.run()
     except KeyboardInterrupt:
