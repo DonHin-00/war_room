@@ -15,6 +15,8 @@ import shutil
 import signal
 import sys
 import logging
+import threading
+import queue
 from utils import safe_file_read, safe_file_write
 
 # --- CONFIGURATION ---
@@ -48,6 +50,51 @@ P_NEGLIGENCE = -50
 MAX_ALERT = 5
 MIN_ALERT = 1
 
+class Drone(threading.Thread):
+    def __init__(self, drone_id, sector_path, report_queue, logger):
+        super().__init__()
+        self.drone_id = drone_id
+        self.sector_path = sector_path
+        self.report_queue = report_queue
+        self.logger = logger
+        self.running = True
+        self.scan_interval = 2.0  # Initial scan rate (seconds)
+        self.efficiency = 0.5    # Learning parameter
+
+    def run(self):
+        while self.running:
+            try:
+                found_threats = 0
+                if os.path.exists(self.sector_path):
+                    try:
+                        with os.scandir(self.sector_path) as entries:
+                            for entry in entries:
+                                if entry.name.startswith('malware_') or entry.name.startswith('.sys_'):
+                                    self.report_queue.put(('THREAT', entry.path))
+                                    found_threats += 1
+                                elif entry.name.endswith('.enc'):
+                                    self.report_queue.put(('RANSOM', entry.path))
+                                    found_threats += 1
+                    except OSError: pass
+
+                # Self-Improvement Logic
+                if found_threats > 0:
+                    # Found something? Scan faster!
+                    self.scan_interval = max(0.5, self.scan_interval * 0.8)
+                    self.efficiency = min(1.0, self.efficiency + 0.1)
+                else:
+                    # Nothing? Relax to save resources (but stay vigilant)
+                    self.scan_interval = min(5.0, self.scan_interval * 1.1)
+                    self.efficiency = max(0.1, self.efficiency - 0.05)
+
+                time.sleep(self.scan_interval)
+            except Exception as e:
+                self.logger.error(f"Drone {self.drone_id} crashed: {e}")
+                time.sleep(5)
+
+    def stop(self):
+        self.running = False
+
 class BlueDefender:
     def __init__(self):
         self.running = True
@@ -56,9 +103,24 @@ class BlueDefender:
         self.setup_logging()
         self.load_state()
 
+        # Drone System
+        self.report_queue = queue.Queue()
+        self.drones = []
+        self.spawn_drones()
+
         # Signal Handling
         signal.signal(signal.SIGINT, self.handle_signal)
         signal.signal(signal.SIGTERM, self.handle_signal)
+
+    def spawn_drones(self):
+        # Create "sectors" - for now, just the main watch dir, but architecture allows splitting
+        # Let's spawn 3 overlapping drones for redundancy and "eyes in the sky" coverage
+        for i in range(3):
+            drone = Drone(i, WATCH_DIR, self.report_queue, self.logger)
+            drone.daemon = True
+            drone.start()
+            self.drones.append(drone)
+        self.logger.info(f"Deployed {len(self.drones)} surveillance drones.")
 
     def setup_logging(self):
         logging.basicConfig(
@@ -74,6 +136,8 @@ class BlueDefender:
     def handle_signal(self, signum, frame):
         self.logger.info(f"Received signal {signum}. Shutting down gracefully...")
         self.running = False
+        for drone in self.drones:
+            drone.stop()
 
     def load_state(self):
         self.q_table = self._access_memory(Q_TABLE_FILE)
@@ -125,20 +189,26 @@ class BlueDefender:
             return None
 
     def scan_directory(self):
-        visible_threats = []
-        hidden_threats = []
+        # Main scanner still does a sweep for housekeeping (all files list),
+        # but relies on Drones for detection alerts
         all_files = []
         try:
             with os.scandir(WATCH_DIR) as entries:
                 for entry in entries:
                     all_files.append(entry.path)
-                    if entry.name.startswith('malware_'):
-                        visible_threats.append(entry.path)
-                    elif entry.name.startswith('.sys_'):
-                        hidden_threats.append(entry.path)
-        except OSError as e:
-            self.logger.error(f"Scan error: {e}")
-        return visible_threats, hidden_threats, all_files
+        except OSError: pass
+        return all_files
+
+    def process_drone_reports(self):
+        detected_threats = []
+        while not self.report_queue.empty():
+            try:
+                msg_type, filepath = self.report_queue.get_nowait()
+                if msg_type in ['THREAT', 'RANSOM']:
+                    if os.path.exists(filepath): # Double check it exists
+                        detected_threats.append(filepath)
+            except queue.Empty: break
+        return list(set(detected_threats)) # Dedupe
 
     def run(self):
         self.logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
@@ -149,9 +219,17 @@ class BlueDefender:
                 self.war_state = self._access_memory(STATE_FILE) or {'blue_alert_level': 1}
                 current_alert = self.war_state.get('blue_alert_level', 1)
 
-                # 2. DETECTION
-                visible_threats, hidden_threats, all_files = self.scan_directory()
+                # 2. DETECTION (Drone Integration)
+                all_files = self.scan_directory() # Get context
+
+                # Process Drone Intel
+                detected_threats = self.process_drone_reports()
+
+                # Filter visible vs hidden based on naming (for logic compatibility)
+                visible_threats = [t for t in detected_threats if 'malware_' in t]
+                hidden_threats = [t for t in detected_threats if '.sys_' in t]
                 all_threats = visible_threats + hidden_threats
+
                 threat_count = len(all_threats)
                 state_key = f"{current_alert}_{threat_count}"
 
