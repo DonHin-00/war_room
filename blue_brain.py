@@ -11,7 +11,7 @@ import time
 import json
 import random
 import math
-import collections
+import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,15 +49,7 @@ def calculate_shannon_entropy(filepath):
     try:
         with open(filepath, 'rb') as f:
             data = f.read()
-            if not data: return 0
-            entropy = 0
-            length = len(data)
-            counts = collections.Counter(data)
-            for count in counts.values():
-                p_x = count / length
-                if p_x > 0:
-                    entropy -= p_x * math.log2(p_x)
-            return entropy
+            return utils.calculate_entropy(data)
     except: return 0
 
 def access_memory(filepath, data=None):
