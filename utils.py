@@ -3,6 +3,8 @@ import fcntl
 import logging
 import math
 import random
+import json
+import os
 
 # Utility functions
 
@@ -21,6 +23,42 @@ def safe_file_read(file_path):
         data = file.read()
         fcntl.flock(file, fcntl.LOCK_UN)
     return data
+
+
+def safe_json_write(filepath, data):
+    """Write JSON data safely."""
+    try:
+        json_str = json.dumps(data, indent=4)
+        safe_file_write(filepath, json_str)
+    except: pass
+
+
+def safe_json_read(filepath, default=None):
+    """Read JSON data safely."""
+    if default is None: default = {}
+    if not os.path.exists(filepath): return default
+    try:
+        data_str = safe_file_read(filepath)
+        return json.loads(data_str)
+    except: return default
+
+
+def scan_threats(watch_dir):
+    """Efficiently scan for visible and hidden threats."""
+    visible = []
+    hidden = []
+    try:
+        with os.scandir(watch_dir) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    name = entry.name
+                    if name.startswith('malware_'):
+                        visible.append(entry.path)
+                    elif name.startswith('.sys_'):
+                        hidden.append(entry.path)
+    except FileNotFoundError:
+        pass
+    return visible, hidden
 
 
 def calculate_entropy(data):

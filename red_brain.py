@@ -7,8 +7,8 @@ Frameworks: MITRE ATT&CK Matrix
 
 import os
 import time
-import json
 import random
+import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,8 +24,7 @@ GAMMA = 0.9
 EPSILON = 0.3
 EPSILON_DECAY = 0.995
 MIN_EPSILON = 0.01
-
-# --- REWARD CONFIGURATION (ATTACKER PROFILE) ---
+SYNC_INTERVAL = 10      # How often to save Q-Table to disk
 R_IMPACT = 10           # Base points for successful drop
 R_STEALTH = 15          # Points for lurking when heat is high
 R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
@@ -35,31 +34,22 @@ MAX_ALERT = 5
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
-# --- UTILITIES ---
-def access_memory(filepath, data=None):
-    if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
-
 # --- MAIN LOOP ---
 
 def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
+    # Load Q-Table once
+    q_table = utils.safe_json_read(Q_TABLE_FILE)
+    step_count = 0
+
     while True:
         try:
-            # 1. RECON
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
+            step_count += 1
             
+            # 1. RECON
+            war_state = utils.safe_json_read(STATE_FILE, {'blue_alert_level': 1})
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
             
@@ -115,12 +105,15 @@ def engage_offense():
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+
+            # Sync Q-Table periodically
+            if step_count % SYNC_INTERVAL == 0:
+                utils.safe_json_write(Q_TABLE_FILE, q_table)
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
                 war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                access_memory(STATE_FILE, war_state)
+                utils.safe_json_write(STATE_FILE, war_state)
             
             print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             

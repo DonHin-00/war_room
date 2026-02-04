@@ -5,12 +5,9 @@ Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: NIST SP 800-61, MITRE Shield
 """
 
-import glob
 import os
 import time
-import json
 import random
-import math
 import utils
 
 # --- SYSTEM CONFIGURATION ---
@@ -27,6 +24,7 @@ GAMMA = 0.9             # Discount Factor (How much we care about the future)
 EPSILON = 0.3           # Exploration Rate (Curiosity)
 EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
 MIN_EPSILON = 0.01      # Always keep 1% curiosity
+SYNC_INTERVAL = 10      # How often to save Q-Table to disk
 
 # --- REWARD CONFIGURATION (AI PERSONALITY) ---
 # Tweak these to change how the Defender behaves!
@@ -52,36 +50,26 @@ def calculate_shannon_entropy(filepath):
             return utils.calculate_entropy(data)
     except: return 0
 
-def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
-    if data is not None:
-        try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
-        try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
-
 # --- MAIN LOOP ---
 
 def engage_defense():
     global EPSILON, ALPHA
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
     
+    # Load Q-Table once
+    q_table = utils.safe_json_read(Q_TABLE_FILE)
+    step_count = 0
+
     while True:
         try:
+            step_count += 1
+
             # 1. PREPARATION
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
-            
+            war_state = utils.safe_json_read(STATE_FILE, {'blue_alert_level': 1})
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
+            visible_threats, hidden_threats = utils.scan_threats(WATCH_DIR)
             all_threats = visible_threats + hidden_threats
             
             threat_count = len(all_threats)
@@ -127,15 +115,22 @@ def engage_defense():
             next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+
+            # Sync Q-Table periodically
+            if step_count % SYNC_INTERVAL == 0:
+                utils.safe_json_write(Q_TABLE_FILE, q_table)
             
             # 7. UPDATE WAR STATE
+            state_changed = False
             if mitigated > 0 and current_alert < MAX_ALERT:
                 war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
+                state_changed = True
             elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
                 war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+                state_changed = True
                 
-            access_memory(STATE_FILE, war_state)
+            if state_changed:
+                utils.safe_json_write(STATE_FILE, war_state)
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"
