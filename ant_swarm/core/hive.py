@@ -12,15 +12,57 @@ class Signal:
 
 class HiveState(SharedMemory):
     """
-    Intricate Global State with Moods.
+    Intricate Global State with Military Logic.
     """
     def __init__(self):
         super().__init__()
         self.mood = "NEUTRAL"
+        self.defcon = 5 # 5=Peace, 1=War
+        self.threat_matrix = {
+            "complexity_level": 0, # From RevEng
+            "active_vulnerabilities": 0, # From SecurityScanner
+            "hostile_signals": 0
+        }
         self.active_signals = []
 
+    def set_defcon(self, level: int):
+        level = max(1, min(5, level))
+        if self.defcon != level:
+            print(f"[HIVE STATE] 🚨 DEFCON CHANGED: {self.defcon} -> {level}")
+            self.defcon = level
+            self._update_mood_from_defcon()
+
+    def update_threat_matrix(self, key: str, value: int):
+        self.threat_matrix[key] = value
+        self._assess_defcon()
+
+    def _assess_defcon(self):
+        """
+        Deep ML Logic: Heuristic Assessment of Threat Matrix to set DEFCON.
+        """
+        score = 0
+        score += self.threat_matrix["complexity_level"] * 0.1
+        score += self.threat_matrix["active_vulnerabilities"] * 2.0
+        score += self.threat_matrix["hostile_signals"] * 1.5
+
+        previous_defcon = self.defcon
+        if score > 10: self.set_defcon(1)
+        elif score > 5: self.set_defcon(3)
+        elif score > 2: self.set_defcon(4)
+        else: self.set_defcon(5)
+
+    def _update_mood_from_defcon(self):
+        moods = {
+            5: "PEACE_TIME",
+            4: "VIGILANT",
+            3: "ELEVATED_RISK",
+            2: "HIGH_ALERT",
+            1: "WAR_ROOM"
+        }
+        self.mood = moods[self.defcon]
+
     def set_mood(self, mood: str):
-        print(f"[HIVE STATE] Mood shifting from {self.mood} to {mood}")
+        # Legacy support
         self.mood = mood
 
 class SignalBus:
