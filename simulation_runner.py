@@ -45,9 +45,9 @@ def main():
     red = subprocess.Popen(["python3", "-u", "red_brain.py"], env=clean_env)
     processes.append(red)
 
-    # 3. Start Target Server (The "Real" Victim)
-    print("\033[93m[SIMULATION] Booting Vulnerable Target Server...\033[0m")
-    target = subprocess.Popen(["python3", "-u", "target_system.py"], env=clean_env)
+    # 3. Start Adaptive Target Server (The "Smart" Victim)
+    print("\033[93m[SIMULATION] Booting Adaptive AI Target...\033[0m")
+    target = subprocess.Popen(["python3", "-u", "adaptive_target.py"], env=clean_env)
     processes.append(target)
 
     # 4. Start Proxy War (Optional)

