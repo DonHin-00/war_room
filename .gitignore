@@ -10,3 +10,5 @@
 
 # Exclude temporary files
 temp/
+*.pyc
+__pycache__/
