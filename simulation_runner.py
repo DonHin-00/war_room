@@ -47,10 +47,30 @@ def main():
         env=env
     )
 
-    # Start Green Team (User Simulation)
+    # Start Yellow Team (Builders)
+    print("Launching Yellow Team...")
+    yellow_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/yellow_brain.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=env
+    )
+
+    # Start Green Team (DevSecOps)
     print("Launching Green Team...")
     green_process = subprocess.Popen(
         [sys.executable, "-u", "agents/green_brain.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=env
+    )
+
+    # Start Orange Team (Educators)
+    print("Launching Orange Team...")
+    orange_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/orange_brain.py"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
@@ -81,7 +101,11 @@ def main():
         print("\nStopping bots...")
         blue_process.terminate()
         red_process.terminate()
+        try: yellow_process.terminate()
+        except: pass
         try: green_process.terminate()
+        except: pass
+        try: orange_process.terminate()
         except: pass
 
         try:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Green Team: User Simulation.
-Generates noise, business value (files), and vulnerability (clicks).
+Green Team: DevSecOps & Integration.
+Automates security, adds logging, and hardens Yellow Team's builds.
 """
 
 import os
@@ -20,7 +20,7 @@ import utils
 C_GREEN = "\033[92m"
 C_RESET = "\033[0m"
 
-class GreenUser:
+class GreenIntegrator:
     def __init__(self):
         self.running = True
         signal.signal(signal.SIGINT, self.shutdown)
@@ -28,63 +28,68 @@ class GreenUser:
         self.setup()
 
     def setup(self):
-        print(f"{C_GREEN}[SYSTEM] Green Team (Users) Initialized.{C_RESET}")
+        print(f"{C_GREEN}[SYSTEM] Green Team (DevSecOps) Initialized.{C_RESET}")
 
     def shutdown(self, signum, frame):
-        print(f"\n{C_GREEN}[SYSTEM] Green Team going home...{C_RESET}")
+        print(f"\n{C_GREEN}[SYSTEM] Green Team shift ended...{C_RESET}")
         self.running = False
         sys.exit(0)
 
-    def work(self):
-        """Create benign business files."""
-        doc_type = secrets.choice(["invoice", "report", "memo", "notes"])
-        fname = os.path.join(config.WAR_ZONE_DIR, f"{doc_type}_{int(time.time())}.txt")
-
-        content = f"Business Value: {secrets.token_hex(16)}\nConfidential info."
-        try:
-            with open(fname, 'w') as f:
-                f.write(content)
-            # print(f"{C_GREEN}[USER] Created {os.path.basename(fname)}{C_RESET}")
-        except: pass
-
-    def browse(self):
-        """Simulate activity / noise."""
-        time.sleep(random.uniform(0.1, 0.5))
-
-    def mistake(self):
-        """Simulate executing a random script (Social Engineering victim)."""
+    def instrument_code(self):
+        """Find Yellow's services and inject logging (Instrumentation)."""
         if not os.path.exists(config.WAR_ZONE_DIR): return
 
-        files = [f for f in os.listdir(config.WAR_ZONE_DIR) if f.endswith(".sh") or f.endswith(".py")]
-        if files:
-            target = secrets.choice(files)
-            # Only click 10% of the time
-            if secrets.randbelow(10) == 0:
-                print(f"{C_GREEN}[USER] Oops! Clicked {target}{C_RESET}")
-                try:
-                    path = os.path.join(config.WAR_ZONE_DIR, target)
-                    # Simulate execution by touching/accessing
-                    utils.read_file_head(path)
-                    # If we really wanted to punish, we'd exec it, but that might spawn infinite loops in this single-threaded sim wrapper.
-                    # Red Team already has auto-exec logic for payloads.
-                except: pass
+        # Find Python services that aren't malware
+        services = [f for f in os.listdir(config.WAR_ZONE_DIR)
+                   if f.startswith("service_") and f.endswith(".py")]
+
+        for s in services:
+            path = os.path.join(config.WAR_ZONE_DIR, s)
+            try:
+                with open(path, 'r') as f:
+                    content = f.read()
+
+                if "# [GREEN] INSTRUMENTED" in content:
+                    continue # Already secured
+
+                # Inject logging (Simulation of adding a security agent)
+                injection = f"""
+# [GREEN] INSTRUMENTED
+print("[SECURITY] Service {s} monitored.")
+"""
+                new_content = injection + content
+                utils.secure_create(path, new_content)
+                os.chmod(path, 0o755)
+                # print(f"{C_GREEN}[GREEN] Instrumented {s}{C_RESET}")
+
+            except: pass
+
+    def harden_infrastructure(self):
+        """Enforce least privilege permissions."""
+        if not os.path.exists(config.WAR_ZONE_DIR): return
+
+        for f in os.listdir(config.WAR_ZONE_DIR):
+            path = os.path.join(config.WAR_ZONE_DIR, f)
+            try:
+                # If it's a critical config, lock it down
+                if f.endswith(".conf") or f.endswith(".yaml"):
+                    os.chmod(path, 0o600)
+            except: pass
 
     def run(self):
         while self.running:
             try:
-                action = secrets.choice(["WORK", "WORK", "BROWSE", "MISTAKE"])
+                action = secrets.choice(["INSTRUMENT", "HARDEN"])
 
-                if action == "WORK":
-                    self.work()
-                elif action == "BROWSE":
-                    self.browse()
-                elif action == "MISTAKE":
-                    self.mistake()
+                if action == "INSTRUMENT":
+                    self.instrument_code()
+                elif action == "HARDEN":
+                    self.harden_infrastructure()
 
-                time.sleep(random.uniform(1.0, 3.0))
+                time.sleep(random.uniform(2.0, 4.0))
             except Exception:
                 time.sleep(1)
 
 if __name__ == "__main__":
-    bot = GreenUser()
+    bot = GreenIntegrator()
     bot.run()
