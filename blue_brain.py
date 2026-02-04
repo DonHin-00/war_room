@@ -18,6 +18,11 @@ utils.limit_resources(config.MAX_MEMORY_MB)
 logger = utils.setup_logging("BlueBrain", config.BLUE_LOG)
 audit = utils.AuditLogger(config.AUDIT_LOG)
 
+# Zero Trust Login
+id_mgr = utils.IdentityManager(config.SESSION_DB)
+SESSION_TOKEN = id_mgr.login("BlueBrain")
+logger.info(f"Authenticated with Kernel. Session Active.")
+
 # --- AI STATE ---
 # We use config hyperparameters
 ALPHA = config.HYPERPARAMETERS['learning_rate']
@@ -155,7 +160,7 @@ def engage_defense():
                     target = os.path.join(config.SIMULATION_DATA_DIR, name)
                     if not os.path.exists(target):
                         # Use a realistic looking bait (random binary or text)
-                        utils.secure_create(target, f"REAL DATA: {random.randint(1000,9999)}")
+                        utils.secure_create(target, f"REAL DATA: {random.randint(1000,9999)}", token=SESSION_TOKEN)
                         audit.log_event("BLUE", "HONEYPOT_DEPLOYED", {"file": name})
 
             elif action == "BACKUP_CRITICAL":
@@ -174,6 +179,27 @@ def engage_defense():
                         os.remove(f) # Remove encrypted copy
                         mitigated += 2 # Big win for recovery
                         audit.log_event("BLUE", "RANSOMWARE_RECOVERY", {"file": original_name})
+
+            elif action == "NETWORK_FILTER":
+                # Network Traffic Analysis (NTA)
+                packets = glob.glob(os.path.join(config.NETWORK_BUS_DIR, 'packet_*.dat'))
+                for p in packets:
+                    try:
+                        if os.path.islink(p): continue
+                        with open(p, 'r') as f: content = f.read()
+
+                        # Simulated Firewall Rule: Block Base64 C2
+                        import base64
+                        try:
+                            decoded = base64.b64decode(content).decode()
+                            if "HEARTBEAT" in decoded:
+                                os.remove(p)
+                                mitigated += 1
+                                audit.log_event("BLUE", "FIREWALL_BLOCK", {"file": p, "threat": "C2_BEACON"})
+                        except Exception:
+                            pass # Not base64 or not interesting
+                    except Exception:
+                        pass
 
             elif action == "OBSERVE": pass
             elif action == "IGNORE": pass
@@ -205,6 +231,32 @@ def engage_defense():
             if state_changed:
                 war_state['timestamp'] = time.time()
                 utils.safe_json_write(config.STATE_FILE, war_state)
+
+            # --- SOAR PLAYBOOKS (DEFCON Logic) ---
+            # Blue logic maps alert 1-5 (Low-High). Config Defcon maps 5-1 (Low-High) inversely usually,
+            # but let's assume config.MAX_ALERT (5) is severe.
+            # config.DEFCON_LEVELS: {5: "NORMAL"...} implies 5 is good.
+            # Let's map Alert Level (1-5, 5 is bad) to SOAR actions.
+
+            if current_alert >= 3:
+                # Playbook: FLUSH_DNS (Clean Network Bus)
+                packets = glob.glob(os.path.join(config.NETWORK_BUS_DIR, '*'))
+                if packets:
+                    logger.warning("SOAR: High Alert - Flushing Network Bus.")
+                    for p in packets:
+                        try: os.remove(p)
+                        except Exception: pass
+
+            if current_alert == 5:
+                # Playbook: ISOLATE_HOST (Quarantine simulation data)
+                # In a real sim we'd move dirs, but that breaks Red loop.
+                # Instead, we'll nuke all non-honeypot files.
+                logger.critical("SOAR: DEFCON 1 - NUCLEAR OPTION - Purging all non-critical data.")
+                all_files = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '*'))
+                for f in all_files:
+                    if os.path.basename(f) not in config.HONEYPOT_NAMES:
+                        try: os.remove(f)
+                        except Exception: pass
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"

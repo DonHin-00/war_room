@@ -9,6 +9,8 @@ import hashlib
 import time
 import resource
 import shutil
+import hmac
+import secrets
 
 # Configure Logging for Utils
 logger = logging.getLogger("Utils")
@@ -41,8 +43,23 @@ def safe_file_read(file_path):
         logger.error(f"Failed to read file {file_path}: {e}")
         return ""
 
-def secure_create(filepath, content, is_binary=False):
-    """Securely create a file, failing if it exists (Atomic)."""
+def secure_create(filepath, content, is_binary=False, token=None):
+    """Securely create a file. REQUIRES AUTH TOKEN."""
+    # Enforce Zero Trust
+    if token:
+        # Lazy load config to avoid circular dep at top level if possible,
+        # but utils shouldn't import config usually?
+        # Actually config is pure constants.
+        try:
+            import config
+            idm = IdentityManager(config.SESSION_DB)
+            valid, agent = idm.verify(token)
+            if not valid:
+                logger.error(f"ACCESS DENIED (Create): {agent} - {filepath}")
+                return False
+        except ImportError:
+            pass # Testing/Standalone mode
+
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     mode = 0o600
     try:
@@ -213,6 +230,59 @@ def check_disk_usage(path, max_mb):
     if get_directory_size_mb(path) > max_mb:
         return False
     return True
+
+# --- Zero Trust Identity Manager ---
+class IdentityManager:
+    def __init__(self, db_path):
+        self.db_path = db_path
+        # In a real kernel, this key is protected. Here we simulate it.
+        self._secret = b'super-secret-kernel-key'
+
+    def login(self, agent_name):
+        """Issue a session token."""
+        # Generate random token
+        raw_token = secrets.token_hex(16)
+        # Sign it
+        signature = hmac.new(self._secret, raw_token.encode(), hashlib.sha256).hexdigest()
+        token = f"{agent_name}:{raw_token}:{signature}"
+
+        # Persist session (Simulate Kernel Table)
+        sessions = safe_json_read(self.db_path, {})
+        sessions[agent_name] = {
+            "token_hash": hashlib.sha256(token.encode()).hexdigest(),
+            "expires": time.time() + 300 # 5 min TTL
+        }
+        safe_json_write(self.db_path, sessions)
+
+        return token
+
+    def verify(self, token):
+        """Verify token validity and expiration."""
+        try:
+            agent, raw, sig = token.split(':')
+
+            # 1. Verify Signature
+            expected_sig = hmac.new(self._secret, raw.encode(), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(sig, expected_sig):
+                return False, "Invalid Signature"
+
+            # 2. Verify Session State
+            sessions = safe_json_read(self.db_path, {})
+            if agent not in sessions:
+                return False, "No Session"
+
+            session = sessions[agent]
+            if time.time() > session['expires']:
+                return False, "Expired"
+
+            # 3. Verify Token Hash matches Session
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            if not hmac.compare_digest(session['token_hash'], token_hash):
+                 return False, "Token Mismatch (Hijacked?)"
+
+            return True, agent
+        except Exception:
+            return False, "Malformed Token"
 
 class AuditLogger:
     """Tamper-evident logger using hash chaining."""

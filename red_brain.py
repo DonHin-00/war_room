@@ -18,6 +18,11 @@ utils.limit_resources(config.MAX_MEMORY_MB)
 logger = utils.setup_logging("RedBrain", config.RED_LOG)
 audit = utils.AuditLogger(config.AUDIT_LOG)
 
+# Zero Trust Login
+id_mgr = utils.IdentityManager(config.SESSION_DB)
+SESSION_TOKEN = id_mgr.login("RedBrain")
+logger.info(f"Authenticated with Kernel. Session Active.")
+
 # --- AI STATE ---
 ALPHA = config.HYPERPARAMETERS['learning_rate']
 ALPHA_DECAY = config.HYPERPARAMETERS['learning_rate_decay']
@@ -72,7 +77,7 @@ def engage_offense():
             if action == "T1046_RECON":
                 # Low Entropy Bait
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f"malware_bait_{secrets.token_hex(8)}.sh")
-                if utils.secure_create(fname, "echo 'scan'"):
+                if utils.secure_create(fname, "echo 'scan'", token=SESSION_TOKEN):
                     impact = 1
                     audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "RECON", "file": fname})
                 
@@ -81,14 +86,14 @@ def engage_offense():
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f"malware_crypt_{secrets.token_hex(8)}.bin")
                 payload = os.urandom(1024) + secrets.token_bytes(random.randint(16, 64))
 
-                if utils.secure_create(fname, payload, is_binary=True):
+                if utils.secure_create(fname, payload, is_binary=True, token=SESSION_TOKEN):
                     impact = 3
                     audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "OBFUSCATE", "file": fname})
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f".sys_shadow_{secrets.token_hex(8)}")
-                if utils.secure_create(fname, "uid=0(root)"):
+                if utils.secure_create(fname, "uid=0(root)", token=SESSION_TOKEN):
                     impact = 5
                     audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "ROOTKIT", "file": fname})
 
@@ -105,6 +110,20 @@ def engage_offense():
                         impact = 8
                         audit.log_event("RED", "DATA_ENCRYPTED", {"file": target})
                     except Exception: pass
+
+            elif action == "T1071_WEB_TRAFFIC":
+                # C2 Beaconing
+                import base64
+                beacon_id = secrets.token_hex(4)
+                # Obfuscate payload with base64
+                payload = base64.b64encode(f"HEARTBEAT:{beacon_id}".encode()).decode()
+                fname = os.path.join(config.NETWORK_BUS_DIR, f"packet_{beacon_id}.dat")
+
+                # We need a new secure_create wrapper that doesn't enforce binary flag strictly or just pass string
+                # using the existing secure_create
+                if utils.secure_create(fname, payload, token=SESSION_TOKEN):
+                    impact = 2
+                    audit.log_event("RED", "C2_BEACON", {"file": fname})
 
             elif action == "T1589_LURK":
                 impact = 0
