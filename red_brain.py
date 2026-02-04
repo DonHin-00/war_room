@@ -280,11 +280,38 @@ class RedTeamer:
                         # Need payload first
                         impact = 0
 
+                elif action == "T1091_REPLICATION":
+                    # Airgapped Infection: Drop Stowaway on USB
+                    usb_dir = os.path.join(config.WAR_ZONE_DIR, "usb")
+                    if not os.path.exists(usb_dir):
+                        try: os.makedirs(usb_dir)
+                        except: pass
+
+                    try:
+                        # Create a stowaway instance
+                        # For simulation, we create a carrier that exfils data
+                        from payloads.stowaway import Stowaway
+                        carrier = Stowaway(mode="CARRIER", target_dir=config.WAR_ZONE_DIR)
+
+                        drop_path = os.path.join(usb_dir, f"drive_{int(time.time())}.dat")
+                        carrier.deploy(drop_path)
+
+                        # Simulate activation by user (or autorun)
+                        # In simulation, we just trigger it immediately for effect
+                        Stowaway.activate(drop_path, config.WAR_ZONE_DIR)
+
+                        impact = 5
+                        self.audit_logger.log_event("RED", "REPLICATION", f"Stowaway dropped at {drop_path}")
+                    except Exception as e:
+                        # print(f"Stowaway Error: {e}")
+                        pass
+
                 # 4. REWARD CALCULATION
                 reward = 0
                 if impact > 0: reward = config.RED_REWARDS['IMPACT']
                 if impact == 6: reward = config.RED_REWARDS['RANSOM_SUCCESS']
                 if impact == 7: reward = config.RED_REWARDS['EXFIL_SUCCESS']
+                if impact == 5 and action == "T1091_REPLICATION": reward = config.RED_REWARDS['REPLICATION_SUCCESS']
                 if impact == -1: reward = config.RED_REWARDS['TRAPPED']
 
                 if current_alert >= 4 and action == "T1589_LURK": reward = config.RED_REWARDS['STEALTH']

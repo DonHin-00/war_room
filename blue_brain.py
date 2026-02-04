@@ -110,11 +110,17 @@ class BlueDefender:
         c2_beacons = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.c2_beacon'))
         encrypted_files = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.enc'))
 
+        # USB / Removable Media
+        usb_dir = os.path.join(config.WAR_ZONE_DIR, "usb")
+        usb_files = []
+        if os.path.exists(usb_dir):
+            usb_files = [os.path.join(usb_dir, f) for f in os.listdir(usb_dir)]
+
         # Add active processes/ports to threat count
         active_pids = self.scan_processes()
         active_ports = self.scan_network()
 
-        all_threats = visible_threats + hidden_threats + c2_beacons + encrypted_files
+        all_threats = visible_threats + hidden_threats + c2_beacons + encrypted_files + usb_files
         threat_count = len(all_threats) + len(active_pids) + len(active_ports)
 
         # State key complexity increases
