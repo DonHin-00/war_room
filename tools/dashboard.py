@@ -110,6 +110,13 @@ def draw_dashboard(stdscr):
             if stealth_pct > 80: meta = "NINJA"
             stdscr.addstr(8, 2, f"META: {meta}", curses.A_BLINK)
 
+        # --- BRAIN ACTIVITY ---
+        stdscr.addstr(10, 2, "[ BRAIN ACTIVITY ]", curses.color_pair(4))
+        # Estimate learning progress by file size of q-tables if they existed,
+        # or we just show active node counts as 'Neurons'
+        stdscr.addstr(11, 2, f"Red Neurons:  {len(red_nodes)}")
+        stdscr.addstr(12, 2, f"Blue Neurons: {len(blue_nodes)}")
+
         # Simple Circle Layout
         try:
             # Red Line (Show Node IDs)

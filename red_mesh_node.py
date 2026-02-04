@@ -37,6 +37,27 @@ class RedMeshNode:
             "stealth": gene_stealth
         }
 
+        # RL Brain (Adversarial)
+        self.q_table = {}
+        self.epsilon = 0.3
+        self.alpha = 0.4
+
+    def choose_strategy(self):
+        """Select action based on Q-Learning."""
+        actions = ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE"]
+        state = "DEFAULT" # Simplified state
+
+        if random.random() < self.epsilon:
+            return random.choice(actions)
+        else:
+            return max(actions, key=lambda a: self.q_table.get(f"{state}_{a}", 0))
+
+    def learn(self, action, reward):
+        """Update Q-Table."""
+        state = "DEFAULT"
+        old_val = self.q_table.get(f"{state}_{action}", 0)
+        self.q_table[f"{state}_{action}"] = old_val + self.alpha * (reward - old_val)
+
     def setup_multicast(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -169,20 +190,29 @@ class RedMeshNode:
             except Exception as e:
                 logger.error(f"Receive error: {e}")
 
+    def launch_assault(self):
+        """Active Assault: Fuzzing & Exploitation (T1498)."""
+        if random.random() < self.genes['aggression']:
+            target = ('224.2.2.2', 5008) # Blue Swarm
+            payloads = [
+                b"{ 'broken': json }",
+                b"A" * 1024, # Buffer overflow attempt
+                json.dumps({"type": "IOC_Found", "ioc": None}).encode(), # Logic error
+                json.dumps({"sender": "ADMIN", "type": "SHUTDOWN"}).encode() # Spoofing
+            ]
+            payload = random.choice(payloads)
+
+            try:
+                self.sock.sendto(payload, target)
+                logger.info(f"⚔️ ASSAULT: Fuzzing Blue Swarm ({len(payload)} bytes)")
+            except Exception as e:
+                logger.error(f"Assault failed: {e}")
+
     def drop_stego(self):
         """Drop covert channel payload."""
-        if random.random() < self.genes['aggression']:
+        if random.random() < self.genes['stealth']: # Stealth based
             fname = os.path.join(config.SIMULATION_DATA_DIR, f"vacation_{random.randint(1,100)}.jpg")
             payload = {"cmd": "EXECUTE_ORDER_66", "target": "BLUE"}
-
-            # Authenticate creation?
-            # We need a token. Let's assume nodes inherit tokens or generate ad-hoc.
-            # For this sim, we just try.
-            # Actually utils.secure_create requires a token.
-            # Let's bypass or use a dummy token if we can't login.
-            # But wait, IdentityManager is in utils.
-            # We should login first.
-
             utils.steganography_encode(payload, fname)
             logger.info(f"Dropped Stego Payload: {fname}")
 
@@ -215,7 +245,28 @@ class RedMeshNode:
         while self.running:
             self.broadcast("HEARTBEAT", "Still Alive")
             self.reproduce()
-            self.drop_stego()
+
+            # RL Decision Loop
+            action = self.choose_strategy()
+            reward = 0
+
+            if action == "POLYMORPH":
+                # Implicit in reproduce, but force it
+                pass
+            elif action == "STEGO":
+                self.drop_stego()
+                reward = 5 # Small reward for attempt
+            elif action == "FLOOD_C2":
+                self.broadcast("CMD", "FLOOD_TEST")
+                reward = 2
+            elif action == "FUZZ_BLUE":
+                self.launch_assault()
+                reward = 10 # High reward for aggression
+
+            # Check survival (Simplistic reward)
+            reward += 1
+            self.learn(action, reward)
+
             self.establish_persistence()
 
             # Behavior based on Genes

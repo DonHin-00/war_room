@@ -105,6 +105,11 @@ class BlueSwarmAgent:
         self.edr = EDRMonitor()
         self.soar = SoarEngine(self.token)
 
+        # RL Defense
+        self.q_table = {}
+        self.epsilon = 0.2
+        self.alpha = 0.3
+
         # Insider Threat Logic
         self.is_rogue = random.random() < 0.1 # 10% chance
         if self.is_rogue:
@@ -249,10 +254,32 @@ class BlueSwarmAgent:
                 peer = random.choice(list(self.trust_db.keys()))
                 self.broadcast_vouch(peer)
 
-            # SOAR Evaluation
-            # Threat level = size of immunity db
+            # RL Defense Decision
             threat_level = len(self.immunity_db)
-            self.soar.evaluate(threat_level)
+            actions = ["TIGHTEN_TRUST", "LOOSEN_TRUST", "SOAR_LOCKDOWN", "HUNT_AGGRESSIVE"]
+
+            if random.random() < self.epsilon:
+                action = random.choice(actions)
+            else:
+                state = "HIGH_THREAT" if threat_level > 5 else "LOW_THREAT"
+                action = max(actions, key=lambda a: self.q_table.get(f"{state}_{a}", 0))
+
+            reward = 0
+            if action == "TIGHTEN_TRUST":
+                # Logic: Increase trust threshold
+                reward = 2 if threat_level > 5 else -1
+            elif action == "SOAR_LOCKDOWN":
+                self.soar.evaluate(threat_level + 10) # Force eval
+                reward = 5 if threat_level > 10 else -5
+            elif action == "HUNT_AGGRESSIVE":
+                # Trigger EDR Scan
+                self.edr.scan_processes()
+                reward = 3
+
+            # Learn
+            state = "HIGH_THREAT" if threat_level > 5 else "LOW_THREAT"
+            old_val = self.q_table.get(f"{state}_{action}", 0)
+            self.q_table[f"{state}_{action}"] = old_val + self.alpha * (reward - old_val)
 
             time.sleep(2)
 
