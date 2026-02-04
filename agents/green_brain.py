@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: AI Cyber War Simulation (Green Team - Users)
+Project: AI Cyber War Simulation (Green Team - Automation & Integration)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: Simulation
 """
@@ -36,9 +36,9 @@ C_RESET = "\033[0m"
 # --- MAIN LOOP ---
 
 @trace_errors
-def engage_work(max_iterations: Optional[int] = None) -> None:
+def engage_automation(max_iterations: Optional[int] = None) -> None:
 
-    msg = f"[SYSTEM] Green Team AI Initialized. Role: Civilian User"
+    msg = f"[SYSTEM] Green Team AI Initialized. Role: Automation & Remediation"
     print(f"{C_GREEN}{msg}{C_RESET}")
     logger.info(msg)
 
@@ -52,74 +52,52 @@ def engage_work(max_iterations: Optional[int] = None) -> None:
             iteration += 1
 
             try:
-                # 1. WORK (Create Files)
-                if random.random() < 0.3: # 30% chance to create a file
-                    filename = f"user_doc_{int(time.time())}_{random.randint(1000,9999)}.txt"
-                    filepath = os.path.join(watch_dir, filename)
-                    try:
-                        with open(filepath, 'w') as f:
-                            f.write("Important business document content.\n" * random.randint(1, 10))
-                        logger.info(f"Created benign file: {filename}")
-                    except Exception:
-                        pass
+                # 1. AUTO-REMEDIATION (Improving MTTR)
+                # Check for indicators of compromise that Blue might have missed or that need cleanup
+                remediated = 0
 
-                # 2. INSIDER THREAT (Accidental Click)
-                if random.random() < 0.05: # 5% chance to be risky
+                # Check for Ransom Notes and auto-restore (simulated)
+                ransom_note = os.path.join(watch_dir, "RANSOMWARE_NOTE.txt")
+                if os.path.exists(ransom_note):
+                    logger.info("♻️  Green Team executing Playbook: RANSOMWARE_RECOVERY")
                     try:
-                        with os.scandir(watch_dir) as it:
-                            for entry in it:
-                                if entry.is_file() and entry.name.startswith("malware_"):
-                                    new_name = f"invoice_{int(time.time())}.exe"
-                                    new_path = os.path.join(watch_dir, new_name)
-                                    os.rename(entry.path, new_path)
-                                    logger.warning(f"⚠️  User clicked malware! Renamed {entry.name} -> {new_name}")
-                                    audit.log("GREEN", "INSIDER_MISTAKE", {"original": entry.name, "new": new_name})
-                                    break
-                    except Exception:
-                        pass
+                        os.remove(ransom_note)
+                        remediated += 1
+                        audit.log("GREEN", "PLAYBOOK_EXECUTION", {"name": "Ransomware Cleanup"})
 
-                # 3. SHADOW IT (Unsanctioned Tools)
-                # Creates executable-looking files that aren't malware but distract Blue
-                if random.random() < 0.05:
-                    tool_name = f"game_crack_{random.randint(100,999)}.exe"
-                    filepath = os.path.join(watch_dir, tool_name)
-                    try:
-                        with open(filepath, 'wb') as f:
-                            f.write(os.urandom(512)) # Random binary data
-                        logger.info(f"💾 User installed Shadow IT: {tool_name}")
-                        audit.log("GREEN", "SHADOW_IT_INSTALL", {"file": tool_name})
-                    except Exception:
-                        pass
+                        # Simulate restoring files (just creating a 'restored' file)
+                        with open(os.path.join(watch_dir, f"restored_data_{int(time.time())}.bak"), 'w') as f:
+                            f.write("Restored critical data.")
+                    except: pass
 
-                # 4. SECURITY AWARENESS (User Self-Defense)
-                # Users occasionally spot obvious malware and delete it themselves
-                if random.random() < 0.1:
-                    try:
-                        with os.scandir(watch_dir) as it:
-                            for entry in it:
-                                if entry.is_file() and (entry.name.startswith("malware_") or entry.name.endswith(".exe")):
-                                    # Users act on suspicion
-                                    if random.random() < 0.5:
-                                        os.remove(entry.path)
-                                        logger.info(f"🛡️ User deleted suspicious file: {entry.name}")
-                                        audit.log("GREEN", "USER_DEFENSE", {"file": entry.name})
-                                        break
-                    except Exception:
-                        pass
+                # Check for ".enc" files (Ransomware artifacts) and "quarantine" them
+                try:
+                    with os.scandir(watch_dir) as it:
+                        for entry in it:
+                            if entry.is_file() and entry.name.endswith(".enc"):
+                                # Automate moving to quarantine (delete for sim)
+                                try:
+                                    os.remove(entry.path)
+                                    remediated += 1
+                                    logger.info(f"♻️  Green Team Quarantined: {entry.name}")
+                                except: pass
+                except: pass
 
-                # 5. CLEANUP (Delete old files)
-                if random.random() < 0.1:
-                    try:
-                        with os.scandir(watch_dir) as it:
-                            for entry in it:
-                                if entry.is_file() and entry.name.startswith("user_doc_"):
-                                    if random.random() < 0.2:
-                                        os.remove(entry.path)
-                                        break
-                    except Exception:
-                        pass
+                if remediated > 0:
+                    print(f"{C_GREEN}[GREEN AI]{C_RESET} ♻️  Remediated {remediated} incidents (Automation)")
 
-                time.sleep(random.uniform(1.0, 3.0))
+                # 2. CONFIGURATION MANAGEMENT
+                # Ensure critical config files exist (Self-Healing Infrastructure)
+                critical_configs = ["system_config.ini", "network_policy.yaml"]
+                for conf in critical_configs:
+                    path = os.path.join(watch_dir, conf)
+                    if not os.path.exists(path):
+                        try:
+                            with open(path, 'w') as f: f.write("secure=true")
+                            logger.info(f"🔧 Green Team Restored Configuration: {conf}")
+                        except: pass
+
+                time.sleep(2.0) # Automation runs periodically
 
             except Exception as e:
                 logger.error(f"Error in Green loop: {e}")
@@ -131,4 +109,4 @@ def engage_work(max_iterations: Optional[int] = None) -> None:
         logger.info("Green Team AI Shutting Down")
 
 if __name__ == "__main__":
-    engage_work()
+    engage_automation()

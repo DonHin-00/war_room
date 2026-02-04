@@ -46,11 +46,16 @@ red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
 HONEYPOT_NAMES = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
 
 # File Paths
+# Use a subdirectory for battlefield to avoid wiping /tmp
+BATTLEFIELD_DIR = os.path.join(BASE_DIR, "battlefield")
+if not os.path.exists(BATTLEFIELD_DIR):
+    os.makedirs(BATTLEFIELD_DIR)
+
 file_paths = {
     'blue_q_table': os.path.join(BASE_DIR, "blue_q_table.json"),
     'red_q_table': os.path.join(BASE_DIR, "red_q_table.json"),
     'state_file': os.path.join(BASE_DIR, "war_state.json"),
-    'watch_dir': "/tmp",
+    'watch_dir': BATTLEFIELD_DIR,
     'log_file': os.path.join(BASE_DIR, "war_room.log"),
     'agents_dir': os.path.join(BASE_DIR, "agents"),
     'audit_log': os.path.join(BASE_DIR, "audit.jsonl"),
