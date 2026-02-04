@@ -25,6 +25,7 @@ BATTLEFIELD = config.PATHS['BATTLEFIELD']
 class PurpleReferee:
     def __init__(self):
         self.running = True
+        self.db = utils.DB
         self.audit = utils.AuditLogger()
         self.config = config.PURPLE
 
@@ -37,16 +38,18 @@ class PurpleReferee:
         self.running = False
         sys.exit(0)
 
-    def penalize_agent(self, agent_q_file, penalty):
+    def penalize_agent(self, agent_name, penalty):
         """Apply a massive penalty to an agent's Q-Table to discourage unsafe behavior."""
-        q_table = utils.safe_json_read(agent_q_file)
-        if not q_table: return
-
-        # Penalize ALL recent actions to suppress the behavior globally
-        for key in q_table:
-            q_table[key] += penalty
-
-        utils.safe_json_write(agent_q_file, q_table)
+        # This is expensive in SQL, but safety comes first.
+        # We execute a raw update to decrease all values for this agent.
+        try:
+            conn = self.db.get_connection()
+            c = conn.cursor()
+            c.execute("UPDATE q_tables SET value = value + ? WHERE agent = ?", (penalty, agent_name))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[PURPLE] Failed to penalize {agent_name}: {e}")
 
     def enforce_roe(self):
         """Check for Rules of Engagement violations."""
@@ -58,27 +61,28 @@ class PurpleReferee:
             if file_count > self.config['THRESHOLDS']['MAX_FILES']:
                 print(f"\033[95m[PURPLE] ROE VIOLATION: Too many files ({file_count}). Penalizing Red Team.\033[0m")
                 self.audit.log_event("PURPLE", "PENALTY_DOS", "RED")
-                self.penalize_agent(RED_Q, self.config['PENALTY'])
+                self.penalize_agent("RED", self.config['PENALTY'])
 
                 # Cleanup
                 for f in files:
                     try: os.remove(os.path.join(BATTLEFIELD, f))
                     except: pass
 
-            # 2. Check for "Scorched Earth" (Blue Team deleting everything too fast? hard to track count without state)
-            # Instead, let's look at the state file
-            state = utils.safe_json_read(STATE_FILE)
+            # 2. Check for "Scorched Earth" (Blue Team deleting everything too fast?)
+            # Look at state from DB
+            state = self.db.get_state('war_state')
+            if not state: return
+
             alert = state.get('blue_alert_level', 1)
 
             # If alert is MAX for too long, dampen it (Safety Valve)
             # This prevents Blue from staying in "Panic Mode" forever
-            # Realism: Simulates leadership de-escalation
             if alert == 5:
                 # Randomly de-escalate
                 if time.time() % 10 < 1:
                     print(f"\033[95m[PURPLE] INTERVENTION: De-escalating Alert Level.\033[0m")
                     state['blue_alert_level'] = 3
-                    utils.safe_json_write(STATE_FILE, state)
+                    self.db.set_state('war_state', state)
                     self.audit.log_event("PURPLE", "DE_ESCALATE", "BLUE")
 
         except Exception as e:

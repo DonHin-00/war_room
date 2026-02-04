@@ -58,20 +58,15 @@ def access_memory(filepath, data=None):
 class RedTeamer:
     def __init__(self, reset=False):
         self.running = True
-        self.q_table = {}
-        self.evolution = {}
+        self.db = utils.DB
+        self.q_table = utils.QTableManager("RED")
         self.audit = utils.AuditLogger()
+        self.tick = 0
+        self.evolution = {} # Simple cache
 
         if reset:
-            print(f"{C_RED}[RED AI] Resetting Q-Table...{C_RESET}")
-            self.q_table = {}
-            self.evolution = {}
-            access_memory(Q_TABLE_FILE, self.q_table)
-            access_memory(EVOLUTION_LOG, self.evolution)
-        else:
-            # Load initial Q-table and Evolution Log
-            self.q_table = access_memory(Q_TABLE_FILE)
-            self.evolution = access_memory(EVOLUTION_LOG)
+            # DB cleaned by runner
+            pass
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.handle_shutdown)
@@ -84,14 +79,13 @@ class RedTeamer:
         sys.exit(0)
 
     def save_state(self):
-        access_memory(Q_TABLE_FILE, self.q_table)
-        access_memory(EVOLUTION_LOG, self.evolution)
+        self.q_table.sync()
 
     def log_evolution(self, technique, success):
         """Record the success of a specific technique."""
+        # For now, just keep in memory or simple DB logic
         if technique not in self.evolution:
             self.evolution[technique] = {'attempts': 0, 'success': 0}
-
         self.evolution[technique]['attempts'] += 1
         if success:
             self.evolution[technique]['success'] += 1
@@ -101,9 +95,10 @@ class RedTeamer:
         print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
 
         while self.running:
+            self.tick += 1
             try:
                 # 1. RECON
-                war_state = access_memory(STATE_FILE)
+                war_state = self.db.get_state('war_state') or {'blue_alert_level': 1}
                 war_state = utils.validate_state(war_state) # Self-heal
                 
                 current_alert = war_state.get('blue_alert_level', 1)
@@ -113,7 +108,7 @@ class RedTeamer:
                 if random.random() < EPSILON:
                     action = random.choice(ACTIONS)
                 else:
-                    known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
+                    known = {a: self.q_table.get(state_key, a) for a in ACTIONS}
                     action = max(known, key=known.get)
 
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
@@ -214,17 +209,18 @@ print('I am running!')
                 if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
 
                 # 5. LEARN
-                old_val = self.q_table.get(f"{state_key}_{action}", 0)
-                next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+                old_val = self.q_table.get(state_key, action)
+                next_max = max([self.q_table.get(state_key, a) for a in ACTIONS])
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
 
-                self.q_table[f"{state_key}_{action}"] = new_val
-                access_memory(Q_TABLE_FILE, self.q_table)
+                self.q_table.update(state_key, action, new_val)
+                if self.tick % 10 == 0:
+                    self.q_table.sync()
 
                 # 6. TRIGGER ALERTS
                 if impact > 0 and random.random() > 0.5:
                     war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                    access_memory(STATE_FILE, war_state)
+                    self.db.set_state('war_state', war_state)
 
                 print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
 

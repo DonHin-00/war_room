@@ -8,6 +8,10 @@ import time
 import hashlib
 import resource
 import sys
+from db_manager import DatabaseManager
+
+# Singleton DB Access
+DB = DatabaseManager()
 
 # Utility functions
 
@@ -44,7 +48,8 @@ def safe_file_read(file_path):
 
 
 def safe_json_write(file_path, data):
-    """Write JSON data to a file safely using locks."""
+    """Write JSON data to a file safely using locks. Deprecated: Use DB."""
+    # Kept for backward compatibility or simple file ops
     try:
         json_str = json.dumps(data, indent=4)
         safe_file_write(file_path, json_str)
@@ -56,7 +61,7 @@ def safe_json_write(file_path, data):
 
 
 def safe_json_read(file_path):
-    """Read JSON data from a file safely using locks."""
+    """Read JSON data from a file safely using locks. Deprecated: Use DB."""
     content = safe_file_read(file_path)
     if not content:
         return {}
@@ -75,6 +80,36 @@ def safe_json_read(file_path):
     except json.JSONDecodeError as e:
         logging.warning(f"Corrupted JSON in {file_path}: {e}. Resetting.")
         return {}
+
+# --- DB Wrappers for Q-Learning ---
+class QTableManager:
+    def __init__(self, agent_name):
+        self.agent = agent_name
+        self.db = DB
+        # Cache for performance, write-back
+        self.cache = {}
+
+    def get(self, state, action):
+        key = f"{state}_{action}"
+        if key in self.cache:
+            return self.cache[key]
+        val = self.db.get_q_value(self.agent, state, action)
+        self.cache[key] = val
+        return val
+
+    def update(self, state, action, value):
+        self.cache[f"{state}_{action}"] = value
+        # In high-perf, we might buffer this. For now, direct write.
+        # optimization: periodic sync?
+        pass # We rely on sync()
+
+    def sync(self):
+        """Flush cache to DB."""
+        for key, val in self.cache.items():
+            try:
+                state, action = key.rsplit('_', 1)
+                self.db.update_q_value(self.agent, state, action, val)
+            except: pass
 
 def validate_state(state):
     """Validate and repair the war state."""

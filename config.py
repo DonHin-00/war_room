@@ -15,6 +15,7 @@ PATHS = {
     'EVOLUTION_LOG': os.path.join(BASE_DIR, "evolution.json"),
     'AUDIT_LOG': os.path.join(BASE_DIR, "audit.jsonl"),
     'BACKUPS': os.path.join(BASE_DIR, "backups"),
+    'DB_PATH': os.path.join(BASE_DIR, "simulation.db"),
 }
 
 # Ensure directories exist
