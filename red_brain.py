@@ -12,13 +12,12 @@ import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
+# Q_TABLE_FILE removed
 THREAT_DB_FILE = os.path.join(BASE_DIR, "threat_db.json")
 TARGET_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -41,11 +40,9 @@ def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
-    # Load Q-Table once
-    q_manager = utils.QTableManager(ACTIONS)
-    q_manager.load(utils.safe_json_read(Q_TABLE_FILE))
+    # Load Q-Table (SQLite)
+    q_manager = utils.QTableManager("red", ACTIONS)
 
-    state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
     threat_loader = utils.SmartJSONLoader(THREAT_DB_FILE, {'hashes': [], 'filenames': []})
     step_count = 0
 
@@ -61,8 +58,7 @@ def engage_offense():
             step_count += 1
             
             # 1. RECON
-            war_state, state_changed = state_loader.load()
-            current_alert = war_state.get('blue_alert_level', 1)
+            current_alert = utils.DB.get_state("blue_alert_level", 1)
             state_key = f"{current_alert}"
             
             # 2. STRATEGY
@@ -138,6 +134,28 @@ def engage_offense():
             elif action == "T1589_LURK":
                 impact = 0
 
+            elif action == "T1486_ENCRYPT":
+                # Ransomware Simulation: Encrypt a file (rename to .enc)
+                try:
+                    files = [f.path for f in os.scandir(TARGET_DIR) if f.is_file() and not f.name.endswith('.enc')]
+                    if files:
+                        target = _choice(files)
+                        new_name = target + ".enc"
+                        os.rename(target, new_name)
+                        impact = 8
+                except: pass
+
+            elif action == "T1070_CLEANUP":
+                # Anti-forensics: Delete logs or self
+                try:
+                    # Delete self-dropped scripts
+                    files = [f.path for f in os.scandir(TARGET_DIR) if f.name.startswith('malware_')]
+                    if files:
+                        target = _choice(files)
+                        os.remove(target)
+                        impact = 2 # Low impact but good for evasion
+                except: pass
+
             # 4. REWARDS
             reward = 0
             if impact > 0: reward = R_IMPACT
@@ -151,14 +169,12 @@ def engage_offense():
             
             q_manager.update_q(state_key, action, new_val)
 
-            # Sync Q-Table periodically
-            if step_count % SYNC_INTERVAL == 0:
-                utils.safe_json_write(Q_TABLE_FILE, q_manager.export())
+            # Sync Q-Table periodically (Implicitly handled by SQLite WAL)
+            pass
             
             # 6. TRIGGER ALERTS
             if impact > 0 and _random() > 0.5:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-                utils.safe_json_write(STATE_FILE, war_state)
+                utils.DB.set_state("blue_alert_level", min(MAX_ALERT, current_alert + 1))
             
             print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             

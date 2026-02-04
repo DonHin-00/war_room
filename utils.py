@@ -6,6 +6,10 @@ import random
 import json
 import time
 import hashlib
+import db_manager
+
+# Singleton DB instance
+DB = db_manager.DatabaseManager()
 
 # Utility functions
 
@@ -101,22 +105,31 @@ class FileIntegrityCache:
             del self.files[filepath]
 
 class QTableManager:
-    """Manages Q-Table with caching for O(1) best action lookup."""
-    def __init__(self, actions):
-        self.q_table = {}
+    """Manages Q-Table via SQLite with caching for performance."""
+    def __init__(self, agent_name, actions):
+        self.agent_name = agent_name
         self.actions = actions
-        self.best_action_cache = {} # state_key -> action
-
-    def load(self, data):
-        self.q_table = data
-        self.best_action_cache = {} # Invalidate on load
+        self.cache = {} # state_action -> value (Write-through cache)
+        self.best_action_cache = {} # state -> action
 
     def get_q(self, state, action):
-        return self.q_table.get(state + "_" + action, 0)
+        key = f"{state}_{action}"
+        if key in self.cache:
+            return self.cache[key]
+
+        # Cache miss: Read from DB
+        val = DB.get_q_value(self.agent_name, state, action)
+        self.cache[key] = val
+        return val
 
     def update_q(self, state, action, value):
-        self.q_table[state + "_" + action] = value
-        # Invalidate best action cache for this state
+        key = f"{state}_{action}"
+        self.cache[key] = value
+
+        # Async/Buffered DB write could go here, but for now write-through
+        DB.update_q_value(self.agent_name, state, action, value)
+
+        # Invalidate best action cache
         if state in self.best_action_cache:
             del self.best_action_cache[state]
 
@@ -124,18 +137,17 @@ class QTableManager:
         if state in self.best_action_cache:
             return self.best_action_cache[state]
 
-        # Find best action (standard max)
-        # Optimized: Pre-construct keys generator
-        best = max(self.actions, key=lambda a: self.q_table.get(state + "_" + a, 0))
+        # Optimization: Let DB do the heavy lifting if not in cache
+        # But since we have a local cache that might be fresher, we should check it first?
+        # Actually, for Q-Learning, local memory (RAM) is ground truth for the session.
+        # We will iterate actions using get_q (which checks RAM then DB).
+
+        best = max(self.actions, key=lambda a: self.get_q(state, a))
         self.best_action_cache[state] = best
         return best
 
     def get_max_q(self, state):
-        # We can also cache max_q if needed, but best_action usually implies it
-        return max(self.q_table.get(state + "_" + a, 0) for a in self.actions)
-
-    def export(self):
-        return self.q_table
+        return max(self.get_q(state, a) for a in self.actions)
 
 def adaptive_sleep(base_sleep, activity_factor, min_sleep=0.1):
     """Sleep less if active, more if idle."""
