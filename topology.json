@@ -243,5 +243,165 @@
             "SWARM"
         ],
         "last_seen": 1770242592.0342865
+    },
+    "0ca33d63": {
+        "type": "RED",
+        "peers": [
+            "8a0ffef1"
+        ],
+        "last_seen": 1770247455.6567075,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "8a0ffef1": {
+        "type": "RED",
+        "peers": [
+            "0ca33d63",
+            "5ddab849"
+        ],
+        "last_seen": 1770247455.7265472,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "9ce72553": {
+        "type": "RED",
+        "peers": [
+            "145a78a0",
+            "f4dcc169"
+        ],
+        "last_seen": 1770247521.8165195,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "f4dcc169": {
+        "type": "RED",
+        "peers": [
+            "145a78a0"
+        ],
+        "last_seen": 1770247521.813748,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "ba108df0": {
+        "type": "RED",
+        "peers": [
+            "aa8552ec",
+            "755142fe"
+        ],
+        "last_seen": 1770247596.3691492,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "aa8552ec": {
+        "type": "RED",
+        "peers": [
+            "755142fe"
+        ],
+        "last_seen": 1770247596.3691528,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "8435b1b0": {
+        "type": "RED",
+        "peers": [
+            "f084c8ce"
+        ],
+        "last_seen": 1770247670.2258043,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "f084c8ce": {
+        "type": "RED",
+        "peers": [
+            "95b51dcd"
+        ],
+        "last_seen": 1770247670.2299244,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "95b51dcd": {
+        "type": "RED",
+        "peers": [
+            "f084c8ce"
+        ],
+        "last_seen": 1770247670.230613,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "185297cf": {
+        "type": "RED",
+        "peers": [
+            "ab52708e"
+        ],
+        "last_seen": 1770247761.9822874,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "ab52708e": {
+        "type": "RED",
+        "peers": [
+            "185297cf",
+            "c1a09185"
+        ],
+        "last_seen": 1770247762.039078,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "9769a088": {
+        "type": "RED",
+        "peers": [
+            "800a9df1"
+        ],
+        "last_seen": 1770247848.1782782,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "800a9df1": {
+        "type": "RED",
+        "peers": [
+            "4c9eba76"
+        ],
+        "last_seen": 1770247848.1884124,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
     }
 }

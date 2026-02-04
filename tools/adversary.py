@@ -82,19 +82,14 @@ class Adversary:
 
         target = "10.10.10.10" # Bank
 
-        # Payloads Blue might miss
-        payloads = [
-            # URL Encoded SQLi
-            {"method": "POST", "path": "/login", "data": {"username": "%27%20OR%20%271%27%3D%271"}},
-            # Hex Encoded
-            {"method": "POST", "path": "/search", "data": {"q": "\x3c\x73\x63\x72\x69\x70\x74\x3e"}}, # <script>
-            # Split payload (Packet fragmentation simulation - harder in this app layer vnet, but we can try splitting logical data)
-            {"method": "POST", "path": "/login", "data": {"username": "admin'/**/OR/**/'1'='1"}}
-        ]
+        # Send obvious attack FIRST to trigger block
+        logger.info("Sending obvious attack to trigger SOAR...")
+        nic.send(target, {"method": "POST", "path": "/login", "data": {"username": "admin' OR '1'='1"}})
+        time.sleep(2) # Wait for block
 
-        for p in payloads:
-            nic.send(target, p)
-            time.sleep(0.1)
+        # Try sending again - should fail (or be dropped)
+        logger.info("Sending second attack (should be blocked)...")
+        nic.send(target, {"method": "POST", "path": "/login", "data": {"username": "admin"}})
 
         nic.close()
 

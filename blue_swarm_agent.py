@@ -68,9 +68,11 @@ class EDRMonitor:
 
 class SoarEngine:
     """Decentralized SOAR Capability."""
-    def __init__(self, token):
+    def __init__(self, token, nic):
         self.lockdown_active = False
         self.token = token
+        self.nic = nic
+        self.blocked_ips = set()
 
     def evaluate(self, threat_level):
         """Trigger playbooks based on threat level."""
@@ -78,6 +80,18 @@ class SoarEngine:
             self.activate_lockdown()
         elif threat_level < 2 and self.lockdown_active:
             self.deactivate_lockdown()
+
+    def block_ip(self, ip):
+        if ip in self.blocked_ips: return
+
+        logger.warning(f"SOAR: 🚫 BLOCKING IP {ip}")
+        # Send CONTROL message to Switch
+        # Type 'CONTROL' is not in MSG_DATA enum usually, but protocol handles strings.
+        # We need to ensure we use the right type.
+
+        payload = {"cmd": "BLOCK", "target": ip}
+        self.nic.send("switch", payload, msg_type="CONTROL")
+        self.blocked_ips.add(ip)
 
     def activate_lockdown(self):
         self.lockdown_active = True
@@ -108,7 +122,7 @@ class BlueSwarmAgent:
         self.token = self.id_mgr.login(f"BlueSwarm-{AGENT_ID}")
 
         self.edr = EDRMonitor()
-        self.soar = SoarEngine(self.token)
+        self.soar = SoarEngine(self.token, self.nic)
 
         # RL Defense
         self.brain = utils.RLBrain(f"BlueSwarm-{AGENT_ID}",
@@ -207,6 +221,9 @@ class BlueSwarmAgent:
                     logger.critical(f"IDS ALERT: Attack detected from {src}")
                     self.network_threats_detected += 1
                     self.share_intel(f"NET_ATTACK_{src}")
+
+                    # Active Response (Block IP)
+                    self.soar.block_ip(src)
 
     def share_intel(self, ioc):
         """Gossip Protocol: Share IOC with Swarm."""

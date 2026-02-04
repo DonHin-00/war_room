@@ -4,173 +4,108 @@ import time
 import json
 import os
 import sys
-import threading
 
 # Add root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 import utils
 
-def get_edr_logs():
-    """Tail blue log."""
-    if os.path.exists(config.BLUE_LOG):
+class CyberWarDashboard:
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        curses.curs_set(0)
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK) # Blue Team / Good
+        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)   # Red Team / Bad
+        curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)# Warnings / Targets
+        curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)  # Info
+
+        self.height, self.width = stdscr.getmaxyx()
+        self.alerts = []
+
+    def load_topology(self):
+        return utils.safe_json_read(config.TOPOLOGY_FILE, {})
+
+    def load_alerts(self):
+        # We don't have a centralized alert file, but we can read logs
+        # or just listen to the audit log if we were fancy.
+        # For now, let's just tail the blue.log for criticals
+        if not os.path.exists(config.BLUE_LOG): return
         try:
             with open(config.BLUE_LOG, 'r') as f:
-                return f.readlines()[-10:]
-        except: pass
-    return []
-
-def get_red_logs():
-    """Tail red log."""
-    if os.path.exists(config.RED_LOG):
-        try:
-            with open(config.RED_LOG, 'r') as f:
-                return f.readlines()[-10:]
-        except: pass
-    return []
-
-def get_alerts():
-    """Tail ALERTS.txt."""
-    if os.path.exists("ALERTS.txt"):
-        try:
-            with open("ALERTS.txt", 'r') as f:
-                return f.readlines()[-5:]
-        except: pass
-    return []
-
-def draw_dashboard(stdscr):
-    curses.curs_set(0)
-    stdscr.nodelay(1)
-    stdscr.timeout(500)
-
-    curses.start_color()
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE) # Blue Team
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_RED)  # Red Team
-    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN) # Header
-
-    while True:
-        stdscr.clear()
-        h, w = stdscr.getmaxyx()
-
-        # Header
-        title = "⚔️  LIVE FIRE EXERCISE: BATTLE FOR LOCALHOST  ⚔️"
-        stdscr.addstr(0, 0, title.center(w), curses.color_pair(3))
-
-        # --- LEFT: BLUE TEAM (DEFENSE) ---
-        stdscr.addstr(2, 2, "[ BLUE TEAM - EDR STATUS ]", curses.color_pair(1))
-        blue_logs = get_edr_logs()
-        for i, line in enumerate(blue_logs):
-            if 4+i < h-2:
-                stdscr.addstr(4+i, 2, line.strip()[:w//2-4])
-
-        # --- RIGHT: RED TEAM (OFFENSE) ---
-        col_red = w // 2
-        stdscr.addstr(2, col_red, "[ RED TEAM - MESH STATUS ]", curses.color_pair(2))
-        red_logs = get_red_logs()
-        for i, line in enumerate(red_logs):
-            if 4+i < h-2:
-                stdscr.addstr(4+i, col_red, line.strip()[:w//2-4])
-
-        # --- OVERLAY: THE MATRIX (Network Graph) ---
-        # Simulating a visual graph in the center
-        center_y = h // 2
-        center_x = w // 2
-
-        # Dynamic ASCII Mesh
-        topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
-
-        red_nodes = [v for k,v in topo.items() if v['type'] == 'RED']
-        blue_nodes = [v for k,v in topo.items() if v['type'] == 'BLUE']
-
-        # --- LEFT PANEL: EVOLUTION MONITOR ---
-        # Calculate Average Genes
-        avg_jitter = 0
-        avg_aggro = 0
-        stealth_count = 0
-
-        if red_nodes:
-            for r in red_nodes:
-                genes = r.get('genes', {})
-                avg_jitter += genes.get('jitter', 0)
-                avg_aggro += genes.get('aggression', 0)
-                if genes.get('stealth'): stealth_count += 1
-
-            avg_jitter /= len(red_nodes)
-            avg_aggro /= len(red_nodes)
-            stealth_pct = (stealth_count / len(red_nodes)) * 100
-
-            stdscr.addstr(2, 2, "[ EVOLUTIONARY METRICS ]", curses.color_pair(2))
-            stdscr.addstr(4, 2, f"Avg Jitter: {avg_jitter:.2f}s")
-            stdscr.addstr(5, 2, f"Avg Aggro:  {avg_aggro:.2f}")
-            stdscr.addstr(6, 2, f"Stealth %:  {stealth_pct:.1f}%")
-
-            # Meta Analysis
-            meta = "BALANCED"
-            if avg_aggro > 0.8: meta = "ZERG RUSH"
-            if stealth_pct > 80: meta = "NINJA"
-            stdscr.addstr(8, 2, f"META: {meta}", curses.A_BLINK)
-
-        # --- BRAIN ACTIVITY ---
-        stdscr.addstr(10, 2, "[ MACHINE LEARNING METRICS ]", curses.color_pair(4))
-
-        # Read Model Stats
-        try:
-            model_files = os.listdir(config.MODELS_DIR)
-            total_size = sum([os.path.getsize(os.path.join(config.MODELS_DIR, f)) for f in model_files])
-            model_count = len(model_files)
-
-            stdscr.addstr(11, 2, f"Active Models: {model_count}")
-            stdscr.addstr(12, 2, f"Knowledge Base: {total_size} bytes")
-            stdscr.addstr(13, 2, "Federated Sync: ACTIVE")
-        except:
-            stdscr.addstr(11, 2, "ML Status: INITIALIZING...")
-
-        # Simple Circle Layout
-        try:
-            # Red Line (Show Node IDs)
-            # red_nodes is a list of dicts now, need keys?
-            # We need to restructure how we read topo to get IDs.
-            # Reread strictly for IDs or just use the dicts if they had ID inside.
-            # They don't have ID inside value.
-
-            red_ids = [k for k,v in topo.items() if v['type'] == 'RED']
-            blue_ids = [k for k,v in topo.items() if v['type'] == 'BLUE']
-
-            red_str = " <-> ".join([f"(R:{n[:4]})" for n in red_ids[:3]])
-            stdscr.addstr(center_y - 2, max(0, center_x - len(red_str)//2), red_str, curses.color_pair(2))
-
-            # Vs
-            stdscr.addstr(center_y, center_x - 2, " VS ", curses.A_BOLD)
-
-            # Blue Line
-            blue_str = " <-> ".join([f"(B:{n[:4]})" for n in blue_ids[:3]])
-            stdscr.addstr(center_y + 2, max(0, center_x - len(blue_str)//2), blue_str, curses.color_pair(1))
-
-            if len(red_ids) > 3 or len(blue_ids) > 3:
-                stdscr.addstr(center_y + 4, center_x - 10, f"+ {len(red_ids)-3} Red, {len(blue_ids)-3} Blue hidden")
-
+                lines = f.readlines()
+                self.alerts = [l.strip() for l in lines if "IDS ALERT" in l or "CRITICAL" in l][-10:]
         except: pass
 
-        # Separator
-        for y in range(2, h-8):
-            try: stdscr.addch(y, w//2 - 1, '|')
-            except: pass
+    def draw_box(self, y, x, h, w, title):
+        self.stdscr.addstr(y, x, "┌" + "─" * (w-2) + "┐")
+        self.stdscr.addstr(y, x+2, f" {title} ", curses.A_BOLD)
+        for i in range(1, h-1):
+            self.stdscr.addstr(y+i, x, "│")
+            self.stdscr.addstr(y+i, x+w-1, "│")
+        self.stdscr.addstr(y+h-1, x, "└" + "─" * (w-2) + "┘")
 
-        # --- BOTTOM: HIGH PRIORITY ALERTS ---
-        stdscr.addstr(h-8, 2, "[ 🚨 INTRUSION ALERTS 🚨 ]", curses.color_pair(2) | curses.A_BLINK)
-        stdscr.hline(h-7, 0, curses.ACS_HLINE, w)
+    def draw_nodes(self, topo):
+        y_offset = 2
 
-        alerts = get_alerts()
-        for i, line in enumerate(alerts):
-            if h-6+i < h-1:
-                stdscr.addstr(h-6+i, 2, line.strip()[:w-4], curses.color_pair(2))
+        # Red Nodes
+        self.stdscr.addstr(y_offset, 2, "🔴 RED TEAM (Offense)", curses.color_pair(2) | curses.A_BOLD)
+        r_nodes = [k for k,v in topo.items() if v.get('type') == 'RED']
+        for i, node in enumerate(r_nodes):
+            self.stdscr.addstr(y_offset+1+i, 4, f"• {node}")
 
-        # Status Bar
-        stdscr.addstr(h-1, 0, f"Time: {time.strftime('%H:%M:%S')} | Press 'q' to Quit", curses.A_REVERSE)
+        # Blue Nodes
+        self.stdscr.addstr(y_offset, 40, "🔵 BLUE TEAM (Defense)", curses.color_pair(1) | curses.A_BOLD)
+        b_nodes = [k for k,v in topo.items() if v.get('type') == 'BLUE']
+        for i, node in enumerate(b_nodes):
+            self.stdscr.addstr(y_offset+1+i, 42, f"• {node}")
 
-        c = stdscr.getch()
-        if c == ord('q'):
-            break
+        # Targets
+        self.stdscr.addstr(y_offset+10, 20, "🎯 TARGETS (Services)", curses.color_pair(3) | curses.A_BOLD)
+        self.stdscr.addstr(y_offset+11, 22, "• MockBank (10.10.10.10)")
+
+    def draw_alerts(self):
+        h = 15
+        w = self.width - 4
+        y = self.height - h - 2
+        self.draw_box(y, 2, h, w, "🚨 LIVE IDS ALERTS")
+
+        for i, alert in enumerate(reversed(self.alerts)):
+            if i >= h-2: break
+            color = curses.color_pair(2) if "CRITICAL" in alert else curses.color_pair(3)
+            # Truncate to fit
+            clean_alert = alert[24:] # Skip date
+            self.stdscr.addstr(y+1+i, 4, clean_alert[:w-4], color)
+
+    def draw_stats(self):
+        # Read PCAP size for traffic stats
+        try:
+            pcap_size = os.path.getsize("logs/capture.pcap")
+            self.stdscr.addstr(2, 80, f"📡 Traffic Captured: {pcap_size/1024:.2f} KB", curses.color_pair(4))
+        except: pass
+
+        # Blocked IPs (fake for now, or read from switch log if we parsed it)
+        # Real integration would read switch state.
+        pass
+
+    def run(self):
+        while True:
+            self.stdscr.clear()
+            self.stdscr.border(0)
+            self.stdscr.addstr(0, 2, " 🛡️  SENTINEL CYBER WAR DASHBOARD ", curses.A_BOLD | curses.A_REVERSE)
+
+            topo = self.load_topology()
+            self.load_alerts()
+
+            self.draw_nodes(topo)
+            self.draw_alerts()
+            self.draw_stats()
+
+            self.stdscr.refresh()
+            time.sleep(1)
 
 if __name__ == "__main__":
-    curses.wrapper(draw_dashboard)
+    try:
+        curses.wrapper(lambda stdscr: CyberWarDashboard(stdscr).run())
+    except KeyboardInterrupt:
+        pass
