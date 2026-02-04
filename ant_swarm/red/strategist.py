@@ -1,6 +1,7 @@
 from typing import List, Dict
 from ant_swarm.red.campaign import AutoRecon
 from ant_swarm.red.human_link import HumanLink
+from ant_swarm.red.loot_bag import LootBag
 from rich.console import Console
 
 console = Console()
@@ -9,9 +10,11 @@ class Strategist:
     """
     The Red Team Campaign Manager.
     Aggregates AutoRecon data and triggers HumanLink for Major targets.
+    INTEGRATED: Uses LootBag for Exfil/Infil.
     """
     def __init__(self, recon: AutoRecon):
         self.recon = recon
+        self.loot_bag = LootBag()
 
     def execute_campaign(self):
         # 1. Mass Scale Auto Recon
@@ -19,7 +22,14 @@ class Strategist:
         criticals = self.recon.get_critical_intel()
         noise = self.recon.get_noise_report()
 
-        console.print(f"\n[STRATEGIST] 🗺️ Strategic Map Updated. {len(noise)} Low-Priority targets suppressed.")
+        # EXFIL: Send noise (secrets) to Loot Bag
+        for finding in noise:
+            self.loot_bag.queue_for_exfil(f"SECRET found in {finding['file']}")
+
+        # Flush leftovers
+        self.loot_bag.trigger_exfil()
+
+        console.print(f"\n[STRATEGIST] 🗺️ Strategic Map Updated. {len(noise)} secrets exfiltrated.")
 
         # 2. Strategic Assessment
         if not criticals:
@@ -38,5 +48,15 @@ class Strategist:
                 console.print("[STRATEGIST] Standing down. Target logged for future review.")
 
     def _deploy_weapon(self, intel: Dict):
-        console.print(f"[STRATEGIST] 🚀 WEAPON DEPLOYED against {intel['file']}. Exploit Generated.")
-        # In a full simulation, this would call 'Breaker' to generate the payload
+        console.print(f"[STRATEGIST] 🚀 WEAPON DEPLOYED against {intel['file']}.")
+
+        # INFIL: Smuggle the payload in
+        # Simulated fragmentation of a payload script
+        import base64
+        payload_script = "print('Pwned')"
+        b64 = base64.b64encode(payload_script.encode()).decode()
+        # Split into chunks
+        fragments = [b64[:4], b64[4:]]
+
+        weapon = self.loot_bag.smuggle_weapon_in(fragments)
+        console.print(f"[STRATEGIST] Weapon Reassembled: {weapon}")
