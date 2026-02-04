@@ -18,13 +18,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import (
     atomic_json_io,
     atomic_json_update,
-    setup_logging
+    setup_logging,
+    AuditLogger
 )
 import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
 logger = logging.getLogger("PurpleBrain")
+audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- VISUALS ---
 C_PURPLE = "\033[95m"
@@ -39,6 +41,11 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
     logger.info(msg)
 
     state_file = config.file_paths['state_file']
+    watch_dir = config.file_paths['watch_dir']
+
+    # METRICS
+    last_file_count = 0
+    last_check_time = time.time()
 
     iteration = 0
     try:
@@ -48,25 +55,43 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
             iteration += 1
 
             try:
-                # 1. MONITOR
+                # 1. MONITOR STATE
                 war_state: Dict[str, Any] = atomic_json_io(state_file)
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                # 2. BALANCE
-                # If alert level is too high, maybe suppress it slightly to allow Red to try again?
-                # Or if too low, inject a simulation event?
+                # 2. BURST DETECTION (Anomaly Detection)
+                current_time = time.time()
+                current_file_count = 0
+                try:
+                    current_file_count = len(os.listdir(watch_dir))
+                except: pass
 
-                # Simple logic: If alert stays at MAX for too long, reset it to give Red a chance?
-                # This logic would require tracking history, but for now let's just log stats.
+                delta_files = current_file_count - last_file_count
+                delta_time = current_time - last_check_time
 
-                log_msg = f"⚖️  Status Check: Alert Level {current_alert}"
+                # If > 5 files created per second, that's a burst!
+                if delta_time > 0 and (delta_files / delta_time) > 5.0:
+                    logger.warning(f"🚨 BURST DETECTED: {delta_files} files in {delta_time:.2f}s")
+                    audit.log("PURPLE", "ANOMALY_DETECTED", {"type": "BURST", "rate": delta_files/delta_time})
+
+                    # TRIGGER MAX ALERT
+                    def escalation(state):
+                        state['blue_alert_level'] = config.constraints['max_alert']
+                        return state
+                    atomic_json_update(state_file, escalation)
+
+                last_file_count = current_file_count
+                last_check_time = current_time
+
+                # 3. BALANCE
+                # If alert level stays MAX for too long (e.g., > 10 iterations of Purple),
+                # we could decay it. (Not implemented yet, just logging)
+
+                log_msg = f"⚖️  Status Check: Alert Level {current_alert} | Files: {current_file_count}"
                 print(f"{C_PURPLE}[PURPLE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
 
-                # 3. INTEGRATION (Metric Aggregation could go here)
-                # For now, we just ensure the game keeps flowing.
-
-                time.sleep(5.0) # Integrator checks less frequently
+                time.sleep(2.0) # Check every 2 seconds
 
             except Exception as e:
                 logger.error(f"Error in Purple loop: {e}")

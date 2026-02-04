@@ -20,13 +20,16 @@ from utils import (
     atomic_json_update,
     atomic_json_merge,
     calculate_file_entropy,
-    setup_logging
+    setup_logging,
+    is_honeypot,
+    AuditLogger
 )
 import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
 logger = logging.getLogger("BlueBrain")
+audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS: List[str] = config.blue_actions
@@ -76,6 +79,10 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 # 2. DETECTION
                 visible_threats: List[str] = []
                 hidden_threats: List[str] = []
+                # Scan for honeypots first - did Red touch them?
+                # (Simplification: If honeypot missing/modified, assume Red)
+                # For this sim, we just check existence. Real logic would track file hashes.
+
                 try:
                     with os.scandir(watch_dir) as it:
                         for entry in it:
@@ -96,26 +103,38 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if random.random() < EPSILON:
                     action = random.choice(ACTIONS)
                 else:
-                    # Optimized: Find best action without creating intermediate dict
                     action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
 
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-                ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+                ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
 
-                # 4. ERADICATION
+                # 4. ERADICATION / DECEPTION
                 mitigated = 0
+                trapped = 0
 
                 if action == "SIGNATURE_SCAN":
                     for t in visible_threats:
-                        try: os.remove(t); mitigated += 1
-                        except: pass
+                        if not is_honeypot(t):
+                            try: os.remove(t); mitigated += 1
+                            except: pass
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
-                        # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                        if ".sys" in t or calculate_file_entropy(t) > 3.5:
-                            try: os.remove(t); mitigated += 1
-                            except: pass
+                        if not is_honeypot(t):
+                            if ".sys" in t or calculate_file_entropy(t) > 3.5:
+                                try: os.remove(t); mitigated += 1
+                                except: pass
+
+                elif action == "DEPLOY_DECOY":
+                    # Plant a honeypot
+                    hp_name = random.choice(config.HONEYPOT_NAMES)
+                    hp_path = os.path.join(watch_dir, hp_name)
+                    if not os.path.exists(hp_path):
+                        try:
+                            with open(hp_path, 'w') as f: f.write("SUPER SECRET PASSWORD = admin123")
+                            trapped = 1 # Metaphorical success
+                            audit.log("BLUE", "HONEYPOT_DEPLOYED", {"file": hp_name})
+                        except: pass
 
                 elif action == "OBSERVE": pass
                 elif action == "IGNORE": pass
@@ -130,10 +149,11 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                     reward = config.blue_rewards['patience']
                 if action == "IGNORE" and threat_count > 0:
                     reward = config.blue_rewards['negligence']
+                if trapped > 0:
+                    reward = 5 # Small reward for deploying defense
 
                 # 6. LEARN
                 old_val = q_table.get(f"{state_key}_{action}", 0.0)
-                # Optimized: Generator expression instead of list comprehension
                 next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
                 q_table[f"{state_key}_{action}"] = new_val
@@ -165,6 +185,9 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
 
                     atomic_json_update(state_file, update_state)
 
+                if mitigated > 0 or trapped > 0:
+                    audit.log("BLUE", "ACTION_TAKEN", {"action": action, "mitigated": mitigated})
+
                 # LOG
                 icon = "🛡️" if mitigated == 0 else "⚔️"
                 log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}"
@@ -179,7 +202,6 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Always save on exit
         atomic_json_merge(q_table_path, q_table)
         logger.info("Blue Team AI Shutting Down")
 

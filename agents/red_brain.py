@@ -19,13 +19,16 @@ from utils import (
     atomic_json_io,
     atomic_json_update,
     atomic_json_merge,
-    setup_logging
+    setup_logging,
+    is_honeypot,
+    AuditLogger
 )
 import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
 logger = logging.getLogger("RedBrain")
+audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS: List[str] = config.red_actions
@@ -49,7 +52,6 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
     print(f"{C_RED}{msg}{C_RESET}")
     logger.info(msg)
 
-    # Cache Q-Table in memory
     q_table_path = config.file_paths['red_q_table']
     q_table: Dict[str, float] = atomic_json_io(q_table_path)
 
@@ -72,12 +74,15 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 current_alert = war_state.get('blue_alert_level', 1)
                 state_key = f"{current_alert}"
 
+                # LOW AND SLOW: If alert is high, sleep more
+                if current_alert >= 4:
+                    time.sleep(random.uniform(2.0, 5.0))
+
                 # 2. STRATEGY
                 action: str = ""
                 if random.random() < EPSILON:
                     action = random.choice(ACTIONS)
                 else:
-                    # Optimized: Find best action without creating intermediate dict
                     action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
 
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
@@ -85,25 +90,40 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
 
                 # 3. EXECUTION
                 impact = 0
+                burned = False
+
+                # Check for honeypots before acting? (Smart Red)
+                # For now, simplistic interaction
 
                 if action == "T1046_RECON":
-                    # Low Entropy Bait
-                    fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
+                    # Check if any honeypots exist
                     try:
-                        with open(fname, 'w') as f: f.write("echo 'scan'")
-                        impact = 1
+                        with os.scandir(target_dir) as it:
+                            for entry in it:
+                                if is_honeypot(entry.path):
+                                    burned = True
+                                    audit.log("RED", "TRIPPED_HONEYPOT", {"file": entry.name})
+                                    break
                     except: pass
 
+                    if not burned:
+                        fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
+                        try:
+                            with open(fname, 'w') as f: f.write("echo 'scan'")
+                            impact = 1
+                        except: pass
+
                 elif action == "T1027_OBFUSCATE":
-                    # High Entropy Binary
+                    # POLYMORPHISM: Append random junk to change entropy/hash
                     fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.bin")
                     try:
-                        with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                        payload = os.urandom(1024)
+                        padding = os.urandom(random.randint(100, 500)) # Polymorphic padding
+                        with open(fname, 'wb') as f: f.write(payload + padding)
                         impact = 3
                     except: pass
 
                 elif action == "T1003_ROOTKIT":
-                    # Hidden File
                     fname = os.path.join(target_dir, f".sys_shadow_{int(time.time())}")
                     try:
                         with open(fname, 'w') as f: f.write("uid=0(root)")
@@ -122,13 +142,13 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     reward = config.red_rewards['stealth']
                 if current_alert == max_alert and impact > 0:
                     reward = config.red_rewards['critical']
+                if burned:
+                    reward = config.red_rewards['burned'] # Huge penalty
 
                 # 5. LEARN
                 old_val = q_table.get(f"{state_key}_{action}", 0.0)
-                # Optimized: Generator expression instead of list comprehension
                 next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-
                 q_table[f"{state_key}_{action}"] = new_val
 
                 # Periodic Persistence
@@ -144,7 +164,10 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                         return state
                     atomic_json_update(state_file, update_state)
 
-                log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}"
+                if impact > 0:
+                    audit.log("RED", "ATTACK_LAUNCHED", {"technique": action, "impact": impact})
+
+                log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Burned: {burned} | Q: {new_val:.2f}"
                 print(f"{C_RED}[RED AI] {C_RESET} {log_msg}")
                 logger.info(log_msg)
 
@@ -156,7 +179,6 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Always save on exit
         atomic_json_merge(q_table_path, q_table)
         logger.info("Red Team AI Shutting Down")
 

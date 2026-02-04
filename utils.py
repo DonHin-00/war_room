@@ -209,3 +209,34 @@ def manage_session(session_id: str) -> None:
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass
+
+import os
+import time
+import hashlib
+import json
+from typing import Dict, Any
+
+def is_honeypot(filepath: str) -> bool:
+    """Checks if a file is a known honeypot based on naming convention."""
+    filename = os.path.basename(filepath)
+    # Honeypot names usually mimic sensitive data
+    decoy_names = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
+    return filename in decoy_names or filename.startswith("decoy_")
+
+class AuditLogger:
+    """Logs critical simulation events to a JSONL file."""
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+
+    def log(self, agent: str, event: str, details: Dict[str, Any]):
+        entry = {
+            "timestamp": time.time(),
+            "agent": agent,
+            "event": event,
+            "details": details
+        }
+        try:
+            with open(self.filepath, 'a') as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
