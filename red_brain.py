@@ -36,14 +36,31 @@ C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
 # --- UTILITIES ---
+MEMORY_CACHE = {}
+
 def access_memory(filepath, data=None):
+    global MEMORY_CACHE
+
     if data is not None:
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            if os.path.exists(filepath):
+                 MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
         except: pass
+        return {}
+
     if os.path.exists(filepath):
         try:
-            with open(filepath, 'r') as f: return json.load(f)
+            mtime = os.path.getmtime(filepath)
+            if filepath in MEMORY_CACHE:
+                cached_mtime, cached_data = MEMORY_CACHE[filepath]
+                if mtime == cached_mtime:
+                    return cached_data
+
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                MEMORY_CACHE[filepath] = (mtime, data)
+                return data
         except: return {}
     return {}
 

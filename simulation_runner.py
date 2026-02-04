@@ -52,7 +52,7 @@ def main():
                 print("Red Team process exited unexpectedly.")
                 break
 
-            time.sleep(1)
+            time.sleep(5)
             sys.stdout.write(".")
             sys.stdout.flush()
 

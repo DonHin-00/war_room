@@ -52,15 +52,36 @@ def calculate_shannon_entropy(filepath):
             return utils.calculate_entropy(data)
     except: return 0
 
+MEMORY_CACHE = {}
+
 def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
+    """Atomic JSON I/O with read caching."""
+    global MEMORY_CACHE
+
+    # WRITE: Always write to disk if data is provided
     if data is not None:
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            # Update cache timestamp to avoid immediate re-read
+            if os.path.exists(filepath):
+                 MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
         except: pass
+        return {}
+
+    # READ: Check modification time
     if os.path.exists(filepath):
         try:
-            with open(filepath, 'r') as f: return json.load(f)
+            mtime = os.path.getmtime(filepath)
+            if filepath in MEMORY_CACHE:
+                cached_mtime, cached_data = MEMORY_CACHE[filepath]
+                if mtime == cached_mtime:
+                    return cached_data
+
+            # File changed or not in cache, read it
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                MEMORY_CACHE[filepath] = (mtime, data)
+                return data
         except: return {}
     return {}
 
@@ -70,12 +91,21 @@ def engage_defense():
     global EPSILON, ALPHA
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
     
+    # Load Q-Table once at startup
+    q_table = access_memory(Q_TABLE_FILE)
+    if not q_table: q_table = {}
+
+    iteration_count = 0
+    SYNC_INTERVAL = 10
+
     while True:
         try:
+            iteration_count += 1
+
             # 1. PREPARATION
             war_state = access_memory(STATE_FILE)
             if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
+            # q_table is now in memory
             
             current_alert = war_state.get('blue_alert_level', 1)
             
@@ -127,7 +157,10 @@ def engage_defense():
             next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+
+            # Sync to disk periodically
+            if iteration_count % SYNC_INTERVAL == 0:
+                access_memory(Q_TABLE_FILE, q_table)
             
             # 7. UPDATE WAR STATE
             if mitigated > 0 and current_alert < MAX_ALERT:
