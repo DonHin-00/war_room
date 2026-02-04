@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -72,88 +71,105 @@ def access_memory(filepath, data=None):
 
 # --- MAIN LOOP ---
 
-def engage_defense():
+def engage_defense(max_iterations=None):
     global EPSILON, ALPHA
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
     
-    while True:
-        try:
-            # 1. PREPARATION
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
-            
-            current_alert = war_state.get('blue_alert_level', 1)
-            
-            # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
-            
-            threat_count = len(all_threats)
-            state_key = f"{current_alert}_{threat_count}"
-            
-            # 3. DECISION
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
-            else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
-            
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+    # Cache Q-Table in memory
+    q_table = access_memory(Q_TABLE_FILE)
+    steps_since_save = 0
+    SAVE_INTERVAL = 10
 
-            # 4. ERADICATION
-            mitigated = 0
-            
-            if action == "SIGNATURE_SCAN":
-                for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
-                    except: pass
-                    
-            elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+    iteration = 0
+    try:
+        while True:
+            if max_iterations is not None and iteration >= max_iterations:
+                break
+            iteration += 1
+            try:
+                # 1. PREPARATION
+                war_state = access_memory(STATE_FILE)
+                if not war_state: war_state = {'blue_alert_level': 1}
+                # q_table is now cached
+
+                current_alert = war_state.get('blue_alert_level', 1)
+
+                # 2. DETECTION
+                visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
+                hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
+                all_threats = visible_threats + hidden_threats
+
+                threat_count = len(all_threats)
+                state_key = f"{current_alert}_{threat_count}"
+
+                # 3. DECISION
+                if random.random() < EPSILON:
+                    action = random.choice(ACTIONS)
+                else:
+                    known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
+                    action = max(known, key=known.get)
+
+                EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
+                ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+
+                # 4. ERADICATION
+                mitigated = 0
+
+                if action == "SIGNATURE_SCAN":
+                    for t in visible_threats:
                         try: os.remove(t); mitigated += 1
                         except: pass
-            
-            elif action == "OBSERVE": pass
-            elif action == "IGNORE": pass
 
-            # 5. REWARD CALCULATION
-            reward = 0
-            if mitigated > 0: reward = R_MITIGATION
-            if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
-            if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
-            if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-            
-            # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
-            
-            # 7. UPDATE WAR STATE
-            if mitigated > 0 and current_alert < MAX_ALERT:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-            elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+                elif action == "HEURISTIC_SCAN":
+                    for t in all_threats:
+                        # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
+                        if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                            try: os.remove(t); mitigated += 1
+                            except: pass
+
+                elif action == "OBSERVE": pass
+                elif action == "IGNORE": pass
+
+                # 5. REWARD CALCULATION
+                reward = 0
+                if mitigated > 0: reward = R_MITIGATION
+                if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
+                if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
+                if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
+
+                # 6. LEARN
+                old_val = q_table.get(f"{state_key}_{action}", 0)
+                next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+                new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
+                q_table[f"{state_key}_{action}"] = new_val
+
+                # Periodic Persistence
+                steps_since_save += 1
+                if steps_since_save >= SAVE_INTERVAL:
+                    access_memory(Q_TABLE_FILE, q_table)
+                    steps_since_save = 0
+
+                # 7. UPDATE WAR STATE
+                if mitigated > 0 and current_alert < MAX_ALERT:
+                    war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
+                elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
+                    war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+
+                access_memory(STATE_FILE, war_state)
+
+                # LOG
+                icon = "🛡️" if mitigated == 0 else "⚔️"
+                print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
                 
-            access_memory(STATE_FILE, war_state)
-            
-            # LOG
-            icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
-            
-            time.sleep(0.5 if current_alert >= 4 else 1.0)
+                time.sleep(0.5 if current_alert >= 4 else 1.0)
 
-        except KeyboardInterrupt:
-            break
-        except Exception:
-            time.sleep(1)
+            except Exception:
+                time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Always save on exit
+        access_memory(Q_TABLE_FILE, q_table)
 
 if __name__ == "__main__":
     engage_defense()
-EOF
