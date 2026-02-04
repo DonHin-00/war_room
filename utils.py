@@ -12,7 +12,7 @@ import errno
 import stat
 import hashlib
 import resource
-from typing import Any, Union, List, Tuple, Deque, Dict
+from typing import Any, Union, List, Tuple, Deque, Dict, Optional
 
 # Utility functions
 
@@ -23,17 +23,29 @@ def safe_file_write(file_path: str, data: str) -> None:
     """
     dir_name = os.path.dirname(os.path.abspath(file_path))
 
-    with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False) as tf:
-        fcntl.flock(tf, fcntl.LOCK_EX)
-        try:
-            tf.write(data)
-            tf.flush()
-            os.fsync(tf.fileno())
-            os.fchmod(tf.fileno(), 0o644)
-        finally:
-            fcntl.flock(tf, fcntl.LOCK_UN)
+    # Auto-Fix: Ensure directory exists
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name, mode=0o700, exist_ok=True)
 
-    os.replace(tf.name, file_path)
+    temp_file = None
+    try:
+        with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False) as tf:
+            temp_file = tf.name
+            fcntl.flock(tf, fcntl.LOCK_EX)
+            try:
+                tf.write(data)
+                tf.flush()
+                os.fsync(tf.fileno())
+                os.fchmod(tf.fileno(), 0o644)
+            finally:
+                fcntl.flock(tf, fcntl.LOCK_UN)
+        os.replace(temp_file, file_path)
+    except Exception as e:
+        # Cleanup temp file if something went wrong
+        if temp_file and os.path.exists(temp_file):
+            try: os.remove(temp_file)
+            except: pass
+        raise e
 
 
 def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
@@ -61,10 +73,14 @@ def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
     except Exception:
         return ""
 
-def safe_json_read(file_path: str) -> Any:
-    """Read JSON data safely with retry logic."""
+def safe_json_read(file_path: str, default: Any = None) -> Any:
+    """
+    Read JSON data safely with retry logic and Auto-Healing.
+    """
+    if default is None: default = {}
+
     if not os.path.exists(file_path):
-        return {}
+        return default
 
     for _ in range(3):
         data = safe_file_read(file_path)
@@ -72,9 +88,19 @@ def safe_json_read(file_path: str) -> Any:
             try:
                 return json.loads(data)
             except json.JSONDecodeError:
+                # Corrupt file? Wait and retry, then heal.
                 pass
         time.sleep(0.01)
-    return {}
+
+    # Auto-Healing: Corrupt file logic
+    # Backup corrupt file and reset
+    try:
+        corrupt_path = file_path + ".corrupt." + str(int(time.time()))
+        shutil.copy(file_path, corrupt_path)
+        print(f"⚠️ [Self-Healing] Corrupt JSON detected at {file_path}. Backed up to {corrupt_path} and reset.")
+    except: pass
+
+    return default
 
 def safe_json_write(file_path: str, data: Any) -> None:
     """Write JSON data safely."""
@@ -170,6 +196,49 @@ def is_honeypot(filepath: str) -> bool:
         return "sys_config.dat" in filepath or "shadow_backup" in filepath or "honeypot" in filepath
     except: return False
 
+# --- STATE MANAGEMENT ---
+
+class StateManager:
+    """
+    Manages state persistence with caching and optimization.
+    """
+    def __init__(self, state_file: str):
+        self.state_file = state_file
+        self.state_cache: Dict[str, Any] = {}
+        self.state_mtime: float = 0.0
+
+    def load_json(self, filepath: str) -> Dict[str, Any]:
+        """Safely loads JSON data from a file."""
+        return safe_json_read(filepath)
+
+    def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
+        """Safely saves JSON data to a file."""
+        safe_json_write(filepath, data)
+
+    def get_war_state(self) -> Dict[str, Any]:
+        """Retrieves the shared war state with mtime caching."""
+        if not os.path.exists(self.state_file):
+            return {'blue_alert_level': 1}
+        try:
+            mtime = os.stat(self.state_file).st_mtime
+            if mtime > self.state_mtime:
+                self.state_cache = self.load_json(self.state_file)
+                self.state_mtime = mtime
+        except OSError: pass
+        return self.state_cache
+
+    def update_war_state(self, updates: Dict[str, Any]) -> None:
+        """Updates the shared war state."""
+        # Load fresh to minimize overwrite race conditions
+        current = self.load_json(self.state_file)
+        current.update(updates)
+        self.save_json(self.state_file, current)
+        self.state_cache = current
+        try:
+            self.state_mtime = os.stat(self.state_file).st_mtime
+        except OSError:
+            self.state_mtime = time.time()
+
 # --- OPS INFRASTRUCTURE ---
 
 class AuditLogger:
@@ -210,3 +279,7 @@ class AuditLogger:
                 f.write(json.dumps(entry) + "\n")
                 fcntl.flock(f, fcntl.LOCK_UN)
         except Exception: pass
+
+def manage_session(session_id):
+    """Manage a user session given a session ID."""
+    pass

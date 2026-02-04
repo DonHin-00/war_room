@@ -3,6 +3,7 @@
 Daemon Watchdog
 Monitors the health of Red/Blue agents via heartbeat files.
 Restarts them if they flatline.
+Includes Auto-Fix logic for stale artifacts.
 """
 
 import sys
@@ -11,6 +12,7 @@ import time
 import subprocess
 import signal
 import argparse
+import glob
 
 # Add parent to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,29 +33,45 @@ def check_heartbeat(agent_name):
     except: return False
     return True
 
+def clean_stale_locks():
+    """Auto-Fix: Removes stale temporary files that might be locking system."""
+    # Look for temp files in battlefield or data dir that are old
+    try:
+        now = time.time()
+        # Clean temp files created by safe_file_write that might have been left over
+        # They usually are in the target directory with a random name
+        # We can't easily distinguish valid temp files from stale ones unless by age.
+        # Let's say > 10 seconds is stale for an atomic write.
+
+        # Check DATA_DIR for tmp files
+        for tmp in glob.glob(os.path.join(config.PATHS["DATA_DIR"], "*.tmp")):
+            try:
+                if now - os.stat(tmp).st_mtime > 10:
+                    os.remove(tmp)
+                    print(f"🧹 [Watchdog] Removed stale temp file: {tmp}")
+            except: pass
+
+        # Check WAR_ZONE
+        for tmp in glob.glob(os.path.join(config.PATHS["WAR_ZONE"], "*.tmp")):
+             try:
+                if now - os.stat(tmp).st_mtime > 10:
+                    os.remove(tmp)
+                    # print(f"🧹 [Watchdog] Removed stale war zone temp: {tmp}")
+             except: pass
+
+    except Exception as e:
+        print(f"⚠️ [Watchdog] Cleanup Error: {e}")
+
 def start_agent(name):
     """Starts an agent process."""
     print(f"🐕 [Watchdog] Starting {name}...")
     script = f"{name}_brain.py"
     cmd = [sys.executable, script]
-    # We detach slightly so we aren't parent?
-    # Actually, for simulation runner integration, we might want to just report.
-    # But request implies "Daemon Watchdog" that keeps things alive.
-
-    # In this architecture, simulation_runner.py is the parent.
-    # If we are a separate daemon, we need to know how to restart.
-    # We will assume we are run from root dir.
-
     return subprocess.Popen(cmd, cwd=config.PATHS["BASE_DIR"])
 
 def main():
     print("🐕 Daemon Watchdog Active.")
 
-    # Track processes if we start them, but mostly we monitor files.
-    # If we are strictly a monitor for an external runner, we might just log.
-    # But "Daemon Watchdogs" implies active recovery.
-
-    # Map name -> Popen object
     agents = {
         "red": None,
         "blue": None
@@ -65,6 +83,9 @@ def main():
 
     try:
         while True:
+            # 0. Maintenance
+            clean_stale_locks()
+
             for name, proc in agents.items():
                 # 1. Check Process Status
                 if proc.poll() is not None:
