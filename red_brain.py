@@ -9,7 +9,7 @@ import os
 import time
 import json
 import random
-from utils import atomic_json_io, atomic_json_update
+from utils import atomic_json_io, atomic_json_update, atomic_json_merge
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -118,7 +118,7 @@ def engage_offense(max_iterations=None):
                 # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= SAVE_INTERVAL:
-                    atomic_json_io(Q_TABLE_FILE, q_table)
+                    atomic_json_merge(Q_TABLE_FILE, q_table)
                     steps_since_save = 0
 
                 # 6. TRIGGER ALERTS
@@ -138,7 +138,7 @@ def engage_offense(max_iterations=None):
         pass
     finally:
         # Always save on exit
-        atomic_json_io(Q_TABLE_FILE, q_table)
+        atomic_json_merge(Q_TABLE_FILE, q_table)
 
 if __name__ == "__main__":
     engage_offense()

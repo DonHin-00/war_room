@@ -11,7 +11,7 @@ import time
 import json
 import random
 import math
-from utils import atomic_json_io, atomic_json_update, calculate_file_entropy
+from utils import atomic_json_io, atomic_json_update, atomic_json_merge, calculate_file_entropy
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -119,7 +119,7 @@ def engage_defense(max_iterations=None):
                 # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= SAVE_INTERVAL:
-                    atomic_json_io(Q_TABLE_FILE, q_table)
+                    atomic_json_merge(Q_TABLE_FILE, q_table)
                     steps_since_save = 0
 
                 # 7. UPDATE WAR STATE
@@ -152,7 +152,7 @@ def engage_defense(max_iterations=None):
         pass
     finally:
         # Always save on exit
-        atomic_json_io(Q_TABLE_FILE, q_table)
+        atomic_json_merge(Q_TABLE_FILE, q_table)
 
 if __name__ == "__main__":
     engage_defense()

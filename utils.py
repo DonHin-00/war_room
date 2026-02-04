@@ -105,6 +105,19 @@ def atomic_json_update(filepath, update_func):
         logging.error(f"Error atomic update {filepath}: {e}")
         return {}
 
+def atomic_json_merge(filepath, new_data):
+    """
+    Atomically merges new_data into the existing JSON file.
+    This is a specialized version of atomic_json_update for merging dicts.
+    """
+    def merge(existing_data):
+        if not isinstance(existing_data, dict):
+            existing_data = {}
+        existing_data.update(new_data)
+        return existing_data
+
+    return atomic_json_update(filepath, merge)
+
 def calculate_entropy(data):
     """Calculate the entropy of a string of data (O(N) implementation)."""
     if not data:
@@ -121,12 +134,31 @@ def calculate_entropy(data):
 
     return entropy
 
-def calculate_file_entropy(filepath):
-    """Calculate entropy of a file's content."""
+def calculate_file_entropy(filepath, chunk_size=65536):
+    """
+    Calculate entropy of a file's content reading in chunks.
+    This is memory efficient for large files.
+    """
     try:
+        counts = collections.Counter()
+        total_len = 0
         with open(filepath, 'rb') as f:
-            data = f.read()
-            return calculate_entropy(data)
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                counts.update(chunk)
+                total_len += len(chunk)
+
+        if total_len == 0:
+            return 0
+
+        entropy = 0.0
+        for count in counts.values():
+            p_x = float(count) / total_len
+            if p_x > 0:
+                entropy -= p_x * math.log2(p_x)
+        return entropy
     except:
         return 0
 
