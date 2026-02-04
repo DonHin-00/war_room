@@ -66,11 +66,29 @@ def draw_dashboard(stdscr):
 
         # --- RIGHT: RED TEAM (OFFENSE) ---
         col_red = w // 2
-        stdscr.addstr(2, col_red, "[ RED TEAM - C2 STATUS ]", curses.color_pair(2))
+        stdscr.addstr(2, col_red, "[ RED TEAM - MESH STATUS ]", curses.color_pair(2))
         red_logs = get_red_logs()
         for i, line in enumerate(red_logs):
             if 4+i < h-2:
                 stdscr.addstr(4+i, col_red, line.strip()[:w//2-4])
+
+        # --- OVERLAY: THE MATRIX (Network Graph) ---
+        # Simulating a visual graph in the center
+        center_y = h // 2
+        center_x = w // 2
+
+        # ASCII Mesh
+        graph = [
+            "   (R1) <---> (R2)   ",
+            "    ^          ^     ",
+            "    |          |     ",
+            "   (B1) <---> (B2)   "
+        ]
+
+        for i, row in enumerate(graph):
+            try:
+                stdscr.addstr(center_y - 2 + i, center_x - 10, row, curses.A_BOLD)
+            except: pass
 
         # Separator
         for y in range(2, h-8):

@@ -185,6 +185,24 @@ def check_root():
             sys.stderr.write("❌ SECURITY ERROR: Do not run this simulation as root!\n")
             sys.exit(1)
 
+def enforce_seccomp():
+    """Simulate seccomp filtering (Tamper Protection)."""
+    # In a real scenario, we'd use libseccomp to block syscalls.
+    # Here we simulate it by monkey-patching dangerous os functions for the current process.
+    # This is a 'soft' sandbox.
+
+    blocked = ['system', 'popen', 'spawn', 'exec']
+
+    def block_call(*args, **kwargs):
+        raise RuntimeError("SECCOMP VIOLATION: Syscall Blocked")
+
+    for func in blocked:
+        if hasattr(os, func):
+            setattr(os, func, block_call)
+
+    # Also block subprocess if possible, but that breaks our own tools potentially.
+    # We apply this ONLY to the Red/Blue agents, not the orchestrator/tools.
+
 def broadcast_alert(message):
     """Ensure critical alerts are noticed (Escalation)."""
     # 1. Write to specific Alert Log
