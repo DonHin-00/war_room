@@ -204,6 +204,22 @@ print('I am running!')
                     except: pass
                     self.log_evolution("T1071_WEB_TRAFFIC", impact > 0)
 
+                elif action == "T1027_STEGO":
+                    # Polyglot: GIF Header + Python Payload
+                    impact = 0
+                    try:
+                        fname = os.path.join(TARGET_DIR, f"vacation_{int(time.time())}.gif")
+                        gif_header = b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b'
+                        payload = b"\n\nimport os; print('I am hidden!')"
+
+                        with open(fname, 'wb') as f:
+                            f.write(gif_header + payload)
+
+                        impact = 5
+                        self.audit.log_event("RED", "ATTACK_STEGO", fname)
+                    except: pass
+                    self.log_evolution("T1027_STEGO", impact > 0)
+
                 # 4. REWARDS
                 reward = 0
                 if impact > 0: reward = R_IMPACT

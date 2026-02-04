@@ -233,6 +233,35 @@ class BlueDefender:
                     # Since we only have malware in battlefield, let's pretend to backup.
                     pass
 
+                elif action == "DEEP_INSPECTION":
+                    # Look for hidden layers (Steganography / Polyglots)
+                    for t in visible_threats:
+                        # Skip if it's already known malicious
+                        if self.check_signature(t): continue
+
+                        try:
+                            # 1. Read Header
+                            header = utils.read_file_head(t, 6)
+
+                            # 2. Check for mismatch
+                            # If it looks like a GIF (GIF89a) but has no extension or wrong extension...
+                            # Or if it is a .gif but contains "import os" text later (simplified check)
+
+                            if header.startswith(b'GIF89a'):
+                                # It claims to be a GIF. Let's see if it has hidden data.
+                                # Read tail
+                                with open(t, 'rb') as f:
+                                    f.seek(-50, 2) # Read last 50 bytes
+                                    tail = f.read()
+
+                                if b"import" in tail or b"print" in tail:
+                                    # Found Polyglot!
+                                    try:
+                                        os.remove(t); mitigated += 1
+                                        self.audit.log_event("BLUE", "MITIGATE_STEGO", t)
+                                    except: pass
+                        except: pass
+
                 elif action == "OBSERVE": pass
                 elif action == "IGNORE": pass
 
