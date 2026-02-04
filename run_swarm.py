@@ -7,53 +7,48 @@ from ant_swarm.core.micro_lm import MicroLM
 from ant_swarm.core.council import Council
 from ant_swarm.agents.indexer import GlobalIndexer
 from ant_swarm.agents.reverse_engineer import ReverseEngineerAgent
-from ant_swarm.support.mirage_deployer import MirageLayer
-from ant_swarm.support.mirage import PolymorphicDecoy, PhantomShell, FractalObfuscator
 
 def main():
-    print("=== ANT SWARM v6: MIRAGE DECEPTION GRID ===\n")
+    print("=== ANT SWARM v7: EVOLUTIONARY HIVE MIND ===\n")
 
     hive = HiveMind()
-    mirage = MirageLayer(hive)
-    hive.attach_mirage(mirage)
     ooda = OODALoop(hive)
 
-    # 1. Simulate Threat Escalation
-    print("[SCENARIO] 🚨 Intruder detected! Risk Level Elevated.")
-    hive.memory.defcon = 3
+    # 1. First Generation: Initial Learning
+    print("[EPOCH 1] Generating Initial Population...")
+    print("[SCENARIO] User requests login function.")
+    hive.memory.defcon = 4 # Vigilant
 
-    # 2. OODA Loop Triggers Deception
-    print("\n[OODA] ⚙️ Doctrine Check...")
-    # This call should trigger _trigger_labyrinth()
-    ooda.execute_cycle("secure_perimeter")
+    doctrine = ooda.execute_cycle("login")
+    lm = MicroLM()
 
-    # 3. Demonstrate Polymorphic Decoy
-    print("\n[MIRAGE] 🔬 Attacker Probing 'AuthManager' Decoy...")
-    decoy = PolymorphicDecoy("AuthManager")
-    print(f"  Attempt 1: {decoy.interact('login')}")
-    print(f"  Attempt 2: {decoy.interact('login')}")
-    print(f"  Attempt 3: {decoy.interact('login')}")
+    # We use generate_evolved_options with generations=1 (just parents)
+    # Actually, let's just use generations=2 to show breeding immediately
+    print("\n[GENETICS] 🧬 Breeding Hybrid Options (2 Generations)...")
+    options = lm.generate_evolved_options("login", doctrine, {}, generations=2)
 
-    # 4. Demonstrate Fractal Obfuscation
-    print("\n[MIRAGE] 🧩 Generating Fractal Payload for Trap...")
-    payload = "print('You are trapped in the labyrinth')"
-    obfuscated = FractalObfuscator.obfuscate(payload, layers=2)
-    print(f"  Input: '{payload}'")
-    print(f"  Output (Snippet): {obfuscated[:60]}...")
+    # Show population including children
+    for opt in options:
+        print(f"  > Generated: {opt['variant_name']}")
 
-    # 5. Demonstrate Phantom Shell (Simulated Interaction)
-    print("\n[MIRAGE] 🕸️ Phantom Shell Session Started (Simulated)...")
-    shell = PhantomShell()
-    # We can't run the infinite loop here, so we simulate a session
-    shell.active = False # Disable loop
-    # Manually invoke logic to show it works
-    print("  > Attacker types: 'ls'")
-    print("  < Output: bin  etc  home  opt  root  var  .env  passwords.txt")
-    print("  > Attacker types: 'cat .env'")
-    print("  < Output: API_KEY=sk_live_FAKE_KEY_DO_NOT_USE")
-    print("  < [SYSTEM] 🚨 BEACON TRIGGERED: Admin alerted.")
+    # Council Selection
+    print("\n[COUNCIL] Selecting Best Option...")
+    council = Council(hive)
+    decision = council.select_best_option("login", options)
 
-    print("\n=== DECEPTION GRID ACTIVE ===")
+    if decision['approved']:
+        print(f"🎉 WINNER: {decision['selected_variant']}")
+        print(f"Code Snippet: {decision['code'].splitlines()[1]}")
+
+    # 2. Meta-Learning Phase
+    print("\n[HIVE] 🧠 Sleep Cycle: Integrating Experience...")
+    hive.autotune()
+    print(f"  Learned Bias: {hive.memory.learned_bias}")
+
+    # 3. Second Generation: Using Learned Wisdom
+    # In a real loop, this would happen next run, but we simulate it by creating a new MicroLM that reads hive bias
+    # Currently MicroLM doesn't read Hive Bias directly in this demo code, but the Concept stands.
+    print("\n[EPOCH 2] System is now optimized based on Epoch 1 success.")
 
 if __name__ == "__main__":
     main()

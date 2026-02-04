@@ -16,18 +16,15 @@ class WarGames:
 
     @staticmethod
     def _survives_attack(code: str, vector: str) -> bool:
-        if vector == "injection":
-            return "eval(" not in code and "exec(" not in code
-        elif vector == "dos":
-            return "while True" not in code or "sleep" in code
-        elif vector == "fuzzing":
-            return "try:" in code
+        if vector == "injection": return "eval(" not in code and "exec(" not in code
+        elif vector == "dos": return "while True" not in code or "sleep" in code
+        elif vector == "fuzzing": return "try:" in code
         return True
 
 class Council:
     """
     Upgraded Hive Council.
-    Shows the work (Improvements & Capabilities).
+    Supports Evolution (Recording Success).
     """
     def __init__(self, hive: HiveMind):
         self.hive = hive
@@ -42,6 +39,7 @@ class Council:
 
         best_option = None
         best_score = -999
+        all_scores = {}
 
         for opt in options:
             score = 0
@@ -53,11 +51,10 @@ class Council:
 
             print(f"Evaluating Option '{variant}'...")
 
-            # Show the Work (Transparency)
+            # Show the Work
             if thoughts:
                 print("  🧠 Thought Process:")
                 for t in thoughts: print(f"    - {t}")
-
             if improvements:
                 print("  ✨ Active Improvements:")
                 for i in improvements: print(f"    + {i}")
@@ -79,6 +76,7 @@ class Council:
             if self.memory.mood == "WAR_ROOM" and variant == "Safe": score += 20
 
             print(f"  - Final Score: {score:.1f}")
+            all_scores[variant] = score
 
             if score > best_score:
                 best_score = score
@@ -87,6 +85,9 @@ class Council:
         print("--- COUNCIL SESSION END ---\n")
 
         if best_option:
+            # RECORD SUCCESS FOR EVOLUTION
+            self.hive.record_success(task, best_option, {"scores": all_scores, "mood": self.memory.mood})
+
             return {
                 "approved": True,
                 "selected_variant": best_option['variant_name'],

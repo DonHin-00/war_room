@@ -1,0 +1,19 @@
+[
+  {
+    "timestamp": 1770186975.0689592,
+    "task_type": "login",
+    "winning_variant": "Safe",
+    "traits": {
+      "paranoia": 0.9,
+      "speed": 0.9
+    },
+    "tool_scores": {
+      "Safe": 100.0,
+      "Fast": 78.0,
+      "Balanced": 72.0,
+      "Hybrid Gen1": 100.0,
+      "Hybrid Gen2": 100.0
+    },
+    "hive_mood": "NEUTRAL"
+  }
+]

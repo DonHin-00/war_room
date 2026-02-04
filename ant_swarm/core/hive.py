@@ -2,6 +2,7 @@ import time
 from typing import Dict, Any, List, Callable
 from collections import defaultdict
 from ant_swarm.memory.hierarchical import SharedMemory
+from ant_swarm.memory.evolution import EvolutionaryMemory
 
 class Signal:
     def __init__(self, type: str, data: Any, source: str):
@@ -11,20 +12,19 @@ class Signal:
         self.timestamp = time.time()
 
 class HiveState(SharedMemory):
-    """
-    Intricate Global State with Military Logic.
-    """
     def __init__(self):
         super().__init__()
         self.mood = "NEUTRAL"
-        self.defcon = 5 # 5=Peace, 1=War
+        self.defcon = 5
         self.threat_matrix = {
-            "complexity_level": 0, # From RevEng
-            "active_vulnerabilities": 0, # From SecurityScanner
+            "complexity_level": 0,
+            "active_vulnerabilities": 0,
             "hostile_signals": 0,
-            "active_decoys": 0 # From Mirage
+            "active_decoys": 0
         }
         self.active_signals = []
+        # Global bias learned from evolution
+        self.learned_bias = {"paranoia": 0.0, "speed": 0.0}
 
     def set_defcon(self, level: int):
         level = max(1, min(5, level))
@@ -37,16 +37,20 @@ class HiveState(SharedMemory):
         self.threat_matrix[key] = value
         self._assess_defcon()
 
+    def apply_learning(self, weights: Dict[str, float]):
+        """
+        Updates global bias based on Evolutionary Memory.
+        """
+        if weights:
+            print(f"[HIVE STATE] 🧠 Integrating Learned Wisdom: {weights}")
+            self.learned_bias = weights
+
     def _assess_defcon(self):
-        """
-        Deep ML Logic: Heuristic Assessment of Threat Matrix to set DEFCON.
-        """
         score = 0
         score += self.threat_matrix["complexity_level"] * 0.1
         score += self.threat_matrix["active_vulnerabilities"] * 2.0
         score += self.threat_matrix["hostile_signals"] * 1.5
 
-        previous_defcon = self.defcon
         if score > 10: self.set_defcon(1)
         elif score > 5: self.set_defcon(3)
         elif score > 2: self.set_defcon(4)
@@ -62,13 +66,7 @@ class HiveState(SharedMemory):
         }
         self.mood = moods[self.defcon]
 
-    def set_mood(self, mood: str):
-        self.mood = mood
-
 class SignalBus:
-    """
-    The Nervous System of the Hive.
-    """
     def __init__(self):
         self.subscribers: Dict[str, List[Callable[[Signal], None]]] = defaultdict(list)
 
@@ -84,12 +82,13 @@ class SignalBus:
 class HiveMind:
     """
     The Central Orchestrator.
-    Now supports Hanging Off Modules (Mirage).
+    NOW WITH SELF-LEARNING.
     """
     def __init__(self):
         self.memory = HiveState()
         self.bus = SignalBus()
-        self.mirage = None # To be attached
+        self.evolution = EvolutionaryMemory()
+        self.mirage = None
 
     def attach_mirage(self, mirage_layer):
         print("[HIVE] 🔗 Attaching Deception Module (Mirage Layer)...")
@@ -99,3 +98,19 @@ class HiveMind:
         sig = Signal(type, data, source)
         self.bus.publish(sig)
         self.memory.active_signals.append(sig)
+
+    def autotune(self):
+        """
+        Meta-Learning Process.
+        Adjusts HiveState based on Evolutionary History.
+        """
+        print("[HIVE] 🧬 Initiating Meta-Learning Autotune...")
+        # Simplistic: Learn general weights
+        optimal = self.evolution.get_optimal_weights("login") # Specific or general
+        if optimal:
+            self.memory.apply_learning(optimal)
+        else:
+            print("[HIVE] Not enough data to evolve yet.")
+
+    def record_success(self, task: str, winner: Dict, context: Dict):
+        self.evolution.record_cycle(task, winner, context)
