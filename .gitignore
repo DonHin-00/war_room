@@ -25,3 +25,7 @@ simulation_data/
 .range_secret
 *.sha256
 models/
+*.txt
+*.jsonl
+*.txt
+*.jsonl

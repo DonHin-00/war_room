@@ -97,21 +97,12 @@ class PurpleAuditor:
 
             try:
                 auditor = utils.AuditLogger(config.AUDIT_LOG)
-                auditor.log_event("PURPLE", "GAME_STATE", entry)
+                auditor.log_event("PURPLE", "GAME_TICK", "ENVIRONMENT", json.dumps(entry))
             except Exception as e:
                 logger.error(f"Audit log error: {e}")
 
             time.sleep(10)
 
 if __name__ == "__main__":
-    # We need psutil
-    try:
-        import psutil
-    except ImportError:
-        logger.info("Installing psutil...")
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "psutil"])
-        import psutil
-
     auditor = PurpleAuditor()
     auditor.run()

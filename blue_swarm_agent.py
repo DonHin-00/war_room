@@ -14,6 +14,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
 import signal
+from vnet.nic import VNic
+from vnet.protocol import MSG_DATA
 
 # Configuration
 SWARM_GRP = '224.2.2.2'
@@ -110,6 +112,10 @@ class BlueSwarmAgent:
                                    ["TIGHTEN_TRUST", "LOOSEN_TRUST", "SOAR_LOCKDOWN", "HUNT_AGGRESSIVE"])
         self.anomaly_engine = utils.AnomalyDetector()
 
+        # Virtual Network
+        self.nic = VNic(f"10.0.1.{random.randint(2,254)}", is_tap=(random.random() < 0.2))
+        self.network_threats_detected = 0
+
         # Insider Threat Logic
         self.is_rogue = random.random() < 0.1 # 10% chance
         if self.is_rogue:
@@ -126,6 +132,31 @@ class BlueSwarmAgent:
 
         self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sender.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+
+    def start_network_ops(self):
+        """Connect to VNet and start operations."""
+        if self.nic.connect():
+            role = "IDS Monitor (TAP)" if self.nic.is_tap else "Endpoint"
+            logger.info(f"Connected to VNet as {self.nic.ip} [{role}]")
+            t = threading.Thread(target=self.network_listener, daemon=True)
+            t.start()
+        else:
+            logger.warning("VNet connection failed.")
+
+    def network_listener(self):
+        """Monitor network traffic for signatures (IDS)."""
+        while self.running and self.nic.connected:
+            msg = self.nic.recv()
+            if msg and self.nic.is_tap:
+                # IDS Analysis
+                payload = str(msg.get('payload', ''))
+                src = msg.get('src')
+
+                # Signatures
+                if "OR '1'='1" in payload or "<script>" in payload:
+                    logger.critical(f"IDS ALERT: Attack detected from {src}")
+                    self.network_threats_detected += 1
+                    self.share_intel(f"NET_ATTACK_{src}")
 
     def share_intel(self, ioc):
         """Gossip Protocol: Share IOC with Swarm."""
@@ -304,6 +335,7 @@ class BlueSwarmAgent:
         logger.info(f"Blue Swarm Agent {AGENT_ID} activated.")
         utils.enforce_seccomp() # Hardening
         self.setup_multicast()
+        self.start_network_ops()
 
         # Auto-Healing Listener
         while self.running:

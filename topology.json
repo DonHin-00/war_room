@@ -54,5 +54,89 @@
             "SWARM"
         ],
         "last_seen": 1770235508.4622078
+    },
+    "222f1372": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238909.1707335
+    },
+    "f4e038f5": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238909.1898623
+    },
+    "2c966710": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238909.2155812
+    },
+    "f1a46397": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238972.3429039
+    },
+    "c8fdb052": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238972.3581562
+    },
+    "385709cf": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770238972.4253337
+    },
+    "b130d6a7": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239699.3581593
+    },
+    "8f421281": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239699.3711178
+    },
+    "3a6c37f5": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239699.3796952
+    },
+    "b3dabb91": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239772.749169
+    },
+    "ec09f5f1": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239772.7537866
+    },
+    "c67878ae": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770239772.7693882
     }
 }

