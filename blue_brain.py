@@ -21,7 +21,7 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DEPLOY_DECOY", "OBSERVE", "IGNORE"]
 ALPHA = 0.4             # Learning Rate (How fast we accept new info)
 ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
 GAMMA = 0.9             # Discount Factor (How much we care about the future)
@@ -162,6 +162,16 @@ def engage_defense():
 
                                 os.remove(t)
                                 mitigated += 1
+                        except: pass
+
+            elif action == "DEPLOY_DECOY":
+                # Plant honey tokens to confuse/track attackers
+                decoys = ["passwords.txt", "config.yaml", "aws_keys.csv"]
+                for d in decoys:
+                    fname = os.path.join(WATCH_DIR, d)
+                    if not os.path.exists(fname):
+                        try:
+                            safe_file_write(fname, "HONEYPOT_TOKEN_DO_NOT_TOUCH")
                         except: pass
             
             elif action == "OBSERVE": pass

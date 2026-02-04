@@ -89,11 +89,15 @@ def engage_offense():
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
+                # Polymorphic Malware (High Entropy, Changing Hash)
                 fname = os.path.join(TARGET_DIR, f"malware_crypt_{uuid.uuid4()}.bin")
                 try:
                     fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                    with os.fdopen(fd, 'wb') as f: f.write(os.urandom(1024))
+                    with os.fdopen(fd, 'wb') as f:
+                        # Base payload + Random padding to change hash
+                        payload = b"\x90" * 100 + b"\xcc" * 50 # NOP sled + INT 3
+                        padding = os.urandom(random.randint(1, 100))
+                        f.write(payload + padding)
                     impact = 3
                 except: pass
                 
