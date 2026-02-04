@@ -109,17 +109,31 @@ def engage_offense():
                 # Use real malware name from intel feed
                 threat_intel, _ = threat_loader.load()
                 names = threat_intel.get('filenames', [])
+
                 if names:
+                    # Smart Masquerade: Try to match extension context if possible,
+                    # but for now just pick a random real malware name to confuse Blue
                     fake_name = _choice(names)
-                    # Sanitize filename
                     fake_name = os.path.basename(fake_name)
+
+                    # Ensure it has an extension, otherwise it looks suspicious if we just drop "malware"
+                    if '.' not in fake_name:
+                        fake_name += ".exe"
+
                     fname = f"{TARGET_DIR}/{fake_name}"
                     try:
-                        with open(fname, 'w') as f: f.write("real_sample_simulation")
+                        # Write random content to match the "file type" roughly in size?
+                        # No, just standard payload for now.
+                        with open(fname, 'w') as f: f.write("real_sample_simulation_payload")
                         impact = 4
                     except: pass
                 else:
-                    impact = 0 # Failed if no feed data
+                    # Fallback if no internet/feed data
+                    fname = f"{TARGET_DIR}/svchost.exe"
+                    try:
+                        with open(fname, 'w') as f: f.write("fake_service")
+                        impact = 2
+                    except: pass
                 
             elif action == "T1589_LURK":
                 impact = 0

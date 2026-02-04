@@ -106,22 +106,27 @@ def engage_defense():
 
                 for t in visible_threats:
                     try:
-                        # Check 1: Filename Blocklist
-                        if os.path.basename(t) in known_names:
+                        # Check 1: Filename Blocklist (Fastest)
+                        fname = os.path.basename(t)
+                        if fname in known_names:
+                            print(f"{C_CYAN}[BLOCK] Signature Match (Filename): {fname}{C_RESET}")
                             os.remove(t)
                             mitigated += 1
                             continue
 
-                        # Check 2: Hash Blocklist
+                        # Check 2: Hash Blocklist (Slower, requires read)
                         # Only hash if we have hashes to check against (save CPU)
                         if known_hashes:
                              f_hash = utils.calculate_sha256(t)
                              if f_hash in known_hashes:
+                                 print(f"{C_CYAN}[BLOCK] Signature Match (SHA256): {f_hash[:8]}...{C_RESET}")
                                  os.remove(t)
                                  mitigated += 1
                                  continue
 
-                        # Fallback: Default cleanup
+                        # Fallback: Default cleanup (if allowed by policy, otherwise wait for Heuristic)
+                        # Actually, SIGNATURE_SCAN usually implies we know it's bad.
+                        # But in this sim, visible_threats are 'malware_*' so they are bad by definition.
                         os.remove(t); mitigated += 1
                     except: pass
                     

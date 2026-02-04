@@ -78,15 +78,18 @@ class FileIntegrityCache:
         current_files = set(filepaths)
 
         # Cleanup deleted files from cache
-        for p in list(self.files.keys()):
-            if p not in current_files:
-                del self.files[p]
+        # Optimization: Use list comprehension for speed if cache is large
+        keys_to_delete = [p for p in self.files if p not in current_files]
+        for p in keys_to_delete:
+            del self.files[p]
 
         for p in filepaths:
             try:
+                # Optimization: os.stat result object access is fast
                 stat = os.stat(p)
                 sig = (stat.st_mtime, stat.st_size)
-                if p not in self.files or self.files[p] != sig:
+                # Direct check
+                if self.files.get(p) != sig:
                     self.files[p] = sig
                     changed.append(p)
             except FileNotFoundError:

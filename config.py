@@ -35,17 +35,39 @@ logging_settings = {
 }
 
 # Free Non-API Threat Feeds
+# "OCD" Configuration: Strict validation patterns and detailed column mapping
 threat_feeds = [
     {
         "name": "URLHaus",
         "url": "https://urlhaus.abuse.ch/downloads/csv_recent/",
         "type": "csv",
-        "columns": {"filename": 2, "hash": 5}
+        "format": "abuse_ch", # Skip #-prefixed comments
+        "columns": {"filename": 2, "hash_sha256": 5},
+        "validation": {
+            "hash_sha256": r"^[a-fA-F0-9]{64}$",
+            "filename": r"^[\w\-. ]+\.[a-zA-Z0-9]{2,4}$" # Basic filename sanity
+        }
     },
     {
         "name": "ThreatFox",
         "url": "https://threatfox.abuse.ch/export/csv/recent/",
         "type": "csv",
-        "columns": {"hash": 2, "filename": 3}
+        "format": "abuse_ch",
+        "columns": {"hash_sha256": 2, "filename": 3},
+        "validation": {
+            "hash_sha256": r"^[a-fA-F0-9]{64}$",
+            "filename": r"^[\w\-. ]+\.[a-zA-Z0-9]{2,4}$"
+        }
+    },
+    {
+        "name": "MalwareBazaar",
+        "url": "https://bazaar.abuse.ch/export/csv/recent/",
+        "type": "csv",
+        "format": "abuse_ch",
+        "columns": {"hash_sha256": 1, "filename": 4, "file_type": 5},
+        "validation": {
+            "hash_sha256": r"^[a-fA-F0-9]{64}$",
+            "file_type": r"^[a-zA-Z0-9]+$"
+        }
     }
 ]
