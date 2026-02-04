@@ -14,9 +14,15 @@ class DatabaseManager:
     def _init_db(self):
         """Initialize the database schema."""
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        # Enable WAL mode for concurrency
-        self.conn.execute("PRAGMA journal_mode=WAL;")
         self.cursor = self.conn.cursor()
+
+        # Enable WAL mode for concurrency (Retry if locked)
+        for _ in range(5):
+            try:
+                self.conn.execute("PRAGMA journal_mode=WAL;")
+                break
+            except sqlite3.OperationalError:
+                time.sleep(0.2)
 
         # 1. War State Table
         self.cursor.execute('''

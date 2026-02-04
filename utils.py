@@ -149,6 +149,19 @@ class QTableManager:
     def get_max_q(self, state):
         return max(self.get_q(state, a) for a in self.actions)
 
+    def learn_from_replay(self, batch_size=10, alpha=0.1, gamma=0.9):
+        """Sample experience from DB (including Proxy War) and update Q-Table."""
+        samples = DB.sample_experience(self.agent_name, batch_size)
+        count = 0
+        for (state, action, reward, next_state) in samples:
+            # Q-Learning Update Rule
+            current_q = self.get_q(state, action)
+            max_next_q = self.get_max_q(next_state)
+            new_q = current_q + alpha * (reward + gamma * max_next_q - current_q)
+            self.update_q(state, action, new_q)
+            count += 1
+        return count
+
 def adaptive_sleep(base_sleep, activity_factor, min_sleep=0.1):
     """Sleep less if active, more if idle."""
     sleep_time = max(min_sleep, base_sleep / (1 + activity_factor))

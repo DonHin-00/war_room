@@ -81,7 +81,8 @@ class ThreatAggregator:
         if feed_config.get('format') == 'abuse_ch':
             lines = [l for l in lines if not l.startswith('#')]
 
-        reader = csv.reader(lines)
+        # Robust CSV reading
+        reader = csv.reader(lines, quotechar='"', delimiter=',', skipinitialspace=True)
         cols = feed_config['columns']
         validations = feed_config.get('validation', {})
 
@@ -93,14 +94,24 @@ class ThreatAggregator:
                 # 1. Process Hash
                 if 'hash_sha256' in cols and len(row) > cols['hash_sha256']:
                     val = row[cols['hash_sha256']].strip()
+                    # Clean quotes
+                    val = val.strip('"').strip("'")
+
                     if self.validate(val, validations.get('hash_sha256')):
                         if val not in self.data['hashes']:
                             self.data['hashes'].add(val)
+                            # Sync to DB
+                            utils.DB.add_threat("hash", val, source=source_name)
+
                             self.stats["valid_rows"] += 1
                             self.stats["by_source"][source_name]["valid"] += 1
                         else:
                             self.stats["duplicates"] += 1
                     else:
+                        # Debug logic for invalid rows (print first 3)
+                        if self.stats["by_source"][source_name]["invalid"] < 3:
+                            print(f"DEBUG: Invalid Hash in {source_name}: {val}")
+
                         self.stats["invalid_rows"] += 1
                         self.stats["by_source"][source_name]["invalid"] += 1
 
@@ -112,6 +123,7 @@ class ThreatAggregator:
                     if name and self.validate(name, validations.get('filename')):
                         if name not in self.data['filenames']:
                             self.data['filenames'].add(name)
+                            utils.DB.add_threat("filename", name, source=source_name)
             except IndexError:
                 pass
 

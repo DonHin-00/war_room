@@ -187,7 +187,11 @@ def engage_defense():
             q_manager.update_q(state_key, action, new_val)
 
             # Sync Q-Table periodically (Implicitly handled by SQLite WAL, but we can do nothing here)
-            pass
+            # Learn from Proxy War Experience (Transfer Learning)
+            if step_count % 50 == 0:
+                learned = q_manager.learn_from_replay(batch_size=20, alpha=ALPHA, gamma=GAMMA)
+                if learned > 0:
+                    print(f"{C_CYAN}[BLUE] Learned from {learned} Proxy scenarios{C_RESET}")
             
             # 7. UPDATE WAR STATE
             if mitigated > 0 and current_alert < MAX_ALERT:
