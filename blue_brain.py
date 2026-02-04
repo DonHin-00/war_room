@@ -11,6 +11,7 @@ import time
 import random
 import config
 import utils
+from collections import deque
 
 # --- SYSTEM CONFIGURATION ---
 utils.ensure_directories(config.PATHS['WATCH_DIR'])
@@ -40,19 +41,38 @@ def access_memory(filepath, data=None):
         except: return {}
     return {}
 
+# --- REINFORCEMENT LEARNING UTILITIES ---
+
+def experience_replay(memory, batch_size, q_table, alpha, gamma, actions):
+    """Train on a batch of past experiences to stabilize learning."""
+    if len(memory) < batch_size:
+        return q_table
+
+    batch = random.sample(memory, batch_size)
+    for state, action, reward, next_state in batch:
+        old_val = q_table.get(f"{state}_{action}", 0)
+        next_max = max([q_table.get(f"{next_state}_{a}", 0) for a in actions])
+        new_val = old_val + alpha * (reward + gamma * next_max - old_val)
+        q_table[f"{state}_{action}"] = new_val
+
+    return q_table
+
 # --- MAIN LOOP ---
 
 def engage_defense():
     # Load AI Config
-    EPSILON = config.BLUE['HYPERPARAMETERS']['EPSILON']
-    ALPHA = config.BLUE['HYPERPARAMETERS']['ALPHA']
-    MIN_EPSILON = config.BLUE['HYPERPARAMETERS']['MIN_EPSILON']
-    EPSILON_DECAY = config.BLUE['HYPERPARAMETERS']['EPSILON_DECAY']
-    ALPHA_DECAY = config.BLUE['HYPERPARAMETERS']['ALPHA_DECAY']
+    HP = config.BLUE['HYPERPARAMETERS']
     ACTIONS = config.BLUE['ACTIONS']
-    GAMMA = config.BLUE['HYPERPARAMETERS']['GAMMA']
+
+    epsilon = HP['EPSILON']
+    alpha = HP['ALPHA']
+
+    memory = deque(maxlen=HP['MEMORY_SIZE'])
 
     print(f"\033[96m[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61\033[0m")
+
+    last_state_key = None
+    last_action = None
     
     while True:
         try:
@@ -72,15 +92,12 @@ def engage_defense():
             state_key = f"{current_alert}_{threat_count}"
             
             # 3. DECISION
-            if random.random() < EPSILON:
+            if random.random() < epsilon:
                 action = random.choice(ACTIONS)
             else:
                 known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
                 action = max(known, key=known.get)
             
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
-
             # 4. ERADICATION
             mitigated = 0
             
@@ -105,13 +122,39 @@ def engage_defense():
             if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE['REWARDS']['PATIENCE']
             if action == "IGNORE" and threat_count > 0: reward = config.BLUE['REWARDS']['NEGLIGENCE']
             
-            # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
-            access_memory(config.PATHS['BLUE_Q_TABLE'], q_table)
+            # 6. LEARN & MEMORIZE
+            # Store experience from PREVIOUS step to CURRENT step
+            # We need (s, a, r, s') -> (last_state, last_action, reward, current_state)
+            # But here we calculated reward based on current action.
+            # Standard Q-learning updates Q(s,a) using r + max Q(s', a').
+            # So we use current 'state_key', 'action', 'reward'. The 'next_state' will be determined in next loop?
+            # Actually, standard loop is: Observe S -> Take A -> Observe R, S'
+            # Here we Observe S (state_key) -> Take A (action) -> Calculate R (reward).
+            # We don't know S' until the environment reacts (next iteration).
+            # So we defer learning until we see the NEW state.
             
+            if last_state_key is not None and last_action is not None:
+                # Add to memory: (s, a, r, s')
+                memory.append((last_state_key, last_action, reward, state_key))
+
+                # Update Q-table immediately (Online Learning)
+                old_val = q_table.get(f"{last_state_key}_{last_action}", 0)
+                next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+                new_val = old_val + alpha * (reward + HP['GAMMA'] * next_max - old_val)
+                q_table[f"{last_state_key}_{last_action}"] = new_val
+
+                # Experience Replay (Batch Learning)
+                q_table = experience_replay(memory, HP['BATCH_SIZE'], q_table, alpha, HP['GAMMA'], ACTIONS)
+
+                access_memory(config.PATHS['BLUE_Q_TABLE'], q_table)
+
+            last_state_key = state_key
+            last_action = action
+
+            # Decay Hyperparameters
+            epsilon = max(HP['MIN_EPSILON'], epsilon * HP['EPSILON_DECAY'])
+            alpha = max(0.1, alpha * HP['ALPHA_DECAY'])
+
             # 7. UPDATE WAR STATE
             if mitigated > 0 and current_alert < config.SIMULATION['MAX_ALERT']:
                 war_state['blue_alert_level'] = min(config.SIMULATION['MAX_ALERT'], current_alert + 1)
@@ -122,7 +165,9 @@ def engage_defense():
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"\033[94m[BLUE AI]\033[0m {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
+            # Get current Q value for display
+            curr_q = q_table.get(f"{state_key}_{action}", 0)
+            print(f"\033[94m[BLUE AI]\033[0m {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {curr_q:.2f}")
             
             time.sleep(0.5 if current_alert >= 4 else 1.0)
 

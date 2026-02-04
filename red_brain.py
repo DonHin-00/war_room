@@ -10,6 +10,7 @@ import time
 import random
 import config
 import utils
+from collections import deque
 
 # --- SYSTEM CONFIGURATION ---
 utils.ensure_directories(config.PATHS['TARGET_DIR'])
@@ -21,19 +22,38 @@ def access_memory(filepath, data=None):
         utils.safe_json_write(filepath, data)
     return utils.safe_json_read(filepath)
 
+# --- REINFORCEMENT LEARNING UTILITIES ---
+
+def experience_replay(memory, batch_size, q_table, alpha, gamma, actions):
+    """Train on a batch of past experiences to stabilize learning."""
+    if len(memory) < batch_size:
+        return q_table
+
+    batch = random.sample(memory, batch_size)
+    for state, action, reward, next_state in batch:
+        old_val = q_table.get(f"{state}_{action}", 0)
+        next_max = max([q_table.get(f"{next_state}_{a}", 0) for a in actions])
+        new_val = old_val + alpha * (reward + gamma * next_max - old_val)
+        q_table[f"{state}_{action}"] = new_val
+
+    return q_table
+
 # --- MAIN LOOP ---
 
 def engage_offense():
     # Load AI Config
-    EPSILON = config.RED['HYPERPARAMETERS']['EPSILON']
-    ALPHA = config.RED['HYPERPARAMETERS']['ALPHA']
-    MIN_EPSILON = config.RED['HYPERPARAMETERS']['MIN_EPSILON']
-    EPSILON_DECAY = config.RED['HYPERPARAMETERS']['EPSILON_DECAY']
-    ALPHA_DECAY = config.RED['HYPERPARAMETERS']['ALPHA_DECAY']
+    HP = config.RED['HYPERPARAMETERS']
     ACTIONS = config.RED['ACTIONS']
-    GAMMA = config.RED['HYPERPARAMETERS']['GAMMA']
+
+    epsilon = HP['EPSILON']
+    alpha = HP['ALPHA']
+
+    memory = deque(maxlen=HP['MEMORY_SIZE'])
 
     print(f"\033[91m[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE\033[0m")
+
+    last_state_key = None
+    last_action = None
     
     while True:
         try:
@@ -46,14 +66,11 @@ def engage_offense():
             state_key = f"{current_alert}"
             
             # 2. STRATEGY
-            if random.random() < EPSILON:
+            if random.random() < epsilon:
                 action = random.choice(ACTIONS)
             else:
                 known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
                 action = max(known, key=known.get)
-                
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
 
             # 3. EXECUTION
             impact = 0
@@ -92,20 +109,36 @@ def engage_offense():
             if current_alert >= 4 and action == "T1589_LURK": reward = config.RED['REWARDS']['STEALTH']
             if current_alert == config.SIMULATION['MAX_ALERT'] and impact > 0: reward = config.RED['REWARDS']['CRITICAL']
             
-            # 5. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
+            # 5. LEARN & MEMORIZE
+            if last_state_key is not None and last_action is not None:
+                # Add to memory: (s, a, r, s')
+                memory.append((last_state_key, last_action, reward, state_key))
+
+                # Update Q-table immediately (Online Learning)
+                old_val = q_table.get(f"{last_state_key}_{last_action}", 0)
+                next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+                new_val = old_val + alpha * (reward + HP['GAMMA'] * next_max - old_val)
+                q_table[f"{last_state_key}_{last_action}"] = new_val
+
+                # Experience Replay (Batch Learning)
+                q_table = experience_replay(memory, HP['BATCH_SIZE'], q_table, alpha, HP['GAMMA'], ACTIONS)
+
+                access_memory(config.PATHS['RED_Q_TABLE'], q_table)
+
+            last_state_key = state_key
+            last_action = action
             
-            q_table[f"{state_key}_{action}"] = new_val
-            access_memory(config.PATHS['RED_Q_TABLE'], q_table)
+            # Decay Hyperparameters
+            epsilon = max(HP['MIN_EPSILON'], epsilon * HP['EPSILON_DECAY'])
+            alpha = max(0.1, alpha * HP['ALPHA_DECAY'])
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
                 war_state['blue_alert_level'] = min(config.SIMULATION['MAX_ALERT'], current_alert + 1)
                 access_memory(config.PATHS['STATE_FILE'], war_state)
             
-            print(f"\033[91m[RED AI] \033[0m 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+            curr_q = q_table.get(f"{state_key}_{action}", 0)
+            print(f"\033[91m[RED AI] \033[0m 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {curr_q:.2f}")
             
             time.sleep(random.uniform(0.5, 1.5))
             

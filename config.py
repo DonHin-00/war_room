@@ -32,6 +32,8 @@ BLUE = {
         'EPSILON': 0.3,
         'EPSILON_DECAY': 0.995,
         'MIN_EPSILON': 0.01,
+        'MEMORY_SIZE': 1000,
+        'BATCH_SIZE': 32,
     }
 }
 
@@ -50,6 +52,8 @@ RED = {
         'EPSILON': 0.3,
         'EPSILON_DECAY': 0.995,
         'MIN_EPSILON': 0.01,
+        'MEMORY_SIZE': 1000,
+        'BATCH_SIZE': 32,
     }
 }
 
