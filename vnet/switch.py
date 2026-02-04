@@ -1,7 +1,9 @@
 import socket
 import threading
 import logging
+import os
 from .protocol import *
+from .pcap import PcapWriter
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SWITCH] - %(message)s')
@@ -17,6 +19,9 @@ class VirtualSwitch:
         self.taps = []     # List of connections monitoring traffic
         self.lock = threading.Lock()
         self.running = True
+
+        # PCAP logging
+        self.pcap = PcapWriter("logs/capture.pcap")
 
     def start(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -93,12 +98,19 @@ class VirtualSwitch:
                 if dt in self.taps: self.taps.remove(dt)
 
         # 2. Route to Destination
+        packet = pack_message(msg['type'], msg['src'], dst, msg['payload'])
+
+        # Log to PCAP
+        try:
+            self.pcap.write_packet(packet)
+        except Exception as e:
+            logger.error(f"PCAP Write Error: {e}")
+
         if dst == 'broadcast':
             with self.lock:
                 for ip, conn in self.clients.items():
                     if ip != msg['src']: # Don't echo back to src
                         try:
-                            packet = pack_message(msg['type'], msg['src'], dst, msg['payload'])
                             conn.sendall(packet)
                         except:
                             pass # Will be cleaned up by their own threads
@@ -106,7 +118,6 @@ class VirtualSwitch:
             with self.lock:
                 if dst in self.clients:
                     try:
-                        packet = pack_message(msg['type'], msg['src'], dst, msg['payload'])
                         self.clients[dst].sendall(packet)
                     except:
                         pass # Target disconnected
