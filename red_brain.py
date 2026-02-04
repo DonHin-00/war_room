@@ -1,4 +1,3 @@
-cat > /root/war_room/red_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Red Team)
@@ -32,6 +31,9 @@ R_STEALTH = 15          # Points for lurking when heat is high
 R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
 MAX_ALERT = 5
 
+# --- PERFORMANCE CONFIGURATION ---
+SYNC_INTERVAL = 10      # How often to sync Q-Table to disk
+
 # --- VISUALS ---
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
@@ -54,12 +56,17 @@ def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
+    # Initialize Q-Table in memory
+    q_table = access_memory(Q_TABLE_FILE)
+    iteration_count = 0
+
     while True:
         try:
+            iteration_count += 1
+
             # 1. RECON
             war_state = access_memory(STATE_FILE)
             if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
             
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
@@ -116,7 +123,10 @@ def engage_offense():
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+
+            # Occasional Sync
+            if iteration_count % SYNC_INTERVAL == 0:
+                access_memory(Q_TABLE_FILE, q_table)
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
@@ -134,4 +144,3 @@ def engage_offense():
 
 if __name__ == "__main__":
     engage_offense()
-EOF
