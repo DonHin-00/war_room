@@ -28,7 +28,9 @@ class OODALoop:
         # 3. DECIDE
         if defcon <= 2:
             return self._doctrine_iron_dome()
-        elif defcon <= 3:
+        elif defcon == 3:
+            # New Doctrine for Deception
+            self._trigger_labyrinth()
             return self._doctrine_active_defense()
         elif threats['complexity_level'] > 50:
             return self._doctrine_refactor()
@@ -36,6 +38,13 @@ class OODALoop:
             return self._doctrine_rapid_dev()
 
         # 4. ACT is handled by the caller (MicroLM) using this doctrine
+
+    def _trigger_labyrinth(self):
+        """
+        Deploys Mirage Layer if available.
+        """
+        if self.hive.mirage:
+             self.hive.mirage.deploy_labyrinth()
 
     def _doctrine_iron_dome(self):
         return TacticalDoctrine(

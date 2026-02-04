@@ -21,7 +21,8 @@ class HiveState(SharedMemory):
         self.threat_matrix = {
             "complexity_level": 0, # From RevEng
             "active_vulnerabilities": 0, # From SecurityScanner
-            "hostile_signals": 0
+            "hostile_signals": 0,
+            "active_decoys": 0 # From Mirage
         }
         self.active_signals = []
 
@@ -62,7 +63,6 @@ class HiveState(SharedMemory):
         self.mood = moods[self.defcon]
 
     def set_mood(self, mood: str):
-        # Legacy support
         self.mood = mood
 
 class SignalBus:
@@ -84,10 +84,16 @@ class SignalBus:
 class HiveMind:
     """
     The Central Orchestrator.
+    Now supports Hanging Off Modules (Mirage).
     """
     def __init__(self):
         self.memory = HiveState()
         self.bus = SignalBus()
+        self.mirage = None # To be attached
+
+    def attach_mirage(self, mirage_layer):
+        print("[HIVE] 🔗 Attaching Deception Module (Mirage Layer)...")
+        self.mirage = mirage_layer
 
     def broadcast(self, type: str, data: Any, source: str):
         sig = Signal(type, data, source)

@@ -7,50 +7,53 @@ from ant_swarm.core.micro_lm import MicroLM
 from ant_swarm.core.council import Council
 from ant_swarm.agents.indexer import GlobalIndexer
 from ant_swarm.agents.reverse_engineer import ReverseEngineerAgent
+from ant_swarm.support.mirage_deployer import MirageLayer
+from ant_swarm.support.mirage import PolymorphicDecoy, PhantomShell, FractalObfuscator
 
 def main():
-    print("=== ANT SWARM v5: TRANSPARENT CAPABILITY ===\n")
+    print("=== ANT SWARM v6: MIRAGE DECEPTION GRID ===\n")
 
     hive = HiveMind()
+    mirage = MirageLayer(hive)
+    hive.attach_mirage(mirage)
     ooda = OODALoop(hive)
 
-    # 1. Simulate Detection of "Amateur" Code
-    print("[SCENARIO] User submits amateur code request: 'make a login func'")
-    print("[HIVE] 🧠 Analysis: Request is vague. Complexity analysis suggests high risk of poor implementation.")
+    # 1. Simulate Threat Escalation
+    print("[SCENARIO] 🚨 Intruder detected! Risk Level Elevated.")
+    hive.memory.defcon = 3
 
-    # Trigger Professional Doctrine
-    hive.memory.defcon = 3 # Elevated Risk due to vagueness
-    print(f"[OODA] ⚙️ Doctrine Selected: Active Defense (Proactive Engineering)")
+    # 2. OODA Loop Triggers Deception
+    print("\n[OODA] ⚙️ Doctrine Check...")
+    # This call should trigger _trigger_labyrinth()
+    ooda.execute_cycle("secure_perimeter")
 
-    # 2. MicroLM Generation with Transparency
-    print("\n[ACT] MicroLM Engineering Solution...")
-    lm = MicroLM()
-    context = {}
-    doctrine = ooda.execute_cycle("login")
+    # 3. Demonstrate Polymorphic Decoy
+    print("\n[MIRAGE] 🔬 Attacker Probing 'AuthManager' Decoy...")
+    decoy = PolymorphicDecoy("AuthManager")
+    print(f"  Attempt 1: {decoy.interact('login')}")
+    print(f"  Attempt 2: {decoy.interact('login')}")
+    print(f"  Attempt 3: {decoy.interact('login')}")
 
-    # We purposefully inject a "need" for repair to show off
-    options = lm.generate_with_doctrine("login", doctrine, context, k=3)
+    # 4. Demonstrate Fractal Obfuscation
+    print("\n[MIRAGE] 🧩 Generating Fractal Payload for Trap...")
+    payload = "print('You are trapped in the labyrinth')"
+    obfuscated = FractalObfuscator.obfuscate(payload, layers=2)
+    print(f"  Input: '{payload}'")
+    print(f"  Output (Snippet): {obfuscated[:60]}...")
 
-    # 3. Council Review
-    print("\n[COUNCIL] Reviewing Options with Deep Analysis...")
-    council = Council(hive)
-    decision = council.select_best_option("login", options)
+    # 5. Demonstrate Phantom Shell (Simulated Interaction)
+    print("\n[MIRAGE] 🕸️ Phantom Shell Session Started (Simulated)...")
+    shell = PhantomShell()
+    # We can't run the infinite loop here, so we simulate a session
+    shell.active = False # Disable loop
+    # Manually invoke logic to show it works
+    print("  > Attacker types: 'ls'")
+    print("  < Output: bin  etc  home  opt  root  var  .env  passwords.txt")
+    print("  > Attacker types: 'cat .env'")
+    print("  < Output: API_KEY=sk_live_FAKE_KEY_DO_NOT_USE")
+    print("  < [SYSTEM] 🚨 BEACON TRIGGERED: Admin alerted.")
 
-    if decision['approved']:
-        print(f"\n🎉 RESULT: {decision['selected_variant']} Profile Selected.")
-        print("---------------------------------------------------")
-        print("          TRANSFORMATION REPORT")
-        print("---------------------------------------------------")
-        print("INPUT:  'make a login func'")
-        print("OUTPUT:")
-        print(decision['code'])
-        print("---------------------------------------------------")
-        print(f"CAPABILITIES ADDED: {len(decision['improvements'])}")
-        for imp in decision['improvements']:
-            print(f"  + {imp}")
-        print("---------------------------------------------------")
-    else:
-        print("❌ Failure.")
+    print("\n=== DECEPTION GRID ACTIVE ===")
 
 if __name__ == "__main__":
     main()
