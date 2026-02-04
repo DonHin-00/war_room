@@ -1,0 +1,17 @@
+{"timestamp": 1770235508.448375, "agent": "RED", "event": "ATTACK_LAUNCHED", "details": {"technique": "T1027_OBFUSCATE", "impact": 3}}
+{"timestamp": 1770235508.4560392, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 102081659.67149758}}
+{"timestamp": 1770235508.5389886, "agent": "BLUE", "event": "THREAT_MITIGATED", "details": {"action": "HEURISTIC_SCAN", "count": 1}}
+{"timestamp": 1770235510.478437, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 19.323226998405627}}
+{"timestamp": 1770235511.9958265, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
+{"timestamp": 1770235512.504505, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 33.17256918802636}}
+{"timestamp": 1770235514.526463, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 42.412177866992}}
+{"timestamp": 1770235516.0187852, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
+{"timestamp": 1770235516.544355, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 13.86900624822933}}
+{"timestamp": 1770235518.5696526, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 26.685683376077023}}
+{"timestamp": 1770235519.1140947, "agent": "RED", "event": "ATTACK_LAUNCHED", "details": {"technique": "T1027_OBFUSCATE", "impact": 3}}
+{"timestamp": 1770235519.4601765, "agent": "BLUE", "event": "THREAT_MITIGATED", "details": {"action": "SIGNATURE_SCAN", "count": 1}}
+{"timestamp": 1770235520.5884128, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 7.427405648031656}}
+{"timestamp": 1770235524.6098816, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 44.93546753199602}}
+{"timestamp": 1770235524.6807208, "agent": "RED", "event": "ATTACK_LAUNCHED", "details": {"technique": "T1027_OBFUSCATE", "impact": 3}}
+{"timestamp": 1770235525.2133222, "agent": "BLUE", "event": "THREAT_MITIGATED", "details": {"action": "SIGNATURE_SCAN", "count": 1}}
+{"timestamp": 1770235526.6285017, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 39.11251206072348}}
