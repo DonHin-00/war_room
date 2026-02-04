@@ -8,6 +8,7 @@ import sys
 import hashlib
 import time
 import resource
+import shutil
 
 # Configure Logging for Utils
 logger = logging.getLogger("Utils")
@@ -315,3 +316,31 @@ def verify_audit_log(filepath):
         return True, "Chain valid"
     except Exception as e:
         return False, f"Verification error: {e}"
+
+def secure_backup(src_path, backup_dir):
+    """Securely backup a file."""
+    if not os.path.exists(src_path) or os.path.islink(src_path):
+        return False
+    try:
+        filename = os.path.basename(src_path)
+        dest_path = os.path.join(backup_dir, filename)
+        shutil.copy2(src_path, dest_path)
+        return True
+    except Exception as e:
+        logger.error(f"Backup failed: {e}")
+        return False
+
+def secure_restore(filename, backup_dir, restore_dir):
+    """Restore a file from backup."""
+    src_path = os.path.join(backup_dir, filename)
+    dest_path = os.path.join(restore_dir, filename)
+
+    if not os.path.exists(src_path):
+        return False
+
+    try:
+        shutil.copy2(src_path, dest_path)
+        return True
+    except Exception as e:
+        logger.error(f"Restore failed: {e}")
+        return False

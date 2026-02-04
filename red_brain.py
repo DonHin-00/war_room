@@ -91,9 +91,36 @@ def engage_offense():
                 if utils.secure_create(fname, "uid=0(root)"):
                     impact = 5
                     audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "ROOTKIT", "file": fname})
-                
+
+            elif action == "T1486_ENCRYPT":
+                # Ransomware: Find valid file and encrypt it
+                targets = [f for f in os.listdir(config.SIMULATION_DATA_DIR)
+                           if "malware" not in f and not f.endswith('.enc') and not f.startswith('.sys')]
+                if targets:
+                    target = random.choice(targets)
+                    src = os.path.join(config.SIMULATION_DATA_DIR, target)
+                    dst = src + ".enc"
+                    try:
+                        os.rename(src, dst)
+                        impact = 8
+                        audit.log_event("RED", "DATA_ENCRYPTED", {"file": target})
+                    except Exception: pass
+
             elif action == "T1589_LURK":
                 impact = 0
+
+            # Check for Honeypot interactions (Simulated "Touching" existing files)
+            # If Red touches a honeypot, it gets burned.
+            existing_files = [f for f in os.listdir(config.SIMULATION_DATA_DIR) if os.path.isfile(os.path.join(config.SIMULATION_DATA_DIR, f))]
+            for f in existing_files:
+                if f in config.HONEYPOT_NAMES:
+                    # Trap Triggered!
+                    logger.warning(f"HONEYPOT TRIGGERED: {f}")
+                    reward = config.RED_REWARDS['burned']
+                    audit.log_event("RED", "TRAP_TRIGGERED", {"file": f})
+                    # Reset impact to punish
+                    impact = -10
+                    break
 
             # 4. REWARDS
             reward = 0

@@ -120,6 +120,10 @@ def engage_defense():
                             logger.error(f"Failed to remove symlink {t}: {e}")
                         continue
 
+                    # Ignore own honeypots
+                    if os.path.basename(t) in config.HONEYPOT_NAMES:
+                        continue
+
                     # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
                     # Using utils.calculate_entropy
                     try:
@@ -144,7 +148,33 @@ def engage_defense():
                             audit.log_event("BLUE", "THREAT_ELIMINATED", {"file": t, "entropy": entropy})
                         except OSError as e:
                             logger.error(f"Failed to remove suspect {t}: {e}")
-            
+
+            elif action == "DEPLOY_DECEPTION":
+                # Deploy Honeypots
+                for name in config.HONEYPOT_NAMES:
+                    target = os.path.join(config.SIMULATION_DATA_DIR, name)
+                    if not os.path.exists(target):
+                        # Use a realistic looking bait (random binary or text)
+                        utils.secure_create(target, f"REAL DATA: {random.randint(1000,9999)}")
+                        audit.log_event("BLUE", "HONEYPOT_DEPLOYED", {"file": name})
+
+            elif action == "BACKUP_CRITICAL":
+                # Backup any non-malicious files
+                valid_files = [f for f in glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '*'))
+                               if "malware" not in f and ".sys" not in f and not f.endswith('.enc')]
+                for f in valid_files:
+                    if utils.secure_backup(f, config.BACKUP_DIR):
+                        audit.log_event("BLUE", "DATA_BACKUP", {"file": f})
+
+                # Check for Ransomware (.enc) and Restore
+                encrypted_files = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '*.enc'))
+                for f in encrypted_files:
+                    original_name = os.path.basename(f).replace('.enc', '')
+                    if utils.secure_restore(original_name, config.BACKUP_DIR, config.SIMULATION_DATA_DIR):
+                        os.remove(f) # Remove encrypted copy
+                        mitigated += 2 # Big win for recovery
+                        audit.log_event("BLUE", "RANSOMWARE_RECOVERY", {"file": original_name})
+
             elif action == "OBSERVE": pass
             elif action == "IGNORE": pass
 

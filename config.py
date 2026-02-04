@@ -6,6 +6,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Simulation Directories
 SIMULATION_DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
+BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
@@ -26,20 +27,27 @@ HYPERPARAMETERS = {
 }
 
 # Blue Team Config
-BLUE_ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
+BLUE_ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DEPLOY_DECEPTION", "BACKUP_CRITICAL", "OBSERVE", "IGNORE"]
 BLUE_REWARDS = {
     'mitigation': 25,
+    'recovery': 50,
     'patience': 10,
     'waste': -15,
-    'negligence': -50
+    'negligence': -50,
+    'trap_success': 100
 }
 
+# Deception
+HONEYPOT_NAMES = ["admin_creds.db", "prod_config.xml", "wallet.dat", "vpn_keys.pem"]
+
 # Red Team Config
-RED_ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
+RED_ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1486_ENCRYPT", "T1589_LURK"]
 RED_REWARDS = {
     'impact': 10,
     'stealth': 15,
-    'critical': 30
+    'ransom': 40,
+    'critical': 30,
+    'burned': -100
 }
 
 # Alert Levels
@@ -52,7 +60,7 @@ MAX_MEMORY_MB = 50     # 50MB RAM limit per agent
 MAX_CPU_PERCENT = 80   # Not easily enforceable via resource module, but noted.
 
 # Ensure directories exist
-for d in [SIMULATION_DATA_DIR, MODELS_DIR, LOGS_DIR]:
+for d in [SIMULATION_DATA_DIR, BACKUP_DIR, MODELS_DIR, LOGS_DIR]:
     if not os.path.exists(d):
         try:
             os.makedirs(d, mode=0o700)
