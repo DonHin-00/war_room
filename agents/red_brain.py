@@ -192,21 +192,27 @@ class RedAttacker:
 
                 elif action == "T1048_EXFILTRATION":
                     # Attempt to steal data from 'ports' (WAF protected)
+                    # Stress Test Mode: Burst Read to trigger AI WAF
                     try:
                         if os.path.exists(PORTS_DIR):
                             with os.scandir(PORTS_DIR) as entries:
                                 for entry in entries:
                                     if entry.is_file():
-                                        # "Steal" it (Read and copy to own stash)
-                                        with open(entry.path, 'r') as f:
-                                            content = f.read()
+                                        # Burst Read (Simulate aggresssive scraping)
+                                        for _ in range(5):
+                                            try:
+                                                with open(entry.path, 'r') as f: content = f.read()
+                                            except: pass
 
-                                        # Reverse Engineering / Innovating part:
-                                        # If it's a "better app" (bait), we might get burned.
-                                        # But let's try to exfil it.
+                                        # Exfil the last read
                                         exfil_path = os.path.join(TARGET_DIR, f"EXFIL_{entry.name}_{uuid.uuid4()}")
                                         safe_file_write(exfil_path, content)
-                                        impact = 4 # High impact if successful
+
+                                        if "JUNK_DATA" in content:
+                                            # We got shadow banned!
+                                            impact = -5 # Failed
+                                        else:
+                                            impact = 4 # Success
                     except Exception: pass
 
                 elif action == "T1020_EXFIL_PASTE":

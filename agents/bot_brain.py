@@ -29,11 +29,31 @@ if not os.path.exists(PASTE_DIR):
     try: os.mkdir(PASTE_DIR)
     except: pass
 
+class AnomalyDetector:
+    """Next-Gen AI Traffic Analyzer (2026 Edition)"""
+    def __init__(self):
+        self.access_history = {} # {filepath: [timestamps]}
+        self.threshold = 3       # Max access events per window
+        self.window = 5.0        # Time window in seconds
+
+    def log_access(self, filepath):
+        now = time.time()
+        if filepath not in self.access_history:
+            self.access_history[filepath] = []
+        self.access_history[filepath].append(now)
+        # Prune old events
+        self.access_history[filepath] = [t for t in self.access_history[filepath] if t > now - self.window]
+
+    def is_under_attack(self, filepath):
+        # Burst detection: High frequency access
+        return len(self.access_history.get(filepath, [])) > self.threshold
+
 class BotWAF:
     def __init__(self):
         self.running = True
         self.setup_logging()
-        self.banned_ips = [] # In simulation, we might ban by ignoring specific file patterns
+        self.ai_brain = AnomalyDetector()
+        self.active_countermeasures = False
 
         # Signal Handling
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -68,8 +88,23 @@ class BotWAF:
                 except: pass
 
     def monitor_traffic(self):
-        """Monitors access to ports and mock pastes."""
+        """Monitors access via File System Access Times (atime)."""
         try:
+            if os.path.exists(PORTS_DIR):
+                with os.scandir(PORTS_DIR) as entries:
+                    for entry in entries:
+                        if entry.is_file():
+                            # Check atime (Last Access Time)
+                            try:
+                                stats = entry.stat()
+                                # We check if atime is very recent (implied 'read' by Red Team)
+                                if time.time() - stats.st_atime < 1.0:
+                                    self.ai_brain.log_access(entry.path)
+
+                                    if self.ai_brain.is_under_attack(entry.path):
+                                        self.activate_shadow_ban(entry.path)
+                            except: pass
+
             # Check Pastes for Honey Pot Cards
             if os.path.exists(PASTE_DIR):
                 with os.scandir(PASTE_DIR) as entries:
@@ -78,12 +113,26 @@ class BotWAF:
                             try:
                                 with open(entry.path, 'r', errors='ignore') as f:
                                     content = f.read()
-                                    # Check for our specific honey pot tokens
                                     if "4532015112830369" in content or "4485123456781234" in content:
                                         self.logger.warning(f"CRITICAL ALERT: Honey Pot Credit Cards detected on public paste! File: {entry.name}")
-                                        # "Take down" the paste
                                         os.remove(entry.path)
                             except: pass
+        except: pass
+
+    def activate_shadow_ban(self, filepath):
+        """Replaces file content with junk dynamically (Shadow Banning)."""
+        if self.active_countermeasures: return
+
+        self.logger.warning(f"AI WAF: Burst access detected on {os.path.basename(filepath)}. Engaging Shadow Ban.")
+        self.active_countermeasures = True
+
+        try:
+            # Overwrite with Junk
+            junk = f"JUNK_DATA_{os.urandom(32).hex()}"
+            safe_file_write(filepath, junk)
+
+            # Reset after cooldown (simulated by a timer logic or just leaving it poisoned for this run)
+            # For this sim, we leave it poisoned to prove the effect.
         except: pass
 
     def run(self):
