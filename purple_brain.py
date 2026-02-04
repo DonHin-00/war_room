@@ -52,6 +52,7 @@ class PurpleReferee:
         except Exception as e:
             # AGENTIC FIX: Replaced print with logging
             # print(f"[PURPLE] Failed to penalize {agent_name}: {e}")
+            pass
 
     def enforce_roe(self):
         """Check for Rules of Engagement violations."""

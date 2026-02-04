@@ -17,12 +17,13 @@ RED_SCRIPT = "red_brain.py"
 PURPLE_SCRIPT = "purple_brain.py"
 
 class SimulationRunner:
-    def __init__(self, debug=False, reset=False, dashboard=False):
+    def __init__(self, debug=False, reset=False, dashboard=False, clean=False):
         self.processes = []
         self.running = True
         self.debug = debug
         self.reset = reset
         self.dashboard = dashboard
+        self.clean = clean
 
         # Forward signals
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -37,6 +38,11 @@ class SimulationRunner:
 
     def start_agents(self):
         env = os.environ.copy()
+
+        # Run cleaner if requested
+        if self.clean:
+            print("[RUNNER] Running Deviancy Cleaner...")
+            subprocess.run([sys.executable, "tools/clean.py"], env=env)
 
         cmd_args = []
         if self.debug:
@@ -108,7 +114,8 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--reset", action="store_true", help="Reset memory (Q-tables) before starting")
     parser.add_argument("--dashboard", action="store_true", help="Enable real-time dashboard")
+    parser.add_argument("--clean", action="store_true", help="Run Deviancy Cleaner before start")
     args = parser.parse_args()
 
-    runner = SimulationRunner(debug=args.debug, reset=args.reset, dashboard=args.dashboard)
+    runner = SimulationRunner(debug=args.debug, reset=args.reset, dashboard=args.dashboard, clean=args.clean)
     runner.run()
