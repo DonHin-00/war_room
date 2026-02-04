@@ -9,6 +9,7 @@ import os
 import time
 import json
 import random
+import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +60,8 @@ def access_memory(filepath, data=None):
 
             with open(filepath, 'r') as f:
                 data = json.load(f)
+                if "war_state.json" in filepath and not utils.validate_state(data):
+                    return {}
                 MEMORY_CACHE[filepath] = (mtime, data)
                 return data
         except: return {}
@@ -106,15 +109,20 @@ def engage_offense():
                 # Low Entropy Bait
                 fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
                 try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
+                    utils.secure_create(fname, "echo 'scan'")
                     impact = 1
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
+                # Polymorphic High Entropy Binary
                 fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
                 try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                    # Polymorphism: Random size to evade hash/size signatures
+                    size = random.randint(800, 1200)
+                    # Append random junk to vary entropy slightly? No, os.urandom is max entropy.
+                    # Just changing size defeats size-based signatures.
+                    data = os.urandom(size).decode('latin1')
+                    utils.secure_create(fname, data)
                     impact = 3
                 except: pass
                 
@@ -122,7 +130,7 @@ def engage_offense():
                 # Hidden File
                 fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
                 try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
+                    utils.secure_create(fname, "uid=0(root)")
                     impact = 5
                 except: pass
                 

@@ -4,6 +4,9 @@ import logging
 import math
 import random
 import collections
+import json
+import hashlib
+import time
 
 # Utility functions
 
@@ -24,6 +27,13 @@ def safe_file_read(file_path):
     return data
 
 
+def secure_create(file_path, data):
+    """Create a file securely with 600 permissions and O_EXCL."""
+    fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        f.write(data)
+
+
 def calculate_entropy(data):
     """Calculate the entropy of a string or bytes of data."""
     if len(data) == 0:
@@ -35,11 +45,65 @@ def calculate_entropy(data):
     return entropy
 
 
+def validate_state(state):
+    """Validate the war state schema."""
+    if not isinstance(state, dict):
+        return False
+    # Example schema: {'blue_alert_level': int}
+    if 'blue_alert_level' in state:
+        if not isinstance(state['blue_alert_level'], int):
+            return False
+        if not (1 <= state['blue_alert_level'] <= 5):
+            return False
+    return True
+
+
 def setup_logging(log_file_path):
     """Set up logging to a specified file."""
     logging.basicConfig(filename=log_file_path,
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)s:%(message)s')
+
+
+class AuditLogger:
+    """Tamper-evident audit logger using hash chaining."""
+    def __init__(self, filepath):
+        self.filepath = filepath
+
+    def log_event(self, actor, action, details):
+        prev_hash = "00000000000000000000000000000000"
+
+        # Read last line to get previous hash
+        if os.path.exists(self.filepath):
+            try:
+                with open(self.filepath, 'r') as f:
+                    lines = f.readlines()
+                    if lines:
+                        last_entry = json.loads(lines[-1])
+                        prev_hash = last_entry.get('curr_hash', prev_hash)
+            except: pass
+
+        timestamp = time.time()
+        entry_str = f"{timestamp}:{actor}:{action}:{details}:{prev_hash}"
+        curr_hash = hashlib.sha256(entry_str.encode()).hexdigest()
+
+        entry = {
+            'timestamp': timestamp,
+            'actor': actor,
+            'action': action,
+            'details': details,
+            'prev_hash': prev_hash,
+            'curr_hash': curr_hash
+        }
+
+        # Secure atomic append
+        try:
+            with open(self.filepath, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(entry) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception as e:
+            print(f"Audit Log Error: {e}")
 
 
 def manage_session(session_id):

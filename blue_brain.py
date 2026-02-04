@@ -17,6 +17,7 @@ import utils
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
+SIGNATURE_FILE = os.path.join(BASE_DIR, "signatures.json")
 WATCH_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
 
 # --- AI HYPERPARAMETERS ---
@@ -80,6 +81,9 @@ def access_memory(filepath, data=None):
             # File changed or not in cache, read it
             with open(filepath, 'r') as f:
                 data = json.load(f)
+                # Validation for state file
+                if "war_state.json" in filepath and not utils.validate_state(data):
+                    return {}
                 MEMORY_CACHE[filepath] = (mtime, data)
                 return data
         except: return {}
@@ -131,15 +135,43 @@ def engage_defense():
             mitigated = 0
             
             if action == "SIGNATURE_SCAN":
-                for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
+                # Check known signatures
+                known_sigs = access_memory(SIGNATURE_FILE)
+                if not known_sigs: known_sigs = {}
+
+                for t in all_threats: # Now scans all threats against DB
+                    try:
+                        sz = os.path.getsize(t)
+                        if str(sz) in known_sigs:
+                            os.remove(t)
+                            mitigated += 1
                     except: pass
+
+                # Fallback to simple removal of visible
+                for t in visible_threats:
+                    if os.path.exists(t):
+                        try: os.remove(t); mitigated += 1
+                        except: pass
                     
             elif action == "HEURISTIC_SCAN":
                 for t in all_threats:
                     # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
-                        try: os.remove(t); mitigated += 1
+                    entropy = calculate_shannon_entropy(t)
+                    if ".sys" in t or entropy > 3.5:
+                        try:
+                            # Learn the signature!
+                            sz = os.path.getsize(t)
+
+                            # Atomic update of signatures
+                            sigs = access_memory(SIGNATURE_FILE)
+                            if not sigs: sigs = {}
+                            if str(sz) not in sigs:
+                                sigs[str(sz)] = entropy
+                                access_memory(SIGNATURE_FILE, sigs)
+                                print(f"{C_BLUE}[BLUE LEARNING] Learned signature: Size {sz} | Entropy {entropy:.2f}{C_RESET}")
+
+                            os.remove(t)
+                            mitigated += 1
                         except: pass
             
             elif action == "OBSERVE": pass
