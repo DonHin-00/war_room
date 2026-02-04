@@ -7,9 +7,29 @@ import collections
 import json
 import hashlib
 import time
+import socket
 from typing import Union, Dict, Any, Optional, List, Tuple
 
 # Utility functions
+
+def safe_bind_socket(host: str, port: int) -> socket.socket:
+    """
+    Create and bind a TCP socket safely with address reuse.
+
+    Args:
+        host: Bind address.
+        port: Bind port.
+
+    Returns:
+        Bound socket object.
+
+    Raises:
+        OSError: If bind fails.
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((host, port))
+    return s
 
 def safe_file_write(file_path: str, data: str) -> None:
     """

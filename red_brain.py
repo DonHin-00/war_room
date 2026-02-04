@@ -43,11 +43,21 @@ class C2Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == "/exfil":
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            C2Handler.exfiltrated_data += len(post_data)
-            self.send_response(200)
-            self.end_headers()
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                # Rate Limiting/Size Limiting
+                if content_length > 1024 * 1024 * 10: # 10MB limit
+                    self.send_response(413) # Payload Too Large
+                    self.end_headers()
+                    return
+
+                post_data = self.rfile.read(content_length)
+                C2Handler.exfiltrated_data += len(post_data)
+                self.send_response(200)
+                self.end_headers()
+            except:
+                self.send_response(400)
+                self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
