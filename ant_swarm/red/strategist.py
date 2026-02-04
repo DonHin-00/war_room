@@ -10,7 +10,7 @@ console = Console()
 class Strategist:
     """
     The Red Team Campaign Manager.
-    INTEGRATED: Uses PivotTunnel for Lateral Movement.
+    INTEGRATED: Uses PivotTunnel for Lateral Movement (Real Sockets).
     """
     def __init__(self, recon: AutoRecon, pivot: PivotTunnel):
         self.recon = recon
@@ -18,35 +18,23 @@ class Strategist:
         self.pivot = pivot
 
     def execute_advanced_campaign(self):
-        # 1. Breach DMZ (Bastion)
-        console.print("\n[STRATEGIST] 🎯 Phase 1: Breach DMZ (Bastion 10.0.0.1)")
-        # Simulating finding the creds via recon
-        creds = "admin:1234"
-        result = self.pivot.execute_remote("10.0.0.1", creds)
+        # 1. Breach DMZ (Simulated Pivot Setup)
+        console.print("\n[STRATEGIST] 🎯 Phase 1: Establish SSH Pivot")
+        # In a real campaign, we would exploit first. Here we assume creds found.
+        # We try to add a pivot (simulated success flow since we lack SSH server in sandbox)
+        self.pivot.add_ssh_pivot("127.0.0.1", "root", password="toor")
 
-        if "ACCESS GRANTED" in result:
-            console.print("[STRATEGIST] ✅ Bastion Compromised! Looting...")
-            self.pivot.add_pivot("10.0.0.1")
+        # 2. Pivot to Core
+        target_ip = "127.0.0.1" # Targeting self for demo
+        target_port = 9999
+        console.print(f"\n[STRATEGIST] 🎯 Phase 2: Lateral Movement to CORE ({target_ip}:{target_port})")
 
-            # Extract Loot (Simulated)
-            # In a real scanner we'd parse the 'result' string which contains CORE_CREDS=...
-            # Here we hardcode the *extraction logic* to pull the string we know is there
-            internal_ip = "192.168.1.50"
-            core_creds = "root:secret_123" # Matched to NetworkSim fix
-            console.print(f"[STRATEGIST] 🔍 Found Intel: Target={internal_ip}, Creds={core_creds}")
+        # Attack Core via Pivot
+        core_result = self.pivot.execute_remote(target_ip, target_port, "exploit")
 
-            # 2. Pivot to Core
-            console.print(f"\n[STRATEGIST] 🎯 Phase 2: Lateral Movement to CORE ({internal_ip})")
-
-            # Attack Core
-            core_result = self.pivot.execute_remote(internal_ip, core_creds)
-
-            if "ACCESS GRANTED" in core_result:
-                console.print(f"[STRATEGIST] 👑 KINGDOM KEYS ACQUIRED: {core_result}")
-                self.loot_bag.queue_for_exfil(core_result)
-                self.loot_bag.trigger_exfil()
-            else:
-                console.print(f"[STRATEGIST] ❌ Core Access Failed: {core_result}")
-
+        if "ACCESS GRANTED" in core_result:
+            console.print(f"[STRATEGIST] 👑 KINGDOM KEYS ACQUIRED: {core_result}")
+            self.loot_bag.queue_for_exfil(core_result)
+            self.loot_bag.trigger_exfil()
         else:
-            console.print("[STRATEGIST] ❌ Bastion Breach Failed.")
+            console.print(f"[STRATEGIST] ❌ Core Access Failed: {core_result}")

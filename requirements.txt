@@ -1,4 +1,2 @@
-rich
-networkx
-bcrypt
-tqdm
+paramiko
+requests
