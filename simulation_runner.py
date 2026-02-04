@@ -45,7 +45,12 @@ def main():
     red = subprocess.Popen(["python3", "-u", "red_brain.py"], env=clean_env)
     processes.append(red)
 
-    # 3. Start Proxy War (Optional)
+    # 3. Start Target Server (The "Real" Victim)
+    print("\033[93m[SIMULATION] Booting Vulnerable Target Server...\033[0m")
+    target = subprocess.Popen(["python3", "-u", "target_system.py"], env=clean_env)
+    processes.append(target)
+
+    # 4. Start Proxy War (Optional)
     if args.proxy:
         print("\033[95m[SIMULATION] Launching Proxy War Emulation...\033[0m")
         proxy = subprocess.Popen(["python3", "-u", "proxy_war.py", str(args.duration)], env=clean_env)
