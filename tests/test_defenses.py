@@ -8,12 +8,12 @@ import collections
 import time
 from unittest.mock import MagicMock, patch
 
-# Add parent dir to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import red_brain
 import blue_brain
 import utils
+import config
 
 class TestDefenseMechanisms(unittest.TestCase):
     def setUp(self):
@@ -23,17 +23,17 @@ class TestDefenseMechanisms(unittest.TestCase):
         self.watch_dir = os.path.join(self.test_dir, "watch")
         os.makedirs(self.watch_dir)
 
-        blue_brain.Q_TABLE_FILE = self.q_table_file
-        blue_brain.STATE_FILE = self.state_file
-        blue_brain.WATCH_DIR = self.watch_dir
-
-        red_brain.TARGET_DIR = self.watch_dir
+        self.orig_paths = config.PATHS.copy()
+        config.PATHS["Q_TABLE_BLUE"] = self.q_table_file
+        config.PATHS["WAR_STATE"] = self.state_file
+        config.PATHS["WAR_ZONE"] = self.watch_dir
 
         self.blue_bot = blue_brain.BlueDefender()
         self.red_bot = red_brain.RedTeamer()
 
     def tearDown(self):
         shutil.rmtree(self.test_dir)
+        config.PATHS = self.orig_paths
 
     def test_tar_pit_creation(self):
         pit_path = os.path.join(self.watch_dir, "tarpit.pipe")
@@ -41,12 +41,10 @@ class TestDefenseMechanisms(unittest.TestCase):
         self.assertTrue(utils.is_tar_pit(pit_path))
 
     def test_safe_read_timeout(self):
-        # Create a FIFO
         pit_path = os.path.join(self.watch_dir, "read_timeout.pipe")
         os.mkfifo(pit_path)
 
         start = time.time()
-        # Should return empty string immediately or after small timeout, NOT hang
         data = utils.safe_file_read(pit_path, timeout=0.1)
         end = time.time()
 
@@ -57,7 +55,7 @@ class TestDefenseMechanisms(unittest.TestCase):
         pit_path = os.path.join(self.watch_dir, "trap.pipe")
         utils.create_tar_pit(pit_path)
 
-        # Red bot recon should see it but not crash/hang
+        # Red recon returns traps found count
         traps_found = self.red_bot.perform_recon()
         self.assertGreaterEqual(traps_found, 1)
 

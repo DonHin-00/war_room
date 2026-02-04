@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import red_brain
 import blue_brain
 import utils
+import config
 
 class TestRedBrain(unittest.TestCase):
     def setUp(self):
@@ -19,27 +20,22 @@ class TestRedBrain(unittest.TestCase):
         self.q_table_file = os.path.join(self.test_dir, "red_q_table.json")
         self.state_file = os.path.join(self.test_dir, "war_state.json")
 
-        # Patch paths
-        self.original_q_file = red_brain.Q_TABLE_FILE
-        self.original_state_file = red_brain.STATE_FILE
-        self.original_target_dir = red_brain.TARGET_DIR
-
-        red_brain.Q_TABLE_FILE = self.q_table_file
-        red_brain.STATE_FILE = self.state_file
-        red_brain.TARGET_DIR = self.test_dir
+        # Patch config paths
+        self.orig_paths = config.PATHS.copy()
+        config.PATHS["Q_TABLE_RED"] = self.q_table_file
+        config.PATHS["WAR_STATE"] = self.state_file
+        config.PATHS["WAR_ZONE"] = self.test_dir
 
         # Initialize Bot
         self.bot = red_brain.RedTeamer()
 
     def tearDown(self):
         shutil.rmtree(self.test_dir)
-        red_brain.Q_TABLE_FILE = self.original_q_file
-        red_brain.STATE_FILE = self.original_state_file
-        red_brain.TARGET_DIR = self.original_target_dir
+        config.PATHS = self.orig_paths
 
     def test_initialization(self):
         self.assertTrue(self.bot.running)
-        self.assertEqual(len(self.bot.q_table), 0)
+        self.assertEqual(len(self.bot.q_tables["A"]), 0)
 
     def test_state_manager_load_save(self):
         data = {"key": "value"}
@@ -57,7 +53,6 @@ class TestRedBrain(unittest.TestCase):
 
         # Modify file manually
         new_state = {'blue_alert_level': 5}
-        # Force mtime update
         time_future = os.stat(self.state_file).st_mtime + 10
         with open(self.state_file, 'w') as f:
             json.dump(new_state, f)
@@ -77,33 +72,25 @@ class TestBlueBrain(unittest.TestCase):
         self.q_table_file = os.path.join(self.test_dir, "blue_q_table.json")
         self.state_file = os.path.join(self.test_dir, "war_state.json")
 
-        # Patch paths
-        self.original_q_file = blue_brain.Q_TABLE_FILE
-        self.original_state_file = blue_brain.STATE_FILE
-        self.original_watch_dir = blue_brain.WATCH_DIR
-
-        blue_brain.Q_TABLE_FILE = self.q_table_file
-        blue_brain.STATE_FILE = self.state_file
-        blue_brain.WATCH_DIR = self.test_dir
+        self.orig_paths = config.PATHS.copy()
+        config.PATHS["Q_TABLE_BLUE"] = self.q_table_file
+        config.PATHS["WAR_STATE"] = self.state_file
+        config.PATHS["WAR_ZONE"] = self.test_dir
 
         self.bot = blue_brain.BlueDefender()
 
     def tearDown(self):
         shutil.rmtree(self.test_dir)
-        blue_brain.Q_TABLE_FILE = self.original_q_file
-        blue_brain.STATE_FILE = self.original_state_file
-        blue_brain.WATCH_DIR = self.original_watch_dir
+        config.PATHS = self.orig_paths
 
     def test_entropy_calc(self):
-        # Create a file with zero entropy (all A's)
         fpath = os.path.join(self.test_dir, "zero_entropy.txt")
         with open(fpath, 'wb') as f: f.write(b'A' * 100)
-        # Use utils.calculate_entropy since blue_brain uses it directly
+
         with open(fpath, 'rb') as f:
             data = f.read()
             self.assertEqual(utils.calculate_entropy(data), 0.0)
 
-        # High entropy (random)
         fpath2 = os.path.join(self.test_dir, "high_entropy.bin")
         data_random = os.urandom(100)
         with open(fpath2, 'wb') as f: f.write(data_random)
