@@ -10,6 +10,7 @@ import time
 import random
 import signal
 import secrets
+import subprocess
 
 # Add parent dir to path to import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -36,12 +37,12 @@ class GreenIntegrator:
         sys.exit(0)
 
     def instrument_code(self):
-        """Find Yellow's services and inject logging (Instrumentation)."""
+        """Find Yellow's active services, patch vulnerability, and restart."""
         if not os.path.exists(config.WAR_ZONE_DIR): return
 
-        # Find Python services that aren't malware
+        # Find Active Python services (Yellow's apps)
         services = [f for f in os.listdir(config.WAR_ZONE_DIR)
-                   if f.startswith("service_") and f.endswith(".py")]
+                   if f.startswith("app_") and f.endswith(".py")]
 
         for s in services:
             path = os.path.join(config.WAR_ZONE_DIR, s)
@@ -49,20 +50,40 @@ class GreenIntegrator:
                 with open(path, 'r') as f:
                     content = f.read()
 
-                if "# [GREEN] INSTRUMENTED" in content:
-                    continue # Already secured
+                if "# [GREEN] PATCHED" in content:
+                    continue
 
-                # Inject logging (Simulation of adding a security agent)
-                injection = f"""
-# [GREEN] INSTRUMENTED
-print("[SECURITY] Service {s} monitored.")
-"""
-                new_content = injection + content
-                utils.secure_create(path, new_content)
-                os.chmod(path, 0o755)
-                # print(f"{C_GREEN}[GREEN] Instrumented {s}{C_RESET}")
+                # Hot Patch: Disable the info leak
+                if "with open(\"access_log.txt\"" in content:
+                    # Replace the vulnerable block with safe code
+                    new_content = content.replace(
+                        'with open("access_log.txt", "a") as f:',
+                        '# [GREEN] PATCHED: Log file write disabled\n        if False:'
+                    )
 
-            except: pass
+                    utils.secure_create(path, new_content)
+                    os.chmod(path, 0o755)
+                    print(f"{C_GREEN}[GREEN] Hot-patched {s}{C_RESET}")
+
+                    # Restart the service (Kill old PID)
+                    # We find the PID by command line match
+                    cmd_match = os.path.join(config.WAR_ZONE_DIR, s)
+                    try:
+                        pids = subprocess.check_output(["pgrep", "-f", s], text=True).splitlines()
+                        for pid in pids:
+                            os.kill(int(pid), signal.SIGTERM)
+                            # Yellow will respawn it? No, Yellow launches and forgets in this version.
+                            # We should relaunch it or let Yellow build new ones.
+                            # For Emulation, let's relaunch it to simulate "Service Restart"
+                            subprocess.Popen([sys.executable, cmd_match],
+                                            cwd=config.WAR_ZONE_DIR,
+                                            stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL)
+                    except: pass
+
+            except Exception as e:
+                # print(e)
+                pass
 
     def harden_infrastructure(self):
         """Enforce least privilege permissions."""

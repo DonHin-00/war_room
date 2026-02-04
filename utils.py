@@ -23,6 +23,10 @@ FAKE_HEADERS = {
     'GIF': b'GIF89a'
 }
 
+def xor_bytes(data: bytes, key: bytes) -> bytes:
+    """Simple XOR operation."""
+    return bytearray([b ^ key[i % len(key)] for i, b in enumerate(data)])
+
 def obfuscate_payload(data: bytes, key: bytes, fake_type: str = 'PDF') -> bytes:
     """
     Compress, XOR encrypt, and prepend fake header.
@@ -36,7 +40,7 @@ def obfuscate_payload(data: bytes, key: bytes, fake_type: str = 'PDF') -> bytes:
     compressed = zlib.compress(data, level=9)
 
     # 2. XOR
-    encrypted = bytearray([b ^ key[i % len(key)] for i, b in enumerate(compressed)])
+    encrypted = xor_bytes(compressed, key)
 
     # 3. Prepend Header
     header = FAKE_HEADERS.get(fake_type, b'')
@@ -52,7 +56,7 @@ def deobfuscate_payload(data: bytes, key: bytes, fake_type: str = 'PDF') -> byte
         raw_enc = data
 
     # XOR
-    compressed = bytearray([b ^ key[i % len(key)] for i, b in enumerate(raw_enc)])
+    compressed = xor_bytes(raw_enc, key)
 
     # Decompress
     try:

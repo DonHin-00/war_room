@@ -68,7 +68,9 @@ class TestUtils(unittest.TestCase):
             f.write('{"key": "changed"}')
 
         # Update mtime to force cache invalidation (os.stat usually precise enough)
-        os.utime(self.test_file, None)
+        # Force a definite change in mtime for low-resolution filesystems
+        st = os.stat(self.test_file)
+        os.utime(self.test_file, (st.st_atime, st.st_mtime + 10))
 
         read2 = utils.access_memory(self.test_file)
         self.assertEqual(read2, {"key": "changed"})

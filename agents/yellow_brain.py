@@ -10,6 +10,7 @@ import time
 import random
 import signal
 import secrets
+import subprocess
 
 # Add parent dir to path to import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +28,7 @@ class YellowBuilder:
     """
     def __init__(self):
         self.running = True
+        self.active_services = []
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
         self.setup()
@@ -36,34 +38,62 @@ class YellowBuilder:
 
     def shutdown(self, signum, frame):
         print(f"\n{C_YELLOW}[SYSTEM] Yellow Team finished sprint...{C_RESET}")
+        # Kill running services
+        for p in self.active_services:
+            try: p.terminate()
+            except: pass
         self.running = False
         sys.exit(0)
 
     def build_service(self):
-        """Create a 'Service' (Python script) in the War Zone."""
-        service_type = secrets.choice(["api", "worker", "auth", "db_connector"])
-        fname = os.path.join(config.WAR_ZONE_DIR, f"service_{service_type}_{secrets.token_hex(4)}.py")
+        """Create and RUN a 'Service' (HTTP Server) in the War Zone."""
+        service_type = secrets.choice(["app", "api", "portal"])
+        port = 9000 + secrets.randbelow(1000)
+        fname = os.path.join(config.WAR_ZONE_DIR, f"app_{service_type}_{port}.py")
 
-        # Simulated source code
+        # Emulated Vulnerable Application (Standard Lib HTTP Server)
         content = f"""
 #!/usr/bin/env python3
-# Service: {service_type}
-import time
+# Service: {service_type} on Port {port}
+import http.server
+import socketserver
 import os
+import urllib.parse
 
-def run_task():
-    # Processing data...
-    data = "{secrets.token_hex(16)}"
-    print(f"[{service_type}] Processing {{data}}")
-    time.sleep(1)
+PORT = {port}
+
+class VulnHandler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        # SIMULATED VULNERABILITY: Logging query params to disk (LFI/Info Leak)
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.query:
+            with open("access_log.txt", "a") as f:
+                f.write(f"Query: {{parsed.query}}\\n")
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Service Running")
+
+    def log_message(self, format, *args):
+        pass
 
 if __name__ == "__main__":
-    run_task()
+    # Bind to localhost only for safety
+    with socketserver.TCPServer(("127.0.0.1", PORT), VulnHandler) as httpd:
+        print(f"[{service_type}] Serving on {{PORT}}")
+        httpd.serve_forever()
 """
         try:
             utils.secure_create(fname, content.strip())
             os.chmod(fname, 0o755)
-            # print(f"{C_YELLOW}[YELLOW] Built {os.path.basename(fname)}{C_RESET}")
+
+            # Launch it
+            proc = subprocess.Popen([sys.executable, fname],
+                                    cwd=config.WAR_ZONE_DIR,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+            self.active_services.append(proc)
+            # print(f"{C_YELLOW}[YELLOW] Launched {os.path.basename(fname)} on port {port}{C_RESET}")
         except: pass
 
     def patch_vulnerability(self):
