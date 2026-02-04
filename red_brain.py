@@ -3,6 +3,9 @@
 Project: AI Cyber War Simulation (Red Team)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: MITRE ATT&CK Matrix
+
+This module implements the Red Team Agent in "Emulation Mode".
+It simulates an APT moving through a segregated network (DMZ -> USER -> SERVER -> CORE).
 """
 
 import os
@@ -17,7 +20,6 @@ from typing import Dict, Any, Optional
 
 import utils
 import config
-import ml_engine
 
 # Setup Logging
 utils.setup_logging(config.PATHS["LOG_RED"])
@@ -32,7 +34,6 @@ class RedTeamer:
         utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
 
         self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
-        self.ai = ml_engine.DoubleQLearner(config.RED["ACTIONS"], "RED")
 
         # Access Progression: Starts at DMZ
         self.access_level = "DMZ"
@@ -41,18 +42,8 @@ class RedTeamer:
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
-    def load_memory(self):
-        data = self.state_manager.load_json(config.PATHS["Q_TABLE_RED"])
-        self.ai.load(data)
-        logger.info(f"AI Memory Loaded.")
-
-    def sync_memory(self):
-        data = self.ai.export()
-        self.state_manager.save_json(config.PATHS["Q_TABLE_RED"], data)
-
     def shutdown(self, signum, frame):
-        logger.info("Shutting down... Syncing memory.")
-        self.sync_memory()
+        logger.info("Shutting down emulation...")
         self.running = False
         sys.exit(0)
 
@@ -77,8 +68,6 @@ class RedTeamer:
         current_idx = self.zones.index(self.access_level)
         if current_idx < len(self.zones) - 1:
             next_zone = self.zones[current_idx + 1]
-            # Probabilistic success based on current alert level?
-            # Simplified: Always succeeds if not trapped
             self.access_level = next_zone
             return {"impact": 5, "new_zone": next_zone, "status": "escalated"}
         return {"impact": 0, "status": "max_level"}
@@ -98,7 +87,7 @@ class RedTeamer:
 
     def t1027_obfuscate(self):
         target_dir = self._get_target_dir()
-        fname = f"photo_{int(time.time())}.jpg" # Steganography
+        fname = f"photo_{int(time.time())}_{secrets.token_hex(4)}.jpg"
         target_file = os.path.join(target_dir, fname)
         with open(target_file, 'wb') as f:
             f.write(self.generate_payload(obfuscate=True))
@@ -106,7 +95,7 @@ class RedTeamer:
 
     def t1003_rootkit(self):
         target_dir = self._get_target_dir()
-        fname = f".sys_shadow_{int(time.time())}"
+        fname = f".sys_shadow_{int(time.time())}_{secrets.token_hex(4)}"
         target_file = os.path.join(target_dir, fname)
         with open(target_file, 'w') as f: f.write("uid=0(root)")
         return {"impact": 5, "file": fname}
@@ -114,7 +103,7 @@ class RedTeamer:
     def t1036_masquerade(self):
         target_dir = self._get_target_dir()
         names = ["readme.txt", "notes.txt", "todo.list"]
-        fname = f"{random.choice(names)}"
+        fname = f"{random.choice(names)}_{secrets.token_hex(4)}"
         target_file = os.path.join(target_dir, fname)
         with open(target_file, 'w') as f: f.write(" benign_header=1\n")
         with open(target_file, 'ab') as f:
@@ -153,7 +142,6 @@ class RedTeamer:
         return {"impact": 2, "file": fname}
 
     def t1055_injection(self):
-        # Process injection is global (RAM)
         if not os.path.exists(config.PATHS["PROC"]): return {"impact": 0}
         pid = random.randint(1000, 65535)
         path = os.path.join(config.PATHS["PROC"], str(pid))
@@ -168,37 +156,41 @@ class RedTeamer:
         return {"impact": 0}
 
     def t1589_lurk(self):
-        # Passive action
         return {"impact": 0, "status": "lurking"}
+
+    # --- DECISION ENGINE ---
+
+    def decide_action(self):
+        """Selects an action based on Access Level Probabilities."""
+        zone_probs = config.EMULATION["RED"].get(self.access_level, {})
+        if not zone_probs:
+            # Fallback to lurk if undefined
+            return "T1589_LURK"
+
+        actions = list(zone_probs.keys())
+        weights = list(zone_probs.values())
+
+        return random.choices(actions, weights=weights, k=1)[0]
 
     # --- MAIN LOOP ---
 
     def engage(self):
-        logger.info("Red Team AI Initialized. Framework: APT / Lateral Movement")
-        self.load_memory()
+        logger.info("Red Team Emulation Initialized. Framework: APT / Lateral Movement")
+
+        if not os.path.exists(config.PATHS["WAR_ZONE"]):
+            os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
 
         while self.running:
             try:
                 self.iteration_count += 1
                 self.update_heartbeat()
                 
-                # Perceive
+                # Perceive (Optional in Emulation, but we check Alert Level)
                 war_state = self.state_manager.get_war_state()
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                # State Vector includes Access Level now
-                # Access Level: 0=DMZ, 1=USER, 2=SERVER, 3=CORE
-                access_idx = self.zones.index(self.access_level)
-                state_vector = f"{current_alert}_{access_idx}"
-
-                context = {
-                    "alert_level": current_alert,
-                    "access_level": self.access_level,
-                    "traps_found": 0
-                }
-
                 # Decide
-                action_name = self.ai.choose_action(state_vector, context)
+                action_name = self.decide_action()
                 tactic_func = getattr(self, action_name.lower())
 
                 # Act
@@ -206,23 +198,10 @@ class RedTeamer:
                     result = tactic_func()
                     impact = result.pop("impact", 0)
                     self.audit_logger.log_event("RED", action_name, result)
-                    logger.info(f"Action: {action_name} | Impact: {impact} | Zone: {self.access_level} | Q: {self.ai.get_q(state_vector, action_name):.2f}")
+                    logger.info(f"Action: {action_name} | Impact: {impact} | Zone: {self.access_level}")
                 except Exception as e:
                     logger.warning(f"Failed {action_name}: {e}")
                     impact = 0
-
-                # Reward & Learn
-                reward = impact
-                if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
-                    reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
-                if self.access_level == "CORE" and impact > 0:
-                    reward += config.RED["REWARDS"]["CRITICAL"]
-
-                self.ai.memory.push(state_vector, action_name, reward, state_vector, False)
-                self.ai.learn()
-
-                if self.iteration_count % config.RL["SYNC_INTERVAL"] == 0:
-                    self.sync_memory()
 
                 # Trigger Alerts
                 if impact > 0 and random.random() > 0.5:
