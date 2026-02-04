@@ -76,10 +76,9 @@ def engage_defense():
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
+            # Optimization: avoid creating 'all_threats' list via concatenation
             visible_threats, hidden_threats = utils.scan_threats(WATCH_DIR)
-            all_threats = visible_threats + hidden_threats
-            
-            threat_count = len(all_threats)
+            threat_count = len(visible_threats) + len(hidden_threats)
             state_key = f"{current_alert}_{threat_count}"
             
             # 3. DECISION
@@ -101,9 +100,15 @@ def engage_defense():
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                # Optimization: Iterate over lists directly, avoiding 'all_threats' creation
+                # Chain iteration would be cleaner but simple loops are fast enough here
+                for t in hidden_threats:
+                    try: os.remove(t); mitigated += 1
+                    except: pass
+
+                for t in visible_threats:
+                     # Only check entropy for visible files (hidden are deleted by policy above)
+                    if calculate_shannon_entropy(t) > 3.5:
                         try: os.remove(t); mitigated += 1
                         except: pass
             

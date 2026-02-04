@@ -74,10 +74,13 @@ def engage_offense():
             # 3. EXECUTION
             impact = 0
             timestamp = int(_time())
+
+            # Optimization: Pre-calculate paths outside conditional logic if possible,
+            # but here filenames depend on action. We can optimize string formatting though.
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{timestamp}.sh")
+                fname = f"{TARGET_DIR}/malware_bait_{timestamp}.sh"
                 try: 
                     with open(fname, 'w') as f: f.write("echo 'scan'")
                     impact = 1
@@ -85,7 +88,7 @@ def engage_offense():
                 
             elif action == "T1027_OBFUSCATE":
                 # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{timestamp}.bin")
+                fname = f"{TARGET_DIR}/malware_crypt_{timestamp}.bin"
                 try:
                     with open(fname, 'wb') as f: f.write(os.urandom(1024))
                     impact = 3
@@ -93,7 +96,7 @@ def engage_offense():
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{timestamp}")
+                fname = f"{TARGET_DIR}/.sys_shadow_{timestamp}"
                 try:
                     with open(fname, 'w') as f: f.write("uid=0(root)")
                     impact = 5
