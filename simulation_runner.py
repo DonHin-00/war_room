@@ -25,7 +25,7 @@ AGENTS = {
     "purple": "agents/purple_brain.py",
     "yellow": "agents/yellow_brain.py",
     "orange": "agents/orange_brain.py",
-    "bot": "agents/bot_brain.py",
+    "force_multiplier": "agents/force_multiplier_brain.py",
     "daemon": "agents/daemon_brain.py",
     "sentinel": "agents/sentinel_brain.py"
 }

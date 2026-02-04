@@ -98,6 +98,7 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if not war_state: war_state = {'blue_alert_level': 1}
 
                 current_alert = war_state.get('blue_alert_level', 1)
+                campaign_phase = war_state.get('red_campaign_phase', 'UNKNOWN')
 
                 # 2. DETECTION
                 visible_threats: List[str] = []
@@ -116,7 +117,10 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
 
                 all_threats = visible_threats + hidden_threats
                 threat_count = len(all_threats)
-                state_key = f"{current_alert}_{threat_count}"
+
+                # Context-Aware State: Alert_Files_Campaign
+                # E.g. "5_2_EXFILTRATION"
+                state_key = f"{current_alert}_{threat_count}_{campaign_phase}"
 
                 # 3. DECISION
                 action: str = ""
@@ -211,9 +215,15 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if trapped > 0: reward = 10
                 if blocked > 0: reward = 15 # Good job stopping C2
 
+                # Context-Aware Rewards
+                if campaign_phase == "EXFILTRATION" and action == "NETWORK_HUNT" and blocked > 0:
+                    reward += 50 # Huge bonus for stopping exfil
+                if campaign_phase == "PERSISTENCE" and action == "HEURISTIC_SCAN" and mitigated > 0:
+                    reward += 30
+
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.blue_rewards['waste']
                 if action == "THREAT_HUNT" and hunted == 0: reward = -5
-                if action == "NETWORK_HUNT" and blocked == 0: reward = -5
+                if action == "NETWORK_HUNT" and blocked == 0 and campaign_phase != "EXFILTRATION": reward = -5
 
                 if current_alert >= 4 and action == "OBSERVE": reward = config.blue_rewards['patience']
                 if action == "IGNORE" and threat_count > 0: reward = config.blue_rewards['negligence']

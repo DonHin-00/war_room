@@ -45,6 +45,36 @@ MIN_EPSILON: float = config.hyperparameters['min_epsilon']
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
+# --- CAMPAIGN MANAGER ---
+class RedCampaignManager:
+    """
+    Manages the Cyber Kill Chain state.
+    Phases: RECON -> WEAPONIZE -> DELIVERY -> EXPLOIT -> INSTALL -> C2 -> ACTIONS
+    Simplified for this sim: RECON -> OBFUSCATE (Delivery) -> ROOTKIT (Exploit) -> PERSISTENCE -> EXFIL
+    """
+    def __init__(self):
+        self.chain = [
+            "T1046_RECON",
+            "T1027_OBFUSCATE",
+            "T1003_ROOTKIT",
+            "T1547_PERSISTENCE",
+            "T1041_EXFILTRATION"
+        ]
+        self.current_index = 0
+
+    def get_current_objective(self) -> str:
+        return self.chain[self.current_index]
+
+    def advance(self):
+        if self.current_index < len(self.chain) - 1:
+            self.current_index += 1
+
+    def reset(self):
+        self.current_index = 0
+
+    def get_phase_name(self) -> str:
+        return self.chain[self.current_index].split('_')[1]
+
 # --- MAIN LOOP ---
 
 @trace_errors
@@ -65,6 +95,8 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
     persist_dir = config.file_paths['persistence_dir']
     exfil_dir = config.file_paths['exfil_dir']
 
+    campaign = RedCampaignManager()
+
     # Ensure attack dirs exist
     for d in [persist_dir, exfil_dir]:
         if not os.path.exists(d):
@@ -78,22 +110,43 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 break
             iteration += 1
             try:
-                # 1. RECON
+                # 1. RECON & STATE AWARENESS
                 war_state: Dict[str, Any] = atomic_json_io(state_file)
                 if not war_state: war_state = {'blue_alert_level': 1}
 
                 current_alert = war_state.get('blue_alert_level', 1)
-                state_key = f"{current_alert}"
+
+                # Update State with Campaign Phase for Dashboard
+                war_state['red_campaign_phase'] = campaign.get_phase_name()
+                war_state['red_campaign_index'] = campaign.current_index
+                war_state['red_campaign_total'] = len(campaign.chain)
+
+                # Push campaign state to war_state occasionally or if changed?
+                # Doing it every loop is heavy I/O. Let's do it via atomic update only if needed.
+                # Optimized: We read war_state anyway. We can update it if we successfully attacked.
+
+                state_key = f"{current_alert}_{campaign.get_phase_name()}"
 
                 # LOW AND SLOW
                 if current_alert >= 4:
                     time.sleep(random.uniform(2.0, 5.0))
 
-                # 2. STRATEGY
+                # 2. STRATEGY SELECTION
                 action: str = ""
-                if random.random() < EPSILON:
-                    action = random.choice(ACTIONS)
+
+                # Force Campaign Progression if low alert, otherwise rely on Q-Table/Epsilon
+                is_exploring = random.random() < EPSILON
+
+                if is_exploring:
+                    # 50% chance to try the Next Campaign Step, 50% random
+                    if random.random() < 0.5:
+                        action = campaign.get_current_objective()
+                    else:
+                        action = random.choice(ACTIONS)
                 else:
+                    # Greedy
+                    # We can bias the Q-value lookups.
+                    # Or just standard Q-Learning.
                     action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
 
                 EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
@@ -102,9 +155,11 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 # 3. EXECUTION
                 impact = 0
                 burned = False
+                success = False
 
                 if action == "T1046_RECON":
                     try:
+                        found_target = False
                         with os.scandir(target_dir) as it:
                             for entry in it:
                                 if is_honeypot(entry.path):
@@ -112,9 +167,9 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                                     audit.log("RED", "TRIPPED_HONEYPOT", {"file": entry.name})
                                     break
                                 if is_tar_pit(entry.path):
-                                    # STALLED!
                                     time.sleep(2.0)
                                     break
+                                found_target = True
                     except: pass
 
                     if not burned:
@@ -122,6 +177,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                         try:
                             with open(fname, 'w') as f: f.write("echo 'scan'")
                             impact = 1
+                            success = True
                         except: pass
 
                 elif action == "T1027_OBFUSCATE":
@@ -131,6 +187,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                         padding = os.urandom(random.randint(100, 500))
                         with open(fname, 'wb') as f: f.write(payload + padding)
                         impact = 3
+                        success = True
                     except: pass
 
                 elif action == "T1003_ROOTKIT":
@@ -138,34 +195,52 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     try:
                         with open(fname, 'w') as f: f.write("uid=0(root)")
                         impact = 5
+                        success = True
                     except: pass
 
                 elif action == "T1589_LURK":
                     impact = 0
+                    success = True # Lurking always succeeds in not dying
 
                 elif action == "T1547_PERSISTENCE":
-                    # Create startup script
                     p_name = os.path.join(persist_dir, "update_service.sh")
                     try:
                         with open(p_name, 'w') as f:
                             f.write("#!/bin/bash\n# Re-spawn malware\ntouch /tmp/battlefield/malware_respawned.bin")
                         impact = 5
+                        success = True
                         logger.info(f"⚓ Red Team Established Persistence: {p_name}")
                         audit.log("RED", "PERSISTENCE_CREATED", {"file": p_name})
                     except: pass
 
                 elif action == "T1041_EXFILTRATION":
-                    # Stage and Exfil data
                     s_name = os.path.join(exfil_dir, f"data_{int(time.time())}.zip")
                     try:
                         with open(s_name, 'wb') as f:
-                            f.write(os.urandom(2048)) # Encrypted data
-                        time.sleep(0.5) # Upload time
-                        os.remove(s_name) # Sent!
+                            f.write(os.urandom(2048))
+                        time.sleep(0.5)
+                        os.remove(s_name)
                         impact = 6
+                        success = True
                         logger.info("📤 Red Team Exfiltrated Data")
                         audit.log("RED", "DATA_EXFILTRATION", {"size": 2048})
                     except: pass
+
+                # Campaign Logic
+                if burned:
+                    campaign.reset()
+                elif success and action == campaign.get_current_objective():
+                    campaign.advance()
+                    if campaign.current_index == 0: # Wrapped around? No, wait.
+                        # If we finished the chain, advance() might stick at end or reset.
+                        # Let's say if we finish Exfil, we loop back to Recon?
+                        # The advance method implementation stops at end.
+                        pass
+
+                # Check if campaign finished
+                if action == "T1041_EXFILTRATION" and success:
+                    campaign.reset()
+                    logger.info("🏆 Red Team Completed Kill Chain!")
 
                 # 4. REWARDS
                 reward = 0
@@ -176,6 +251,10 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 if action == "T1547_PERSISTENCE" and impact > 0: reward = config.red_rewards['persistence']
                 if action == "T1041_EXFILTRATION" and impact > 0: reward = config.red_rewards['exfil']
                 if burned: reward = config.red_rewards['burned']
+
+                # Bonus for following campaign
+                if success and action == campaign.get_current_objective():
+                    reward += 5
 
                 # 5. LEARN
                 old_val = q_table.get(f"{state_key}_{action}", 0.0)
@@ -189,11 +268,16 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     atomic_json_merge(q_table_path, q_table)
                     steps_since_save = 0
 
-                # 6. TRIGGER ALERTS
-                if impact > 0 and random.random() > 0.5:
+                # 6. TRIGGER ALERTS & UPDATE STATE
+                if impact > 0 or burned:
                     def update_state(state):
-                        state['blue_alert_level'] = min(max_alert, state.get('blue_alert_level', 1) + 1)
+                        if impact > 0 and random.random() > 0.5:
+                            state['blue_alert_level'] = min(max_alert, state.get('blue_alert_level', 1) + 1)
+                        # Always update campaign status
+                        state['red_campaign_phase'] = campaign.get_phase_name()
+                        state['red_campaign_index'] = campaign.current_index
                         return state
+
                     atomic_json_update(state_file, update_state)
 
                 if impact > 0:
