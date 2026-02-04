@@ -3,6 +3,7 @@ import fcntl
 import logging
 import math
 import random
+import collections
 
 # Utility functions
 
@@ -27,7 +28,9 @@ def calculate_entropy(data):
     """Calculate the entropy of a string of data."""
     if len(data) == 0:
         return 0
-    probabilities = [float(data.count(x)) / len(data) for x in set(data)]
+    counter = collections.Counter(data)
+    total_len = len(data)
+    probabilities = [float(count) / total_len for count in counter.values()]
     entropy = -sum(p * math.log2(p) for p in probabilities)
     return entropy
 
