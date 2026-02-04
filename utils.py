@@ -4,7 +4,7 @@ import logging
 import math
 import random
 
-# Utility functions
+# Utility functions for AI Cyber War Simulation
 
 def safe_file_write(file_path, data):
     """Write data to a file safely using locks."""
@@ -50,4 +50,3 @@ def manage_session(session_id):
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass
-
