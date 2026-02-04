@@ -28,6 +28,10 @@ file_paths = {
     'log_file_path': './logs/train.log',
 }
 
+# Directories
+TARGET_DIR = "/tmp/war_zone"
+LOG_DIR = "logs"
+
 # Logging Settings
 logging_settings = {
     'log_level': 'INFO',

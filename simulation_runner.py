@@ -26,6 +26,10 @@ def main():
 
     print("\033[92m[SIMULATION] Starting AI Cyber War...\033[0m")
 
+    # Ensure Battlefield exists
+    import config
+    os.makedirs(config.TARGET_DIR, exist_ok=True)
+
     # 1. Start Blue Brain
     blue = subprocess.Popen(["python3", "-u", "blue_brain.py"])
     processes.append(blue)

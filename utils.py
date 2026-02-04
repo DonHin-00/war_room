@@ -219,11 +219,25 @@ def calculate_sha256(filepath):
     except: return None
 
 
-def setup_logging(log_file_path):
-    """Set up logging to a specified file."""
-    logging.basicConfig(filename=log_file_path,
-                        level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s:%(message)s')
+def setup_logging(name, log_file_path):
+    """Set up logging to a specified file and console."""
+    # Create directory if missing
+    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    # File Handler
+    fh = logging.FileHandler(log_file_path)
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(fh)
+
+    # Console Handler (if not already handled by root, but for specific agents)
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter('%(message)s')) # Cleaner console output
+    logger.addHandler(ch)
+
+    return logger
 
 
 def manage_session(session_id):

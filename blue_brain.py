@@ -10,16 +10,20 @@ import time
 import random
 import utils
 import drone_network
+import config
+import waf
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Q_TABLE_FILE removed (Moved to SQLite)
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json") # Keep for compat or migrate? Migrate state too.
+STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 THREAT_DB_FILE = os.path.join(BASE_DIR, "threat_db.json")
-WATCH_DIR = "/tmp"
+WATCH_DIR = config.TARGET_DIR
+
+# --- LOGGING ---
+logger = utils.setup_logging("BLUE", os.path.join(config.LOG_DIR, "blue.log"))
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DRONES", "BACKUP_RESTORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DRONES", "BACKUP_RESTORE", "NETWORK_DEFENSE"]
 ALPHA = 0.4             # Learning Rate (How fast we accept new info)
 ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
 GAMMA = 0.9             # Discount Factor (How much we care about the future)
@@ -56,13 +60,16 @@ def calculate_shannon_entropy(filepath):
 
 def engage_defense():
     global EPSILON, ALPHA
-    print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
-    
+    logger.info(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
+
     # Load Q-Table (SQLite)
     q_manager = utils.QTableManager("blue", ACTIONS)
 
     # Drones
     swarm = drone_network.DroneSwarm(4, WATCH_DIR)
+
+    # WAF
+    web_firewall = waf.WebApplicationFirewall()
 
     # State loaders (Legacy file support + DB)
     threat_loader = utils.SmartJSONLoader(THREAT_DB_FILE, {'hashes': [], 'filenames': []})
@@ -173,6 +180,18 @@ def engage_defense():
                         mitigated += 2 # High reward for recovery
                 except: pass
 
+            elif action == "NETWORK_DEFENSE":
+                # WAF Inspection of Traffic
+                try:
+                    requests = [f for f in visible_threats if "http_req_" in f]
+                    for req in requests:
+                        allowed, reason = web_firewall.inspect_request(req)
+                        if not allowed:
+                            os.remove(req) # Block/Drop packet
+                            mitigated += 1
+                            # WAF logs internally, but we can note it here too
+                except: pass
+
             # 5. REWARD CALCULATION
             reward = 0
             if mitigated > 0: reward = R_MITIGATION
@@ -201,7 +220,7 @@ def engage_defense():
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
+            logger.info(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
             
             # Adaptive sleep based on threat level
             activity = 1.0 if current_alert >= 4 else 0.0
