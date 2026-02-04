@@ -22,7 +22,8 @@ AGENTS = {
     "blue": "agents/blue_brain.py",
     "red": "agents/red_brain.py",
     "green": "agents/green_brain.py",
-    "purple": "agents/purple_brain.py"
+    "purple": "agents/purple_brain.py",
+    "bot": "agents/bot_brain.py"
 }
 
 processes = []
