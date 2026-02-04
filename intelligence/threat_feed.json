@@ -1,0 +1,61 @@
+{
+    "metadata": {
+        "source": "SIMULATION_OFFLINE_FEED",
+        "updated": 1770185805.7491682,
+        "version": 1
+    },
+    "iocs": [
+        {
+            "type": "filename",
+            "value": "malware_static_sample.exe",
+            "confidence": 100
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "confidence": 90
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "e3778addc54995f0a68ded7730e8bb280b0ec4c9d11309f0e437d368e99fb1c7",
+            "confidence": 80,
+            "created": 1770185805.7491357
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "ae3042256eabe82c63a6cb5326060cdfd248d12a036fed3d3201be57cb2aa8b2",
+            "confidence": 96,
+            "created": 1770185805.7491455
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "f255250873a9235a3d89b3950238d20266dbac7ec2559f9792b43af05cd43193",
+            "confidence": 73,
+            "created": 1770185805.7491508
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "082d95a8d69aaddf310b4eb8f12613fbcd4c3ef39b295a94751ab2d4f1e60e99",
+            "confidence": 97,
+            "created": 1770185805.7491546
+        },
+        {
+            "type": "hash",
+            "algorithm": "sha256",
+            "value": "a7835796d1274d45a3a086cc1bc4c8026b09c1ae558364319645f437eb762b0c",
+            "confidence": 83,
+            "created": 1770185805.7491586
+        },
+        {
+            "type": "filename",
+            "value": "mimikatz.exe_839",
+            "confidence": 85,
+            "created": 1770185805.7491658
+        }
+    ]
+}

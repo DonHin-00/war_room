@@ -1,6 +1,0 @@
-{"timestamp": 1770185017.6245265, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
-{"timestamp": 1770185017.6365685, "agent": "PURPLE", "event": "ANOMALY_DETECTED", "details": {"type": "BURST", "rate": 1108838.9885057472}}
-{"timestamp": 1770185023.5326285, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
-{"timestamp": 1770185028.5943265, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
-{"timestamp": 1770185029.8702042, "agent": "RED", "event": "TRIPPED_HONEYPOT", "details": {"file": "passwords.txt"}}
-{"timestamp": 1770185031.2476656, "agent": "RED", "event": "ATTACK_LAUNCHED", "details": {"technique": "T1003_ROOTKIT", "impact": 5}}

@@ -20,6 +20,7 @@ blue_rewards = {
     'waste': -15,
     'negligence': -50,
     'honeypot_trap': 100,     # Bonus for catching Red in a trap
+    'threat_hunt_success': 40, # Reward for finding threat via Feed
 }
 
 # Rewards (Red Team)
@@ -38,7 +39,7 @@ constraints = {
 }
 
 # Actions
-blue_actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DECOY"]
+blue_actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DECOY", "THREAT_HUNT"]
 red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
 
 # Honeypot Configuration
@@ -53,6 +54,7 @@ file_paths = {
     'log_file': os.path.join(BASE_DIR, "war_room.log"),
     'agents_dir': os.path.join(BASE_DIR, "agents"),
     'audit_log': os.path.join(BASE_DIR, "audit.jsonl"),
+    'threat_feed': os.path.join(BASE_DIR, "intelligence/threat_feed.json"),
 }
 
 # Logging Settings
