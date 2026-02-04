@@ -40,7 +40,7 @@ if not os.path.exists(BACKUP_DIR):
     except OSError: pass
 
 # --- HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "PROCESS_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -393,6 +393,23 @@ class BlueDefender:
                                                 mitigated += 1
                                                 break
                                 except: pass
+                    except: pass
+
+                elif action == "PROCESS_SCAN":
+                    # Hunt for malicious processes (Emulation)
+                    # We look for python processes running 'malware_live' scripts
+                    try:
+                        # Linux specific /proc scan
+                        pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
+                        for pid in pids:
+                            try:
+                                with open(os.path.join('/proc', pid, 'cmdline'), 'rb') as f:
+                                    cmd = f.read().decode().replace('\0', ' ')
+                                    if "malware_live" in cmd and "python" in cmd:
+                                        self.logger.warning(f"Malicious process detected! PID: {pid}. TERMINATING.")
+                                        os.kill(int(pid), signal.SIGKILL)
+                                        mitigated += 2 # High reward for killing active code
+                            except: pass
                     except: pass
 
                 # 5. REWARD

@@ -13,6 +13,8 @@ import uuid
 import signal
 import sys
 import logging
+import subprocess
+import shutil
 
 # Adjust path to find utils in parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,11 +27,12 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 LOG_FILE = os.path.join(BASE_DIR, "red.log")
 TARGET_DIR = "/tmp"
 PORTS_DIR = "/tmp/ports"
+PAYLOAD_TEMPLATE = os.path.join(BASE_DIR, "payloads", "malware.py")
 
 # --- HYPERPARAMETERS ---
 # Increased weight of Ransomware and Masquerade in the action set via logic tweaks if needed,
 # but simply having them available is enough for Q-learning to pick them up if they yield rewards.
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1048_EXFILTRATION"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1204_USER_EXECUTION", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1048_EXFILTRATION", "T1020_EXFIL_PASTE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -48,6 +51,7 @@ class RedAttacker:
         self.running = True
         self.epsilon = EPSILON
         self.alpha = ALPHA
+        self.active_beacons = [] # List of PIDs
         self.setup_logging()
         self.load_state()
 
@@ -69,6 +73,10 @@ class RedAttacker:
     def handle_signal(self, signum, frame):
         self.logger.info(f"Received signal {signum}. Shutting down gracefully...")
         self.running = False
+        # Kill beacons
+        for pid in self.active_beacons:
+            try: os.kill(pid, signal.SIGKILL)
+            except: pass
 
     def load_state(self):
         self.q_table = self._access_memory(Q_TABLE_FILE)
@@ -133,13 +141,18 @@ class RedAttacker:
                         impact = 3
                     except OSError: pass
 
-                elif action == "T1003_ROOTKIT":
-                    fname = os.path.join(TARGET_DIR, f".sys_shadow_{uuid.uuid4()}")
+                elif action == "T1204_USER_EXECUTION":
+                    # Drop AND EXECUTE a live payload
+                    fname = os.path.join(TARGET_DIR, f"malware_live_{uuid.uuid4()}.py")
                     try:
-                        fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                        with os.fdopen(fd, 'w') as f: f.write("uid=0(root)")
-                        impact = 5
-                    except OSError: pass
+                        shutil.copy2(PAYLOAD_TEMPLATE, fname)
+                        # Execute it!
+                        proc = subprocess.Popen([sys.executable, fname], cwd=TARGET_DIR)
+                        self.active_beacons.append(proc.pid)
+                        self.logger.info(f"Executed live payload! PID: {proc.pid}")
+                        impact = 8
+                    except Exception as e:
+                        self.logger.error(f"Failed execution: {e}")
 
                 elif action == "T1589_LURK":
                     impact = 0
