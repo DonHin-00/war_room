@@ -4,6 +4,8 @@
 
 # Exclude logs
 *.log
+logs/
+ALERTS.txt
 
 # Exclude cache
 .cache/
@@ -17,3 +19,9 @@ simulation_data/
 *.json
 !package.json
 !tsconfig.json
+!topology.json
+
+# Exclude Secrets & Checksums
+.range_secret
+*.sha256
+models/

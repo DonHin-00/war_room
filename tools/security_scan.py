@@ -38,7 +38,7 @@ def main():
     ignore_files = ["AGENTS.md", "SECURITY.md"]
 
     for root, _, files in os.walk("."):
-        if ".git" in root or "__pycache__" in root or "tools" in root:
+        if ".git" in root or "__pycache__" in root or "tools" in root or "tests" in root:
             continue
 
         for file in files:

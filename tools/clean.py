@@ -32,10 +32,19 @@ def main():
         os.path.join(base_dir, "simulation_data"),
         os.path.join(base_dir, "logs"),
         os.path.join(base_dir, "models"),
+        os.path.join(base_dir, "network_bus"),
+        os.path.join(base_dir, "backups"),
         os.path.join(base_dir, "war_state.json"),
-        os.path.join(base_dir, "blue_q_table.json"),
-        os.path.join(base_dir, "red_q_table.json"),
+        os.path.join(base_dir, "signatures.json"),
+        os.path.join(base_dir, "topology.json"),
+        os.path.join(base_dir, "sessions.json"),
+        os.path.join(base_dir, "ALERTS.txt"),
+        os.path.join(base_dir, ".range_secret"),
     ]
+
+    # Also clean orphan checksums
+    checksums = glob.glob(os.path.join(base_dir, "*.sha256"))
+    targets.extend(checksums)
 
     # Ask for confirmation
     confirm = input("Are you sure you want to delete all simulation data? [y/N] ")

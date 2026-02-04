@@ -1,0 +1,58 @@
+{
+    "35b45866": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770184143.055525
+    },
+    "2dda93b9": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770184663.2961318
+    },
+    "cfba91d4": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770186815.8098552
+    },
+    "d4c9e829": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770186870.7851186
+    },
+    "3d7bf047": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770188056.4929276
+    },
+    "d5a6ac5d": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770189226.577672
+    },
+    "1d1f9dfb": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770233934.0610905
+    },
+    "fb724512": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770235508.4622078
+    }
+}
