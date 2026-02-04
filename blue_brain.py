@@ -57,8 +57,11 @@ def engage_defense():
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
     
     # Load Q-Table once
-    q_table = utils.safe_json_read(Q_TABLE_FILE)
+    q_manager = utils.QTableManager(ACTIONS)
+    q_manager.load(utils.safe_json_read(Q_TABLE_FILE))
+
     state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
+    file_cache = utils.FileIntegrityCache()
     step_count = 0
 
     # Local optimizations
@@ -85,8 +88,7 @@ def engage_defense():
             if _random() < EPSILON:
                 action = _choice(ACTIONS)
             else:
-                # Optimized max(): pre-construct keys to avoid repeated string formatting
-                action = _max(ACTIONS, key=lambda a: q_table.get(state_key + "_" + a, 0))
+                action = q_manager.get_best_action(state_key)
             
             EPSILON = _max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
             ALPHA = _max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
@@ -106,10 +108,17 @@ def engage_defense():
                     try: os.remove(t); mitigated += 1
                     except: pass
 
-                for t in visible_threats:
+                # Only analyze NEW or MODIFIED visible files for entropy
+                # This changes complexity from O(N) to O(Delta)
+                changed_visible = file_cache.filter_changed(visible_threats)
+
+                for t in changed_visible:
                      # Only check entropy for visible files (hidden are deleted by policy above)
                     if calculate_shannon_entropy(t) > 3.5:
-                        try: os.remove(t); mitigated += 1
+                        try:
+                            os.remove(t)
+                            mitigated += 1
+                            file_cache.invalidate(t) # Remove from cache
                         except: pass
             
             elif action == "OBSERVE": pass
@@ -123,18 +132,14 @@ def engage_defense():
             if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
             
             # 6. LEARN
-            # Pre-calculate common key prefix
-            action_key = state_key + "_" + action
-            old_val = q_table.get(action_key, 0)
-
-            # Optimized max(): pre-construct keys
-            next_max = _max(q_table.get(state_key + "_" + a, 0) for a in ACTIONS)
+            old_val = q_manager.get_q(state_key, action)
+            next_max = q_manager.get_max_q(state_key)
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[action_key] = new_val
+            q_manager.update_q(state_key, action, new_val)
 
             # Sync Q-Table periodically
             if step_count % SYNC_INTERVAL == 0:
-                utils.safe_json_write(Q_TABLE_FILE, q_table)
+                utils.safe_json_write(Q_TABLE_FILE, q_manager.export())
             
             # 7. UPDATE WAR STATE
             state_changed = False

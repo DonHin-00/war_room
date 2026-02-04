@@ -41,7 +41,9 @@ def engage_offense():
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
     # Load Q-Table once
-    q_table = utils.safe_json_read(Q_TABLE_FILE)
+    q_manager = utils.QTableManager(ACTIONS)
+    q_manager.load(utils.safe_json_read(Q_TABLE_FILE))
+
     state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
     step_count = 0
 
@@ -65,8 +67,7 @@ def engage_offense():
             if _random() < EPSILON:
                 action = _choice(ACTIONS)
             else:
-                # Optimized: avoid f-string inside lambda
-                action = _max(ACTIONS, key=lambda a: q_table.get(state_key + "_" + a, 0))
+                action = q_manager.get_best_action(state_key)
                 
             EPSILON = _max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
             ALPHA = _max(0.1, ALPHA * ALPHA_DECAY)
@@ -112,18 +113,15 @@ def engage_offense():
             if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
             
             # 5. LEARN
-            action_key = state_key + "_" + action
-            old_val = q_table.get(action_key, 0)
-
-            # Optimized: avoid f-string inside generator
-            next_max = _max(q_table.get(state_key + "_" + a, 0) for a in ACTIONS)
+            old_val = q_manager.get_q(state_key, action)
+            next_max = q_manager.get_max_q(state_key)
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
-            q_table[action_key] = new_val
+            q_manager.update_q(state_key, action, new_val)
 
             # Sync Q-Table periodically
             if step_count % SYNC_INTERVAL == 0:
-                utils.safe_json_write(Q_TABLE_FILE, q_table)
+                utils.safe_json_write(Q_TABLE_FILE, q_manager.export())
             
             # 6. TRIGGER ALERTS
             if impact > 0 and _random() > 0.5:

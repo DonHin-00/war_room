@@ -16,9 +16,10 @@ def safe_file_write(file_path, data):
         fcntl.flock(file, fcntl.LOCK_UN)
 
 
-def safe_file_read(file_path):
+def safe_file_read(file_path, binary=False):
     """Read data from a file safely using locks."""
-    with open(file_path, 'r') as file:
+    mode = 'rb' if binary else 'r'
+    with open(file_path, mode) as file:
         fcntl.flock(file, fcntl.LOCK_SH)
         data = file.read()
         fcntl.flock(file, fcntl.LOCK_UN)
@@ -64,6 +65,73 @@ class SmartJSONLoader:
             return self.cache, False
         except:
             return self.cache, False
+
+class FileIntegrityCache:
+    """Tracks files to avoid re-scanning unchanged content."""
+    def __init__(self):
+        self.files = {} # path -> (mtime, size)
+
+    def filter_changed(self, filepaths):
+        """Return only files that are new or modified since last check."""
+        changed = []
+        current_files = set(filepaths)
+
+        # Cleanup deleted files from cache
+        for p in list(self.files.keys()):
+            if p not in current_files:
+                del self.files[p]
+
+        for p in filepaths:
+            try:
+                stat = os.stat(p)
+                sig = (stat.st_mtime, stat.st_size)
+                if p not in self.files or self.files[p] != sig:
+                    self.files[p] = sig
+                    changed.append(p)
+            except FileNotFoundError:
+                pass
+        return changed
+
+    def invalidate(self, filepath):
+        if filepath in self.files:
+            del self.files[filepath]
+
+class QTableManager:
+    """Manages Q-Table with caching for O(1) best action lookup."""
+    def __init__(self, actions):
+        self.q_table = {}
+        self.actions = actions
+        self.best_action_cache = {} # state_key -> action
+
+    def load(self, data):
+        self.q_table = data
+        self.best_action_cache = {} # Invalidate on load
+
+    def get_q(self, state, action):
+        return self.q_table.get(state + "_" + action, 0)
+
+    def update_q(self, state, action, value):
+        self.q_table[state + "_" + action] = value
+        # Invalidate best action cache for this state
+        if state in self.best_action_cache:
+            del self.best_action_cache[state]
+
+    def get_best_action(self, state):
+        if state in self.best_action_cache:
+            return self.best_action_cache[state]
+
+        # Find best action (standard max)
+        # Optimized: Pre-construct keys generator
+        best = max(self.actions, key=lambda a: self.q_table.get(state + "_" + a, 0))
+        self.best_action_cache[state] = best
+        return best
+
+    def get_max_q(self, state):
+        # We can also cache max_q if needed, but best_action usually implies it
+        return max(self.q_table.get(state + "_" + a, 0) for a in self.actions)
+
+    def export(self):
+        return self.q_table
 
 def adaptive_sleep(base_sleep, activity_factor, min_sleep=0.1):
     """Sleep less if active, more if idle."""
