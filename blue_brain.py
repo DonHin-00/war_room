@@ -5,7 +5,6 @@ Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: NIST SP 800-61, MITRE Shield
 """
 
-import glob
 import os
 import time
 import json
@@ -90,10 +89,21 @@ def engage_defense():
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
+            visible_threats = []
+            hidden_threats = []
             
+            try:
+                with os.scandir(WATCH_DIR) as entries:
+                    for entry in entries:
+                        if entry.is_file():
+                            if entry.name.startswith('malware_'):
+                                visible_threats.append(entry.path)
+                            elif entry.name.startswith('.sys_'):
+                                hidden_threats.append(entry.path)
+            except OSError:
+                pass # Directory might not exist or be inaccessible
+
+            all_threats = visible_threats + hidden_threats
             threat_count = len(all_threats)
             state_key = f"{current_alert}_{threat_count}"
             
