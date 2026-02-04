@@ -6,10 +6,14 @@ Frameworks: MITRE ATT&CK Matrix
 """
 
 import os
+import sys
 import time
 import random
 import logging
 from typing import Optional, List, Dict, Any
+
+# Adjust path to import from parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import (
     atomic_json_io,
@@ -40,7 +44,7 @@ C_RESET = "\033[0m"
 
 def engage_offense(max_iterations: Optional[int] = None) -> None:
     global EPSILON, ALPHA
-    
+
     msg = f"[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE"
     print(f"{C_RED}{msg}{C_RESET}")
     logger.info(msg)
@@ -81,7 +85,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
 
                 # 3. EXECUTION
                 impact = 0
-                
+
                 if action == "T1046_RECON":
                     # Low Entropy Bait
                     fname = os.path.join(target_dir, f"malware_bait_{int(time.time())}.sh")
@@ -118,13 +122,13 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     reward = config.red_rewards['stealth']
                 if current_alert == max_alert and impact > 0:
                     reward = config.red_rewards['critical']
-                
+
                 # 5. LEARN
                 old_val = q_table.get(f"{state_key}_{action}", 0.0)
                 # Optimized: Generator expression instead of list comprehension
                 next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
                 new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-                
+
                 q_table[f"{state_key}_{action}"] = new_val
 
                 # Periodic Persistence

@@ -47,6 +47,7 @@ file_paths = {
     'state_file': os.path.join(BASE_DIR, "war_state.json"),
     'watch_dir': "/tmp",
     'log_file': os.path.join(BASE_DIR, "war_room.log"),
+    'agents_dir': os.path.join(BASE_DIR, "agents"),
 }
 
 # Logging Settings

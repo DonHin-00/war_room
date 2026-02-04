@@ -6,10 +6,14 @@ Frameworks: NIST SP 800-61, MITRE Shield
 """
 
 import os
+import sys
 import time
 import random
 import logging
 from typing import Optional, List, Dict, Any
+
+# Adjust path to import from parent directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import (
     atomic_json_io,
@@ -42,7 +46,7 @@ C_RESET = "\033[0m"
 
 def engage_defense(max_iterations: Optional[int] = None) -> None:
     global EPSILON, ALPHA
-    
+
     msg = f"[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61"
     print(f"{C_CYAN}{msg}{C_RESET}")
     logger.info(msg)
@@ -166,7 +170,7 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}"
                 print(f"{C_BLUE}[BLUE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
-                
+
                 time.sleep(0.5 if current_alert >= 4 else 1.0)
 
             except Exception as e:
