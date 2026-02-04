@@ -271,19 +271,40 @@ class BlueDefender:
                     except OSError: pass
 
                 elif action == "BACKUP_CRITICAL":
-                    self.backup_created = True
-                    # In a real sim we'd copy files. Here we just set a flag and maybe creating a marker
-                    pass
+                    backup_dir = os.path.join(config.WAR_ZONE_DIR, ".blue_backups")
+                    try:
+                        if not os.path.exists(backup_dir):
+                            os.makedirs(backup_dir)
+
+                        # Backup visible files and criticals
+                        for t in visible + os.listdir(config.CRITICAL_DIR) if os.path.exists(config.CRITICAL_DIR) else []:
+                            src = t if os.path.isabs(t) else os.path.join(config.CRITICAL_DIR, t)
+                            if os.path.exists(src) and os.path.isfile(src):
+                                dst = os.path.join(backup_dir, os.path.basename(src))
+                                import shutil
+                                shutil.copy2(src, dst)
+
+                        self.backup_created = True
+                        print(f"{C_BLUE}[DEFENSE] Critical Backup Completed.{C_RESET}")
+                    except OSError: pass
 
                 elif action == "RESTORE_CRITICAL":
-                    if self.backup_created and encrypted:
+                    backup_dir = os.path.join(config.WAR_ZONE_DIR, ".blue_backups")
+                    if self.backup_created and encrypted and os.path.exists(backup_dir):
                         for enc in encrypted:
                             try:
-                                # Restore logic: Rename .enc back to original (simulated restore)
-                                orig = enc.replace(".enc", "")
-                                os.rename(enc, orig)
-                                restored += 1
-                                self.report_incident(enc, "RANSOMWARE_RECOVERY", "RESTORE")
+                                # Restore from backup if available
+                                orig_name = os.path.basename(enc).replace(".enc", "")
+                                backup_path = os.path.join(backup_dir, orig_name)
+                                orig_path = enc.replace(".enc", "")
+
+                                if os.path.exists(backup_path):
+                                    import shutil
+                                    shutil.copy2(backup_path, orig_path)
+                                    os.remove(enc) # Remove encrypted file after restore
+                                    restored += 1
+                                    self.report_incident(enc, "RANSOMWARE_RECOVERY", "RESTORE_FROM_BACKUP")
+                                    print(f"{C_BLUE}[DEFENSE] Restored {orig_name} from backup.{C_RESET}")
                             except OSError: pass
 
                 # 4. REWARD

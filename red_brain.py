@@ -270,11 +270,18 @@ class RedTeamer:
                         except OSError: pass
 
                 elif action == "T1547_PERSISTENCE":
-                    # Persistence: Create a hidden startup script
+                    # Persistence: Create an executable hidden startup script
                     fname = os.path.join(config.WAR_ZONE_DIR, f".startup_{10 + secrets.randbelow(90)}.sh")
                     try:
-                        utils.secure_create(fname, "#!/bin/bash\n./malware.sh")
+                        # Point to the actual malware payload location if it existed as a script
+                        # For emulation, we launch the python payload
+                        payload_cmd = f"{sys.executable} {os.path.join(config.BASE_DIR, 'payloads', 'malware.py')} --port {self.c2_port} --target {config.WAR_ZONE_DIR} &"
+                        content = f"#!/bin/bash\n# Persistence Mechanism\n{payload_cmd}\n"
+
+                        utils.secure_create(fname, content)
+                        os.chmod(fname, 0o700) # Make executable
                         impact = 4
+                        self.audit_logger.log_event("RED", "PERSISTENCE", f"Installed startup script {fname}")
                     except OSError: pass
 
                 elif action == "T1041_EXFILTRATION":
