@@ -43,9 +43,9 @@ EPSILON_DECAY = 0.995
 MIN_EPSILON = 0.01
 
 # --- REWARDS ---
-R_MITIGATION = 25
-R_PATIENCE = 10
-P_WASTE = -15
+R_MITIGATION = 40       # Increased reward for cleaning
+R_PATIENCE = 5          # Reduced reward for waiting (be more aggressive)
+P_WASTE = -10           # Reduced penalty for scanning (better safe than sorry)
 P_NEGLIGENCE = -50
 MAX_ALERT = 5
 MIN_ALERT = 1
@@ -80,11 +80,11 @@ class Drone(threading.Thread):
                 # Self-Improvement Logic
                 if found_threats > 0:
                     # Found something? Scan faster!
-                    self.scan_interval = max(0.5, self.scan_interval * 0.8)
-                    self.efficiency = min(1.0, self.efficiency + 0.1)
+                    self.scan_interval = max(0.2, self.scan_interval * 0.6) # Faster response
+                    self.efficiency = min(1.0, self.efficiency + 0.15)
                 else:
                     # Nothing? Relax to save resources (but stay vigilant)
-                    self.scan_interval = min(5.0, self.scan_interval * 1.1)
+                    self.scan_interval = min(3.0, self.scan_interval * 1.05) # Keep scanning frequently
                     self.efficiency = max(0.1, self.efficiency - 0.05)
 
                 time.sleep(self.scan_interval)

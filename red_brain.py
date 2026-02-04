@@ -23,6 +23,8 @@ LOG_FILE = os.path.join(BASE_DIR, "red.log")
 TARGET_DIR = "/tmp"
 
 # --- HYPERPARAMETERS ---
+# Increased weight of Ransomware and Masquerade in the action set via logic tweaks if needed,
+# but simply having them available is enough for Q-learning to pick them up if they yield rewards.
 ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
@@ -32,9 +34,9 @@ EPSILON_DECAY = 0.995
 MIN_EPSILON = 0.01
 
 # --- REWARDS ---
-R_IMPACT = 10
-R_STEALTH = 15
-R_CRITICAL = 30
+R_IMPACT = 15           # More points for successful drops
+R_STEALTH = 10          # Less points for lurking (encourage action)
+R_CRITICAL = 50         # Huge bonus for critical impact
 MAX_ALERT = 5
 
 class RedAttacker:
