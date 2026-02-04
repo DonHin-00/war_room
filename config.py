@@ -2,22 +2,27 @@ import os
 
 # --- PATHS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WAR_ZONE_DIR = os.path.join(BASE_DIR, "battlefield")
+BATTLEFIELD_ROOT = os.path.join(BASE_DIR, "battlefield")
 DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
 INCIDENT_DIR = os.path.join(DATA_DIR, "incidents")
-PROC_DIR = os.path.join(WAR_ZONE_DIR, ".proc") # Simulated process list
 
-# Ensure directories exist
-os.makedirs(WAR_ZONE_DIR, exist_ok=True, mode=0o700)
-os.makedirs(DATA_DIR, exist_ok=True, mode=0o700)
-os.makedirs(INCIDENT_DIR, exist_ok=True, mode=0o700)
-# PROC_DIR creation handled by agents/runner to ensure freshness
+# Network Zones (Segregated Environment)
+ZONES = {
+    "DMZ": os.path.join(BATTLEFIELD_ROOT, "dmz"),
+    "USER": os.path.join(BATTLEFIELD_ROOT, "user"),
+    "SERVER": os.path.join(BATTLEFIELD_ROOT, "server"),
+    "CORE": os.path.join(BATTLEFIELD_ROOT, "core"),
+}
+
+# Process Directory (Simulated RAM)
+PROC_DIR = os.path.join(BASE_DIR, ".proc")
 
 PATHS = {
     "BASE_DIR": BASE_DIR,
-    "WAR_ZONE": WAR_ZONE_DIR,
+    "WAR_ZONE": BATTLEFIELD_ROOT,
+    "ZONES": ZONES,
     "PROC": PROC_DIR,
-    "DATA_DIR": DATA_DIR, # Added for Watchdog
+    "DATA_DIR": DATA_DIR,
     "Q_TABLE_RED": os.path.join(DATA_DIR, "red_q_table.json"),
     "Q_TABLE_BLUE": os.path.join(DATA_DIR, "blue_q_table.json"),
     "WAR_STATE": os.path.join(DATA_DIR, "war_state.json"),
@@ -50,22 +55,25 @@ RED = {
         "T1003_ROOTKIT",
         "T1589_LURK",
         "T1036_MASQUERADE",
-        "T1486_ENCRYPT",    # Ransomware
-        "T1071_C2_BEACON",  # C2 Communication
-        "T1055_INJECTION",  # Process Injection
-        "T1070_WIPE_LOGS"   # Anti-Forensics
+        "T1486_ENCRYPT",
+        "T1071_C2_BEACON",
+        "T1055_INJECTION",
+        "T1070_WIPE_LOGS",
+        "T1021_LATERAL_MOVE" # New Action
     ],
     "REWARDS": {
         "IMPACT": 10,
         "STEALTH": 15,
-        "CRITICAL": 30,
+        "CRITICAL": 50, # Higher reward for CORE access
         "PENALTY_TRAPPED": -20,
-        "PERSISTENCE": 25   # Reward for successful injection
+        "PERSISTENCE": 25,
+        "LATERAL_SUCCESS": 20
     }
 }
 
 # --- BLUE TEAM CONFIG ---
 BLUE = {
+    "LAYERS": ["SENSOR", "ANALYZER", "HUNTER", "RESPONDER"],
     "ACTIONS": [
         "SIGNATURE_SCAN",
         "HEURISTIC_SCAN",
@@ -73,10 +81,11 @@ BLUE = {
         "IGNORE",
         "DEPLOY_TRAP",
         "DEPLOY_DECOY",
-        "BACKUP_CRITICAL",  # Backup data
-        "RESTORE_DATA",     # Restore from backup
-        "HUNT_PROCESSES",   # Kill hidden processes
-        "VERIFY_INTEGRITY"  # Checksum verification
+        "BACKUP_CRITICAL",
+        "RESTORE_DATA",
+        "HUNT_PROCESSES",
+        "VERIFY_INTEGRITY",
+        "ISOLATE_ZONE" # New Action
     ],
     "REWARDS": {
         "MITIGATION": 25,
@@ -86,7 +95,8 @@ BLUE = {
         "PENALTY_NEGLIGENCE": -50,
         "ANOMALY_BONUS": 20,
         "RESTORE_SUCCESS": 40,
-        "INTEGRITY_BONUS": 15
+        "INTEGRITY_BONUS": 15,
+        "ISOLATION_BONUS": 30
     },
     "THRESHOLDS": {
         "ENTROPY": 3.5,
@@ -98,6 +108,6 @@ BLUE = {
 SYSTEM = {
     "MAX_ALERT_LEVEL": 5,
     "MIN_ALERT_LEVEL": 1,
-    "RESOURCE_LIMIT_MB": 512, # Hard RAM limit
-    "CPU_LIMIT_SECONDS": 600  # Run time limit
+    "RESOURCE_LIMIT_MB": 512,
+    "CPU_LIMIT_SECONDS": 600
 }

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 War Room Orchestrator
-Runs the AI Cyber War Simulation (Blue vs Red) in a controlled environment.
-Now with Watchdog integration for resilience.
+Runs the AI Cyber War Simulation (Blue vs Red) in a 4-Layer Segregated SOC.
 """
 
 import subprocess
@@ -16,10 +15,23 @@ import shutil
 
 # --- UTILS ---
 def clean_battlefield():
-    """Wipes the war zone."""
+    """Wipes the war zone and recreates the 4-layer architecture."""
     if os.path.exists(config.PATHS["WAR_ZONE"]):
         shutil.rmtree(config.PATHS["WAR_ZONE"])
+
     os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True, mode=0o700)
+
+    # Create Segregated Zones
+    for zone_name, zone_path in config.ZONES.items():
+        os.makedirs(zone_path, exist_ok=True, mode=0o700)
+        # Create dummy assets
+        with open(os.path.join(zone_path, "readme.txt"), 'w') as f:
+            f.write(f"Welcome to {zone_name} Zone")
+
+    # Create Proc Dir if not exists
+    if os.path.exists(config.PATHS["PROC"]):
+        shutil.rmtree(config.PATHS["PROC"])
+    os.makedirs(config.PATHS["PROC"], exist_ok=True, mode=0o700)
 
 def reset_memory():
     """Wipes Q-Tables and State."""
@@ -30,20 +42,13 @@ def reset_memory():
 
 # --- MAIN RUNNER ---
 def run_simulation(duration=60, reset=False):
-    print(f"🚀 Initializing War Room Simulation...")
+    print(f"🚀 Initializing 4-Layer SOC Simulation...")
 
     if reset:
         print("🧹 Resetting Memory and State...")
         reset_memory()
 
     clean_battlefield()
-
-    # Start Agents directly via Watchdog or alongside it?
-    # Requirement: "Integrate Watchdog... Spawn watchdog alongside agents."
-    # AND "Watchdog... monitors... restarts"
-    # So Simulation Runner spawns Watchdog, Watchdog spawns/manages Agents.
-    # OR Simulation Runner spawns everything and Watchdog monitors.
-    # The watchdog script I wrote spawns agents. So Runner just needs to spawn Watchdog.
 
     print("🐕 Deploying Daemon Watchdog (Manager)...")
     watchdog_proc = subprocess.Popen([sys.executable, "tools/watchdog.py"],
@@ -64,15 +69,13 @@ def run_simulation(duration=60, reset=False):
         print("\n🛑 Simulation Aborted by User.")
     finally:
         print("🛑 Terminating Simulation...")
-        # Killing Watchdog should trigger its cleanup (it traps SIGINT)
         watchdog_proc.send_signal(signal.SIGINT)
         try:
             watchdog_proc.wait(timeout=5)
         except:
             watchdog_proc.kill()
 
-        # Ensure agents are dead if Watchdog failed to kill them
-        # (Cleanup is good practice)
+        # Cleanup child agents
         os.system("pkill -f red_brain.py")
         os.system("pkill -f blue_brain.py")
 
