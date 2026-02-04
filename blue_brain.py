@@ -12,112 +12,71 @@ import random
 import signal
 import sys
 import logging
+import hashlib
 import collections
-from typing import Dict, Any, List, Deque
+from typing import Dict, Any, List, Deque, Set
 
 import utils
-
-# --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-WATCH_DIR = "/tmp"
-
-# Make sure we identify as friendly
-os.environ["WAR_ROOM_ROLE"] = "BLUE"
-
-# --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_TRAP"]
-MIN_EPSILON = 0.01
-
-# --- REWARD CONFIGURATION (AI PERSONALITY) ---
-R_MITIGATION = 25       # Reward for killing a threat
-R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
-R_TRAP = 50             # Reward for Red Team triggering a honeypot
-P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
-P_NEGLIGENCE = -50      # Penalty for ignoring active malware
-MAX_ALERT = 5
-MIN_ALERT = 1
-
-# --- VISUALS ---
-C_BLUE = "\033[94m"
-C_CYAN = "\033[96m"
-C_RESET = "\033[0m"
+import config
 
 # Setup Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format=f"{C_BLUE}[%(levelname)s] %(message)s{C_RESET}"
-)
+utils.setup_logging(config.PATHS["LOG_BLUE"])
 logger = logging.getLogger("BlueTeam")
 
-# --- DEFENSIVE UTILITIES ---
-
-class StateManager:
+class SignatureDatabase:
     """
-    Manages state persistence with caching and optimization.
-    Uses utils.py for safe file operations.
+    Manages known bad file hashes (Adaptive Immunity).
     """
-    def __init__(self):
-        self.state_cache: Dict[str, Any] = {}
-        self.state_mtime: float = 0.0
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+        self.signatures: Set[str] = set()
+        self.load()
 
-    def load_json(self, filepath: str) -> Dict[str, Any]:
-        """Safely loads JSON data from a file."""
-        return utils.safe_json_read(filepath)
+    def load(self):
+        data = utils.safe_json_read(self.filepath)
+        if isinstance(data, list):
+            self.signatures = set(data)
 
-    def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
-        """Safely saves JSON data to a file using atomic write patterns."""
-        utils.safe_json_write(filepath, data)
+    def save(self):
+        utils.safe_json_write(self.filepath, list(self.signatures))
 
-    def get_war_state(self) -> Dict[str, Any]:
-        """Retrieves the shared war state with mtime caching."""
-        if not os.path.exists(STATE_FILE):
-            return {'blue_alert_level': 1}
-        try:
-            mtime = os.stat(STATE_FILE).st_mtime
-            if mtime > self.state_mtime:
-                self.state_cache = self.load_json(STATE_FILE)
-                self.state_mtime = mtime
-        except OSError: pass
-        return self.state_cache
+    def add_signature(self, file_content: bytes):
+        """Hashes content and adds to DB."""
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        if file_hash not in self.signatures:
+            self.signatures.add(file_hash)
+            self.save()
+            logger.info(f"Learned new signature: {file_hash[:8]}...")
 
-    def update_war_state(self, updates: Dict[str, Any]) -> None:
-        """Updates the shared war state."""
-        current = self.load_json(STATE_FILE)
-        current.update(updates)
-        self.save_json(STATE_FILE, current)
-        self.state_cache = current
-        try:
-            self.state_mtime = os.stat(STATE_FILE).st_mtime
-        except OSError:
-            self.state_mtime = time.time()
+    def check_signature(self, file_content: bytes) -> bool:
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        return file_hash in self.signatures
 
 class BlueDefender:
     def __init__(self):
-        self.alpha = 0.4
-        self.alpha_decay = 0.9999
-        self.gamma = 0.9
-        self.epsilon = 0.3
-        self.epsilon_decay = 0.995
+        self.alpha = config.RL["ALPHA"]
+        self.alpha_decay = config.RL["ALPHA_DECAY"]
+        self.gamma = config.RL["GAMMA"]
+        self.epsilon = config.RL["EPSILON_START"]
+        self.epsilon_decay = config.RL["EPSILON_DECAY"]
 
         self.q_table: Dict[str, float] = {}
         self.running = True
-        self.state_manager = StateManager()
+        self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+        self.signature_db = SignatureDatabase(config.PATHS["SIGNATURES"])
 
-        # Anomaly Detection: Sliding window of file counts
-        self.threat_history: Deque[int] = collections.deque(maxlen=10)
+        self.threat_history: Deque[int] = collections.deque(maxlen=config.BLUE["THRESHOLDS"]["ANOMALY_WINDOW"])
         self.traps_deployed = False
 
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
     def load_memory(self):
-        self.q_table = self.state_manager.load_json(Q_TABLE_FILE)
+        self.q_table = self.state_manager.load_json(config.PATHS["Q_TABLE_BLUE"])
         logger.info(f"Memory Loaded. Q-Table Size: {len(self.q_table)}")
 
     def sync_memory(self):
-        self.state_manager.save_json(Q_TABLE_FILE, self.q_table)
+        self.state_manager.save_json(config.PATHS["Q_TABLE_BLUE"], self.q_table)
 
     def shutdown(self, signum, frame):
         logger.info("Shutting down... Syncing memory.")
@@ -126,33 +85,20 @@ class BlueDefender:
         sys.exit(0)
 
     def detect_anomaly(self, current_threat_count: int) -> bool:
-        """Detects sudden spikes in threat activity."""
         self.threat_history.append(current_threat_count)
         if len(self.threat_history) < 3: return False
-
         avg = sum(self.threat_history) / len(self.threat_history)
-        if current_threat_count > avg * 2 and current_threat_count > 2:
-            return True
-        return False
+        return current_threat_count > avg * 2 and current_threat_count > 2
 
     def deploy_nasty_defenses(self):
-        """Deploys Tar Pits and Logic Bombs."""
-        if not os.path.exists(WATCH_DIR): return
-
-        # Tar Pit (looks like a log file)
-        utils.create_tar_pit(os.path.join(WATCH_DIR, "system_access.log"))
-
-        # Logic Bomb / Obfuscated Honeypot (looks like shadow file)
-        utils.create_logic_bomb(os.path.join(WATCH_DIR, "shadow_backup"))
-
-        # Another decoy
-        utils.create_logic_bomb(os.path.join(WATCH_DIR, "sys_config.dat"))
-
+        if not os.path.exists(config.PATHS["WAR_ZONE"]): return
+        utils.create_tar_pit(os.path.join(config.PATHS["WAR_ZONE"], "access.log"))
+        utils.create_logic_bomb(os.path.join(config.PATHS["WAR_ZONE"], "shadow_backup"))
         self.traps_deployed = True
-        logger.info("NASTY DEFENSES DEPLOYED: Tar Pits & Logic Bombs Active.")
+        logger.info("NASTY DEFENSES DEPLOYED.")
 
     def engage(self):
-        logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
+        logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61 + Adaptive Immunity")
         self.load_memory()
 
         while self.running:
@@ -163,101 +109,114 @@ class BlueDefender:
                 current_alert = war_state.get('blue_alert_level', 1)
 
                 # 2. DETECTION
-                visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-                hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-                all_threats = visible_threats + hidden_threats
+                if not os.path.exists(config.PATHS["WAR_ZONE"]):
+                    os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
+
+                visible_threats = []
+                all_threats = []
+
+                with os.scandir(config.PATHS["WAR_ZONE"]) as it:
+                    for entry in it:
+                        if utils.is_tar_pit(entry.path) or utils.is_honeypot(entry.path):
+                            continue
+                        if entry.is_file():
+                            all_threats.append(entry.path)
+                            if "malware" in entry.name:
+                                visible_threats.append(entry.path)
 
                 threat_count = len(all_threats)
 
                 anomaly_detected = self.detect_anomaly(threat_count)
-                if anomaly_detected:
-                    logger.warning("ANOMALY DETECTED: Threat Surge!")
-                    if current_alert < MAX_ALERT:
-                        self.state_manager.update_war_state({'blue_alert_level': min(MAX_ALERT, current_alert + 1)})
+                if anomaly_detected and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
+                    self.state_manager.update_war_state({'blue_alert_level': min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)})
 
                 state_key = f"{current_alert}_{threat_count}"
 
                 # 3. DECISION
                 if random.random() < self.epsilon:
-                    action = random.choice(ACTIONS)
+                    action = random.choice(config.BLUE["ACTIONS"])
                 else:
                     best_action = None
                     max_q = -float('inf')
-                    for a in ACTIONS:
+                    for a in config.BLUE["ACTIONS"]:
                         q = self.q_table.get(f"{state_key}_{a}", 0.0)
                         if q > max_q:
                             max_q = q
                             best_action = a
-                    action = best_action if best_action else random.choice(ACTIONS)
+                    action = best_action if best_action else random.choice(config.BLUE["ACTIONS"])
 
-                self.epsilon = max(MIN_EPSILON, self.epsilon * self.epsilon_decay)
+                self.epsilon = max(config.RL["EPSILON_MIN"], self.epsilon * self.epsilon_decay)
                 self.alpha = max(0.1, self.alpha * self.alpha_decay)
 
                 # 4. EXECUTION
                 mitigated = 0
 
-                if action == "DEPLOY_TRAP":
+                if action == "DEPLOY_TRAP" or action == "DEPLOY_DECOY":
                     if not self.traps_deployed:
                         self.deploy_nasty_defenses()
 
                 elif action == "SIGNATURE_SCAN":
-                    for t in visible_threats:
-                        if utils.is_tar_pit(t): continue # Don't delete our own traps unintentionally
-                        try: os.remove(t); mitigated += 1
+                    # Fast scan based on known hashes
+                    for t in all_threats:
+                        try:
+                            # Safe read first 4KB for hashing (optimization)
+                            data = utils.safe_file_read(t, timeout=0.1)
+                            # Actually, for hash we need full file, but let's assume
+                            # we only hash headers for speed in simulation or small files.
+                            # In simulation, files are small.
+                            if self.signature_db.check_signature(data):
+                                os.remove(t)
+                                mitigated += 1
                         except: pass
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
-                        # Avoid scanning our own traps!
-                        if utils.is_tar_pit(t) or utils.is_honeypot(t):
-                            continue
-
-                        entropy = 0.0
                         try:
-                            if not os.path.islink(t):
-                                # Use safe read with timeout to avoid accidental stuck if logic fails
-                                # Though we rely on 'is_tar_pit' check primarily
-                                data = utils.safe_file_read(t, timeout=0.1)
-                                entropy = utils.calculate_entropy(data)
-                        except Exception:
-                            entropy = 0.0
+                            data = utils.safe_file_read(t, timeout=0.1)
+                            entropy = utils.calculate_entropy(data)
 
-                        if ".sys" in t or entropy > 3.5:
-                            try: os.remove(t); mitigated += 1
-                            except: pass
+                            # Detection Logic
+                            if ".sys" in t or entropy > config.BLUE["THRESHOLDS"]["ENTROPY"]:
+                                os.remove(t)
+                                mitigated += 1
+                                # LEARN THE THREAT
+                                self.signature_db.add_signature(data)
+                        except: pass
 
                 # 5. REWARDS
                 reward = 0
-                if mitigated > 0: reward = R_MITIGATION
-                if action == "DEPLOY_TRAP" and not self.traps_deployed: reward = R_TRAP
-                if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
-                if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
-                if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-                if anomaly_detected and action == "HEURISTIC_SCAN": reward += 20
+                if mitigated > 0: reward = config.BLUE["REWARDS"]["MITIGATION"]
+                if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.BLUE["REWARDS"]["PENALTY_WASTE"]
+                if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE["REWARDS"]["PATIENCE"]
+                if action == "IGNORE" and threat_count > 0: reward = config.BLUE["REWARDS"]["PENALTY_NEGLIGENCE"]
+                if anomaly_detected and action == "HEURISTIC_SCAN": reward += config.BLUE["REWARDS"]["ANOMALY_BONUS"]
 
                 # 6. LEARN
                 current_q_key = f"{state_key}_{action}"
                 old_val = self.q_table.get(current_q_key, 0.0)
                 next_max = -float('inf')
-                for a in ACTIONS:
+                for a in config.BLUE["ACTIONS"]:
                     q = self.q_table.get(f"{state_key}_{a}", 0.0)
                     if q > next_max: next_max = q
                 if next_max == -float('inf'): next_max = 0.0
 
                 new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
                 self.q_table[current_q_key] = new_val
+
+                # Sync every iteration for Blue (Sentinel must be reliable),
+                # but could optimize if needed. Sticking to robust.
                 self.sync_memory()
 
                 # 7. UPDATE WAR STATE
-                if mitigated > 0 and current_alert < MAX_ALERT:
-                    self.state_manager.update_war_state({'blue_alert_level': min(MAX_ALERT, current_alert + 1)})
-                elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                    self.state_manager.update_war_state({'blue_alert_level': max(MIN_ALERT, current_alert - 1)})
+                if mitigated > 0 and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
+                    self.state_manager.update_war_state({'blue_alert_level': min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)})
+                elif mitigated == 0 and current_alert > config.SYSTEM["MIN_ALERT_LEVEL"] and action == "OBSERVE":
+                    self.state_manager.update_war_state({'blue_alert_level': max(config.SYSTEM["MIN_ALERT_LEVEL"], current_alert - 1)})
 
                 icon = "🛡️" if mitigated == 0 else "⚔️"
                 logger.info(f"{icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
 
-                time.sleep(0.5 if current_alert >= 4 else 1.0)
+                time.sleep(random.uniform(0.1, 0.5))
 
             except KeyboardInterrupt:
                 self.shutdown(None, None)
@@ -265,9 +224,5 @@ class BlueDefender:
                 logger.error(f"Loop Error: {e}")
                 time.sleep(1)
 
-def engage_defense():
-    bot = BlueDefender()
-    bot.engage()
-
 if __name__ == "__main__":
-    engage_defense()
+    BlueDefender().engage()

@@ -10,7 +10,7 @@ import collections
 import time
 import errno
 import stat  # Added import
-from typing import Any, Union, List, Tuple, Deque
+from typing import Any, Union, List, Tuple, Deque, Dict
 
 # Utility functions
 
@@ -178,6 +178,50 @@ def is_honeypot(filepath: str) -> bool:
         return "sys_config.dat" in filepath or "shadow_backup" in filepath
     except:
         return False
+
+# --- STATE MANAGEMENT ---
+
+class StateManager:
+    """
+    Manages state persistence with caching and optimization.
+    Uses utils.py for safe file operations.
+    Moved to utils to avoid circular imports or duplication.
+    """
+    def __init__(self, state_file: str):
+        self.state_file = state_file
+        self.state_cache: Dict[str, Any] = {}
+        self.state_mtime: float = 0.0
+
+    def load_json(self, filepath: str) -> Dict[str, Any]:
+        """Safely loads JSON data from a file."""
+        return safe_json_read(filepath)
+
+    def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
+        """Safely saves JSON data to a file using atomic write patterns."""
+        safe_json_write(filepath, data)
+
+    def get_war_state(self) -> Dict[str, Any]:
+        """Retrieves the shared war state with mtime caching."""
+        if not os.path.exists(self.state_file):
+            return {'blue_alert_level': 1}
+        try:
+            mtime = os.stat(self.state_file).st_mtime
+            if mtime > self.state_mtime:
+                self.state_cache = self.load_json(self.state_file)
+                self.state_mtime = mtime
+        except OSError: pass
+        return self.state_cache
+
+    def update_war_state(self, updates: Dict[str, Any]) -> None:
+        """Updates the shared war state."""
+        current = self.load_json(self.state_file)
+        current.update(updates)
+        self.save_json(self.state_file, current)
+        self.state_cache = current
+        try:
+            self.state_mtime = os.stat(self.state_file).st_mtime
+        except OSError:
+            self.state_mtime = time.time()
 
 def manage_session(session_id):
     """Manage a user session given a session ID."""

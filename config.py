@@ -1,35 +1,70 @@
-# Centralized Configuration for Red and Blue Teams
+import os
 
-# Hyperparameters
-hyperparameters = {
-    'learning_rate': 0.001,
-    'num_episodes': 1000,
-    'discount_factor': 0.99,
+# --- PATHS ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WAR_ZONE_DIR = os.path.join(BASE_DIR, "battlefield")
+DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
+
+# Ensure directories exist
+os.makedirs(WAR_ZONE_DIR, exist_ok=True, mode=0o700)
+os.makedirs(DATA_DIR, exist_ok=True, mode=0o700)
+
+PATHS = {
+    "BASE_DIR": BASE_DIR,
+    "WAR_ZONE": WAR_ZONE_DIR,
+    "Q_TABLE_RED": os.path.join(DATA_DIR, "red_q_table.json"),
+    "Q_TABLE_BLUE": os.path.join(DATA_DIR, "blue_q_table.json"),
+    "WAR_STATE": os.path.join(DATA_DIR, "war_state.json"),
+    "SIGNATURES": os.path.join(DATA_DIR, "signatures.json"),
+    "LOG_RED": os.path.join(BASE_DIR, "red.log"),
+    "LOG_BLUE": os.path.join(BASE_DIR, "blue.log"),
+    "LOG_MAIN": os.path.join(BASE_DIR, "war_room.log"),
 }
 
-# Rewards
-rewards = {
-    'victory': 10,
-    'defeat': -10,
-    'draw': 5,
+# --- HYPERPARAMETERS ---
+RL = {
+    "ALPHA": 0.4,
+    "ALPHA_DECAY": 0.9999,
+    "GAMMA": 0.9,
+    "EPSILON_START": 0.3,
+    "EPSILON_MIN": 0.01,
+    "EPSILON_DECAY": 0.995,
+    "BATCH_SIZE": 8,
+    "MEMORY_CAPACITY": 1000,
+    "SYNC_INTERVAL": 10
 }
 
-# Actions
-actions = [
-    'attack',
-    'defend',
-    'retreat',
-    'gather_information'
-]
-
-# File Paths
-file_paths = {
-    'model_save_path': './models/',
-    'log_file_path': './logs/train.log',
+# --- RED TEAM CONFIG ---
+RED = {
+    "ACTIONS": ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE"],
+    "REWARDS": {
+        "IMPACT": 10,
+        "STEALTH": 15,
+        "CRITICAL": 30,
+        "PENALTY_TRAPPED": -20
+    }
 }
 
-# Logging Settings
-logging_settings = {
-    'log_level': 'INFO',
-    'log_format': '%(asctime)s - %(levelname)s - %(message)s',
+# --- BLUE TEAM CONFIG ---
+BLUE = {
+    "ACTIONS": ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_TRAP", "DEPLOY_DECOY"],
+    "REWARDS": {
+        "MITIGATION": 25,
+        "PATIENCE": 10,
+        "TRAP_SUCCESS": 50,
+        "PENALTY_WASTE": -15,
+        "PENALTY_NEGLIGENCE": -50,
+        "ANOMALY_BONUS": 20
+    },
+    "THRESHOLDS": {
+        "ENTROPY": 3.5,
+        "ANOMALY_WINDOW": 10
+    }
+}
+
+# --- SYSTEM SETTINGS ---
+SYSTEM = {
+    "MAX_ALERT_LEVEL": 5,
+    "MIN_ALERT_LEVEL": 1,
+    "RESOURCE_LIMIT_MB": 512
 }
