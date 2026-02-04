@@ -1,4 +1,3 @@
-cat > /root/war_room/red_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Red Team)
@@ -10,12 +9,25 @@ import os
 import time
 import json
 import random
+import logging
+import secrets
+
+# Configure Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("RedBrain")
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = "/tmp"
+TARGET_DIR = os.path.join(BASE_DIR, "simulation_data")
+
+# Ensure secure directory exists
+if not os.path.exists(TARGET_DIR):
+    os.makedirs(TARGET_DIR, mode=0o700)
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
@@ -37,22 +49,37 @@ C_RED = "\033[91m"
 C_RESET = "\033[0m"
 
 # --- UTILITIES ---
+def secure_create(filepath, content, is_binary=False):
+    """Securely create a file, failing if it exists (Atomic)."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    mode = 0o600
+    try:
+        fd = os.open(filepath, flags, mode)
+        with os.fdopen(fd, 'wb' if is_binary else 'w') as f:
+            f.write(content)
+        return True
+    except OSError:
+        return False
+
 def access_memory(filepath, data=None):
     if data is not None:
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
+        except Exception as e:
+            logger.error(f"Memory write failed {filepath}: {e}")
     if os.path.exists(filepath):
         try:
             with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
+        except Exception as e:
+            logger.error(f"Memory read failed {filepath}: {e}")
+            return {}
     return {}
 
 # --- MAIN LOOP ---
 
 def engage_offense():
     global EPSILON, ALPHA
-    print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+    logger.info(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
     while True:
         try:
@@ -79,27 +106,21 @@ def engage_offense():
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
-                try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
+                fname = os.path.join(TARGET_DIR, f"malware_bait_{secrets.token_hex(8)}.sh")
+                if secure_create(fname, "echo 'scan'"):
                     impact = 1
-                except: pass
                 
             elif action == "T1027_OBFUSCATE":
                 # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
-                try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                fname = os.path.join(TARGET_DIR, f"malware_crypt_{secrets.token_hex(8)}.bin")
+                if secure_create(fname, os.urandom(1024), is_binary=True):
                     impact = 3
-                except: pass
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
-                try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
+                fname = os.path.join(TARGET_DIR, f".sys_shadow_{secrets.token_hex(8)}")
+                if secure_create(fname, "uid=0(root)"):
                     impact = 5
-                except: pass
                 
             elif action == "T1589_LURK":
                 impact = 0
@@ -123,15 +144,15 @@ def engage_offense():
                 war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
                 access_memory(STATE_FILE, war_state)
             
-            print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
+            logger.info(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             
             time.sleep(random.uniform(0.5, 1.5))
             
         except KeyboardInterrupt:
             break
-        except Exception:
+        except Exception as e:
+            logger.error(f"Loop error: {e}")
             time.sleep(1)
 
 if __name__ == "__main__":
     engage_offense()
-EOF
