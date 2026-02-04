@@ -11,6 +11,8 @@ PATHS = {
     'STATE_FILE': os.path.join(BASE_DIR, "war_state.json"),
     'BATTLEFIELD': os.path.join(BASE_DIR, "battlefield"),
     'SESSIONS_DIR': os.path.join(BASE_DIR, "sessions"),
+    'SIGNATURE_DB': os.path.join(BASE_DIR, "signatures.json"),
+    'EVOLUTION_LOG': os.path.join(BASE_DIR, "evolution.json"),
 }
 
 # Ensure directories exist

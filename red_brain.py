@@ -26,6 +26,7 @@ import config
 Q_TABLE_FILE = config.PATHS['RED_Q_TABLE']
 STATE_FILE = config.PATHS['STATE_FILE']
 TARGET_DIR = config.PATHS['BATTLEFIELD']
+EVOLUTION_LOG = config.PATHS['EVOLUTION_LOG']
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = config.RED['ACTIONS']
@@ -58,14 +59,18 @@ class RedTeamer:
     def __init__(self, reset=False):
         self.running = True
         self.q_table = {}
+        self.evolution = {}
 
         if reset:
             print(f"{C_RED}[RED AI] Resetting Q-Table...{C_RESET}")
             self.q_table = {}
+            self.evolution = {}
             access_memory(Q_TABLE_FILE, self.q_table)
+            access_memory(EVOLUTION_LOG, self.evolution)
         else:
-            # Load initial Q-table
+            # Load initial Q-table and Evolution Log
             self.q_table = access_memory(Q_TABLE_FILE)
+            self.evolution = access_memory(EVOLUTION_LOG)
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.handle_shutdown)
@@ -79,6 +84,16 @@ class RedTeamer:
 
     def save_state(self):
         access_memory(Q_TABLE_FILE, self.q_table)
+        access_memory(EVOLUTION_LOG, self.evolution)
+
+    def log_evolution(self, technique, success):
+        """Record the success of a specific technique."""
+        if technique not in self.evolution:
+            self.evolution[technique] = {'attempts': 0, 'success': 0}
+
+        self.evolution[technique]['attempts'] += 1
+        if success:
+            self.evolution[technique]['success'] += 1
 
     def run(self):
         global EPSILON, ALPHA
@@ -114,14 +129,21 @@ class RedTeamer:
                         with open(fname, 'w') as f: f.write("echo 'scan'")
                         impact = 1
                     except: pass
+                    self.log_evolution("T1046_RECON", impact > 0)
 
                 elif action == "T1027_OBFUSCATE":
                     # High Entropy Binary
+                    # If T1027 has high success rate, maybe increase payload size?
+                    payload_size = 1024
+                    if self.evolution.get('T1027_OBFUSCATE', {}).get('success', 0) > 5:
+                        payload_size = 2048 # Evolve!
+
                     fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
                     try:
-                        with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                        with open(fname, 'wb') as f: f.write(os.urandom(payload_size))
                         impact = 3
                     except: pass
+                    self.log_evolution("T1027_OBFUSCATE", impact > 0)
 
                 elif action == "T1003_ROOTKIT":
                     # Hidden File
@@ -130,9 +152,11 @@ class RedTeamer:
                         with open(fname, 'w') as f: f.write("uid=0(root)")
                         impact = 5
                     except: pass
+                    self.log_evolution("T1003_ROOTKIT", impact > 0)
 
                 elif action == "T1589_LURK":
                     impact = 0
+                    self.log_evolution("T1589_LURK", True) # Always successful to lurk
 
                 # 4. REWARDS
                 reward = 0

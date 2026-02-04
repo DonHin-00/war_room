@@ -27,6 +27,7 @@ import config
 Q_TABLE_FILE = config.PATHS['BLUE_Q_TABLE']
 STATE_FILE = config.PATHS['STATE_FILE']
 WATCH_DIR = config.PATHS['BATTLEFIELD']
+SIGNATURE_DB = config.PATHS['SIGNATURE_DB']
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = config.BLUE['ACTIONS']
@@ -76,14 +77,18 @@ class BlueDefender:
     def __init__(self, reset=False):
         self.running = True
         self.q_table = {}
+        self.signatures = {}
 
         if reset:
             print(f"{C_BLUE}[BLUE AI] Resetting Q-Table...{C_RESET}")
             self.q_table = {}
+            self.signatures = {}
             access_memory(Q_TABLE_FILE, self.q_table)
+            access_memory(SIGNATURE_DB, self.signatures)
         else:
-            # Load initial Q-table
+            # Load initial Q-table and Signatures
             self.q_table = access_memory(Q_TABLE_FILE)
+            self.signatures = access_memory(SIGNATURE_DB)
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self.handle_shutdown)
@@ -97,6 +102,28 @@ class BlueDefender:
 
     def save_state(self):
         access_memory(Q_TABLE_FILE, self.q_table)
+        access_memory(SIGNATURE_DB, self.signatures)
+
+    def learn_signature(self, filepath):
+        """Memorize the signature of a confirmed threat."""
+        try:
+            with open(filepath, 'rb') as f:
+                content = f.read()
+                # Simple hash for signature (using entropy as a proxy key for now,
+                # but a checksum would be better. Let's use simple size+entropy as a signature)
+                entropy = utils.calculate_entropy(content)
+                sig_key = f"{len(content)}_{entropy:.4f}"
+                self.signatures[sig_key] = "MALICIOUS"
+        except: pass
+
+    def check_signature(self, filepath):
+        try:
+            with open(filepath, 'rb') as f:
+                content = f.read()
+                entropy = utils.calculate_entropy(content)
+                sig_key = f"{len(content)}_{entropy:.4f}"
+                return sig_key in self.signatures
+        except: return False
 
     def run(self):
         global EPSILON, ALPHA
@@ -144,13 +171,27 @@ class BlueDefender:
 
                 if action == "SIGNATURE_SCAN":
                     for t in visible_threats:
-                        try: os.remove(t); mitigated += 1
-                        except: pass
+                        # Check against known signatures first (Fast Path)
+                        if self.check_signature(t):
+                             try: os.remove(t); mitigated += 1
+                             except: pass
+                        else:
+                            # Basic cleanup
+                            try: os.remove(t); mitigated += 1
+                            except: pass
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
                         # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                        if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                        # If we find something high entropy, learn it!
+                        is_threat = False
+                        if ".sys" in t:
+                            is_threat = True
+                        elif calculate_shannon_entropy(t) > 3.5:
+                            is_threat = True
+                            self.learn_signature(t)
+
+                        if is_threat:
                             try: os.remove(t); mitigated += 1
                             except: pass
 
@@ -163,7 +204,7 @@ class BlueDefender:
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
                 if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
                 if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-                
+
                 # 6. LEARN
                 old_val = self.q_table.get(f"{state_key}_{action}", 0)
                 next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
