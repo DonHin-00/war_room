@@ -5,6 +5,7 @@ import math
 import random
 import json
 import time
+import hashlib
 
 # Utility functions
 
@@ -120,3 +121,35 @@ def manage_session(session_id):
     except IOError as e:
         logging.error(f"Error managing session {session_id}: {e}")
 
+class AuditLogger:
+    def __init__(self):
+        try:
+            from config import PATHS
+            self.log_file = PATHS['AUDIT_LOG']
+        except ImportError:
+            self.log_file = os.path.join(BASE_DIR, "audit.jsonl")
+
+    def log_event(self, actor, action, target, details=None):
+        """Log an event to the immutable audit log."""
+        event = {
+            "timestamp": time.time(),
+            "actor": actor,
+            "action": action,
+            "target": target,
+            "details": details or {},
+            "hash": self._calculate_hash(actor, action, target)
+        }
+
+        try:
+            with open(self.log_file, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(event) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception as e:
+            logging.error(f"Failed to write audit log: {e}")
+
+    def _calculate_hash(self, actor, action, target):
+        """Simple hash chain (mock) for integrity."""
+        # In a real system, we'd include the previous hash.
+        raw = f"{time.time()}:{actor}:{action}:{target}"
+        return hashlib.sha256(raw.encode()).hexdigest()

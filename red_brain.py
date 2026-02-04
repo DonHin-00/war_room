@@ -60,6 +60,7 @@ class RedTeamer:
         self.running = True
         self.q_table = {}
         self.evolution = {}
+        self.audit = utils.AuditLogger()
 
         if reset:
             print(f"{C_RED}[RED AI] Resetting Q-Table...{C_RESET}")
@@ -128,6 +129,7 @@ class RedTeamer:
                     try:
                         with open(fname, 'w') as f: f.write("echo 'scan'")
                         impact = 1
+                        self.audit.log_event("RED", "ATTACK_BAIT", fname)
                     except: pass
                     self.log_evolution("T1046_RECON", impact > 0)
 
@@ -142,6 +144,7 @@ class RedTeamer:
                     try:
                         with open(fname, 'wb') as f: f.write(os.urandom(payload_size))
                         impact = 3
+                        self.audit.log_event("RED", "ATTACK_OBFUSCATE", fname, {"size": payload_size})
                     except: pass
                     self.log_evolution("T1027_OBFUSCATE", impact > 0)
 
@@ -151,6 +154,7 @@ class RedTeamer:
                     try:
                         with open(fname, 'w') as f: f.write("uid=0(root)")
                         impact = 5
+                        self.audit.log_event("RED", "ATTACK_ROOTKIT", fname)
                     except: pass
                     self.log_evolution("T1003_ROOTKIT", impact > 0)
 

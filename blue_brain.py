@@ -78,6 +78,7 @@ class BlueDefender:
         self.running = True
         self.q_table = {}
         self.signatures = {}
+        self.audit = utils.AuditLogger()
 
         if reset:
             print(f"{C_BLUE}[BLUE AI] Resetting Q-Table...{C_RESET}")
@@ -114,6 +115,7 @@ class BlueDefender:
                 entropy = utils.calculate_entropy(content)
                 sig_key = f"{len(content)}_{entropy:.4f}"
                 self.signatures[sig_key] = "MALICIOUS"
+                self.audit.log_event("BLUE", "LEARN_SIGNATURE", sig_key, {"entropy": entropy})
         except: pass
 
     def check_signature(self, filepath):
@@ -173,11 +175,15 @@ class BlueDefender:
                     for t in visible_threats:
                         # Check against known signatures first (Fast Path)
                         if self.check_signature(t):
-                             try: os.remove(t); mitigated += 1
+                             try:
+                                 os.remove(t); mitigated += 1
+                                 self.audit.log_event("BLUE", "MITIGATE_KNOWN", t)
                              except: pass
                         else:
                             # Basic cleanup
-                            try: os.remove(t); mitigated += 1
+                            try:
+                                os.remove(t); mitigated += 1
+                                self.audit.log_event("BLUE", "MITIGATE_BASIC", t)
                             except: pass
 
                 elif action == "HEURISTIC_SCAN":
@@ -192,7 +198,9 @@ class BlueDefender:
                             self.learn_signature(t)
 
                         if is_threat:
-                            try: os.remove(t); mitigated += 1
+                            try:
+                                os.remove(t); mitigated += 1
+                                self.audit.log_event("BLUE", "MITIGATE_HEURISTIC", t)
                             except: pass
 
                 elif action == "OBSERVE": pass

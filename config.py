@@ -13,6 +13,7 @@ PATHS = {
     'SESSIONS_DIR': os.path.join(BASE_DIR, "sessions"),
     'SIGNATURE_DB': os.path.join(BASE_DIR, "signatures.json"),
     'EVOLUTION_LOG': os.path.join(BASE_DIR, "evolution.json"),
+    'AUDIT_LOG': os.path.join(BASE_DIR, "audit.jsonl"),
 }
 
 # Ensure directories exist
