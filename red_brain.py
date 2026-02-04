@@ -54,6 +54,9 @@ def engage_offense():
 
     last_state_key = None
     last_action = None
+
+    # Track the last file dropped to see if it survives (Blue Team Defense Check)
+    last_dropped_file = None
     
     while True:
         try:
@@ -63,7 +66,14 @@ def engage_offense():
             q_table = access_memory(config.PATHS['RED_Q_TABLE'])
             
             current_alert = war_state.get('blue_alert_level', 1)
-            state_key = f"{current_alert}"
+
+            # Check if last attack survived
+            attack_survived = 0
+            if last_dropped_file and os.path.exists(last_dropped_file):
+                attack_survived = 1
+
+            # Smart State: Alert + Survival Status
+            state_key = f"{current_alert}_{attack_survived}"
             
             # 2. STRATEGY
             if random.random() < epsilon:
@@ -75,6 +85,7 @@ def engage_offense():
             # 3. EXECUTION
             impact = 0
             target_dir = config.PATHS['TARGET_DIR']
+            current_drop = None
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
@@ -82,6 +93,7 @@ def engage_offense():
                 try: 
                     with open(fname, 'w') as f: f.write("echo 'scan'")
                     impact = 1
+                    current_drop = fname
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
@@ -90,6 +102,7 @@ def engage_offense():
                 try:
                     with open(fname, 'wb') as f: f.write(os.urandom(1024))
                     impact = 3
+                    current_drop = fname
                 except: pass
                 
             elif action == "T1003_ROOTKIT":
@@ -98,10 +111,12 @@ def engage_offense():
                 try:
                     with open(fname, 'w') as f: f.write("uid=0(root)")
                     impact = 5
+                    current_drop = fname
                 except: pass
                 
             elif action == "T1589_LURK":
                 impact = 0
+                current_drop = last_dropped_file # Keep tracking previous file
 
             # 4. REWARDS
             reward = 0
@@ -109,24 +124,30 @@ def engage_offense():
             if current_alert >= 4 and action == "T1589_LURK": reward = config.RED['REWARDS']['STEALTH']
             if current_alert == config.SIMULATION['MAX_ALERT'] and impact > 0: reward = config.RED['REWARDS']['CRITICAL']
             
+            # Bonus: If attack survived when we wanted it to (Impact > 0), small bonus
+            if attack_survived and action != "T1589_LURK":
+                reward += 5
+
+            # Penalty: If we tried to attack but previous one was killed instantly, maybe we are being too noisy
+            if not attack_survived and last_dropped_file is not None and action != "T1589_LURK":
+                reward -= 5
+
             # 5. LEARN & MEMORIZE
             if last_state_key is not None and last_action is not None:
-                # Add to memory: (s, a, r, s')
                 memory.append((last_state_key, last_action, reward, state_key))
 
-                # Update Q-table immediately (Online Learning)
                 old_val = q_table.get(f"{last_state_key}_{last_action}", 0)
                 next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
                 new_val = old_val + alpha * (reward + HP['GAMMA'] * next_max - old_val)
                 q_table[f"{last_state_key}_{last_action}"] = new_val
 
-                # Experience Replay (Batch Learning)
                 q_table = experience_replay(memory, HP['BATCH_SIZE'], q_table, alpha, HP['GAMMA'], ACTIONS)
 
                 access_memory(config.PATHS['RED_Q_TABLE'], q_table)
 
             last_state_key = state_key
             last_action = action
+            last_dropped_file = current_drop
             
             # Decay Hyperparameters
             epsilon = max(HP['MIN_EPSILON'], epsilon * HP['EPSILON_DECAY'])

@@ -88,8 +88,13 @@ def engage_defense():
             hidden_threats = glob.glob(os.path.join(config.PATHS['WATCH_DIR'], '.sys_*'))
             all_threats = visible_threats + hidden_threats
             
+            has_visible = 1 if visible_threats else 0
+            has_hidden = 1 if hidden_threats else 0
+
             threat_count = len(all_threats)
-            state_key = f"{current_alert}_{threat_count}"
+
+            # Smart State: Alert + Visible + Hidden
+            state_key = f"{current_alert}_{has_visible}_{has_hidden}"
             
             # 3. DECISION
             if random.random() < epsilon:
@@ -123,27 +128,14 @@ def engage_defense():
             if action == "IGNORE" and threat_count > 0: reward = config.BLUE['REWARDS']['NEGLIGENCE']
             
             # 6. LEARN & MEMORIZE
-            # Store experience from PREVIOUS step to CURRENT step
-            # We need (s, a, r, s') -> (last_state, last_action, reward, current_state)
-            # But here we calculated reward based on current action.
-            # Standard Q-learning updates Q(s,a) using r + max Q(s', a').
-            # So we use current 'state_key', 'action', 'reward'. The 'next_state' will be determined in next loop?
-            # Actually, standard loop is: Observe S -> Take A -> Observe R, S'
-            # Here we Observe S (state_key) -> Take A (action) -> Calculate R (reward).
-            # We don't know S' until the environment reacts (next iteration).
-            # So we defer learning until we see the NEW state.
-            
             if last_state_key is not None and last_action is not None:
-                # Add to memory: (s, a, r, s')
                 memory.append((last_state_key, last_action, reward, state_key))
 
-                # Update Q-table immediately (Online Learning)
                 old_val = q_table.get(f"{last_state_key}_{last_action}", 0)
                 next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
                 new_val = old_val + alpha * (reward + HP['GAMMA'] * next_max - old_val)
                 q_table[f"{last_state_key}_{last_action}"] = new_val
 
-                # Experience Replay (Batch Learning)
                 q_table = experience_replay(memory, HP['BATCH_SIZE'], q_table, alpha, HP['GAMMA'], ACTIONS)
 
                 access_memory(config.PATHS['BLUE_Q_TABLE'], q_table)
@@ -165,7 +157,6 @@ def engage_defense():
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"
-            # Get current Q value for display
             curr_q = q_table.get(f"{state_key}_{action}", 0)
             print(f"\033[94m[BLUE AI]\033[0m {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {curr_q:.2f}")
             
