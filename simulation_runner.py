@@ -3,17 +3,40 @@ import time
 import os
 import signal
 import sys
+import shutil
 
 def main():
     print("Starting Adversarial Simulation...")
 
+    # Setup isolated environment
+    war_zone_dir = os.path.abspath("war_zone")
+    if os.path.exists(war_zone_dir):
+        shutil.rmtree(war_zone_dir)
+    os.makedirs(war_zone_dir)
+    print(f"Created isolated war zone at: {war_zone_dir}")
+
+    env = os.environ.copy()
+    env["WAR_ZONE_DIR"] = war_zone_dir
+
     # Start Blue Team
     print("Launching Blue Team...")
-    blue_process = subprocess.Popen(["python3", "-u", "blue_brain.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    blue_process = subprocess.Popen(
+        [sys.executable, "-u", "blue_brain.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env
+    )
 
     # Start Red Team
     print("Launching Red Team...")
-    red_process = subprocess.Popen(["python3", "-u", "red_brain.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    red_process = subprocess.Popen(
+        [sys.executable, "-u", "red_brain.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env
+    )
 
     duration = 20
     print(f"Running simulation for {duration} seconds...")
@@ -63,6 +86,14 @@ def main():
         if red_stderr:
             print("\n--- Red Team Errors ---")
             print(red_stderr)
+
+        # Cleanup
+        print(f"\nCleaning up {war_zone_dir}...")
+        try:
+            shutil.rmtree(war_zone_dir)
+            pass
+        except Exception as e:
+            print(f"Error cleaning up: {e}")
 
         print("\nSimulation complete.")
 

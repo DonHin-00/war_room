@@ -17,7 +17,7 @@ import utils
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-WATCH_DIR = "/tmp"
+WATCH_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]

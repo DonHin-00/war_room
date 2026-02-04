@@ -25,7 +25,7 @@ def safe_file_read(file_path):
 
 
 def calculate_entropy(data):
-    """Calculate the entropy of a string of data."""
+    """Calculate the entropy of a string or bytes of data."""
     if len(data) == 0:
         return 0
     counter = collections.Counter(data)

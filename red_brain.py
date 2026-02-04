@@ -14,7 +14,7 @@ import random
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-TARGET_DIR = "/tmp"
+TARGET_DIR = os.environ.get("WAR_ZONE_DIR", "/tmp")
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
