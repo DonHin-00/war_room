@@ -6,6 +6,8 @@ import random
 import json
 import time
 import hashlib
+import resource
+import sys
 
 # Utility functions
 
@@ -46,6 +48,9 @@ def safe_json_write(file_path, data):
     try:
         json_str = json.dumps(data, indent=4)
         safe_file_write(file_path, json_str)
+        # Update checksum
+        checksum = hashlib.sha256(json_str.encode()).hexdigest()
+        safe_file_write(file_path + ".checksum", checksum)
     except (TypeError, ValueError) as e:
         logging.error(f"Error serializing JSON to {file_path}: {e}")
 
@@ -55,6 +60,16 @@ def safe_json_read(file_path):
     content = safe_file_read(file_path)
     if not content:
         return {}
+
+    # Verify checksum if it exists
+    checksum_file = file_path + ".checksum"
+    if os.path.exists(checksum_file):
+        expected = safe_file_read(checksum_file).strip()
+        actual = hashlib.sha256(content.encode()).hexdigest()
+        if expected and expected != actual:
+            logging.error(f"Integrity check failed for {file_path}! Discarding corrupted data.")
+            return {}
+
     try:
         return json.loads(content)
     except json.JSONDecodeError as e:
@@ -91,6 +106,17 @@ def calculate_entropy(data):
     probabilities = [float(data.count(x)) / len(data) for x in set(data)]
     entropy = -sum(p * math.log2(p) for p in probabilities)
     return entropy
+
+def calculate_checksum(file_path):
+    """Calculate SHA256 checksum of a file."""
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except FileNotFoundError:
+        return None
 
 
 def setup_logging(log_file_path):
@@ -176,3 +202,41 @@ class AuditLogger:
         # In a real system, we'd include the previous hash.
         raw = f"{time.time()}:{actor}:{action}:{target}"
         return hashlib.sha256(raw.encode()).hexdigest()
+
+def limit_resources():
+    """Limit CPU and Memory usage to prevent runaway AI."""
+    # Limit CPU time to 60 seconds (Soft) / 120 seconds (Hard) per process
+    # Note: In a real long-running sim, we might want this higher or disabled.
+    # For this demo, it prevents infinite loops locking the container.
+    try:
+        # resource.setrlimit(resource.RLIMIT_CPU, (60, 120))
+        pass # Disabled for now to allow long-running dash session
+    except ValueError:
+        pass
+
+    # Limit Memory to 512MB
+    try:
+        limit = 512 * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    except ValueError:
+        pass
+
+def check_disk_usage(limit_mb=100):
+    """Ensure simulation doesn't fill the disk."""
+    try:
+        from config import PATHS
+        battlefield = PATHS['BATTLEFIELD']
+        total_size = 0
+        for dirpath, dirnames, filenames in os.walk(battlefield):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                total_size += os.path.getsize(fp)
+
+        if total_size > limit_mb * 1024 * 1024:
+            logging.warning("Battlefield size limit reached! Cleaning up...")
+            # Emergency cleanup
+            for f in os.listdir(battlefield):
+                try: os.remove(os.path.join(battlefield, f))
+                except: pass
+    except Exception as e:
+        logging.error(f"Disk check failed: {e}")
