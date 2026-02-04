@@ -43,7 +43,8 @@ def engage_offense():
                 logger.warning("Corrupted state detected, resetting.")
                 war_state = {'blue_alert_level': 1}
 
-            q_table = utils.safe_json_read(config.Q_TABLE_RED)
+            # Read Q-Table with Integrity Check
+            q_table = utils.safe_json_read(config.Q_TABLE_RED, verify_checksum=True)
             
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
@@ -61,6 +62,11 @@ def engage_offense():
             # 3. EXECUTION
             impact = 0
             
+            # Resource Check
+            if not utils.check_disk_usage(config.SIMULATION_DATA_DIR, config.MAX_DIR_SIZE_MB):
+                logger.warning("Target saturated. Halting attack to preserve environment.")
+                action = "T1589_LURK" # Force Lurk
+
             if action == "T1046_RECON":
                 # Low Entropy Bait
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f"malware_bait_{secrets.token_hex(8)}.sh")
@@ -94,11 +100,13 @@ def engage_offense():
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
-            utils.safe_json_write(config.Q_TABLE_RED, q_table)
+            # Write Q-Table with Integrity Checksum
+            utils.safe_json_write(config.Q_TABLE_RED, q_table, write_checksum=True)
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
                 war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
+                war_state['timestamp'] = time.time()
                 utils.safe_json_write(config.STATE_FILE, war_state)
             
             logger.info(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")

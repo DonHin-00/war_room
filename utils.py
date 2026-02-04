@@ -5,6 +5,7 @@ import math
 import random
 import json
 import sys
+import hashlib
 
 # Configure Logging for Utils
 logger = logging.getLogger("Utils")
@@ -49,7 +50,7 @@ def secure_create(filepath, content, is_binary=False):
     except OSError:
         return False
 
-def safe_json_write(file_path, data):
+def safe_json_write(file_path, data, write_checksum=False):
     """Write JSON data to a file safely using locks."""
     try:
         # Atomic write pattern: write to temp, flush, sync, rename?
@@ -60,6 +61,11 @@ def safe_json_write(file_path, data):
             file.flush()
             os.fsync(file.fileno())
             fcntl.flock(file, fcntl.LOCK_UN)
+
+        if write_checksum:
+            checksum = calculate_checksum(data)
+            safe_file_write(file_path + ".sha256", checksum)
+
         return True
     except TypeError as e:
         logger.error(f"JSON Serialization failed for {file_path}: {e}")
@@ -68,7 +74,12 @@ def safe_json_write(file_path, data):
         logger.error(f"Failed to write JSON {file_path}: {e}")
         return False
 
-def safe_json_read(file_path, default=None):
+def calculate_checksum(data_dict):
+    """Calculate SHA256 checksum of a dictionary."""
+    encoded = json.dumps(data_dict, sort_keys=True).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+
+def safe_json_read(file_path, default=None, verify_checksum=False):
     """Read JSON data from a file safely using locks."""
     if default is None:
         default = {}
@@ -82,10 +93,23 @@ def safe_json_read(file_path, default=None):
             # Handle empty files
             content = file.read()
             if not content.strip():
+                fcntl.flock(file, fcntl.LOCK_UN)
                 return default
             file.seek(0)
             data = json.load(file)
             fcntl.flock(file, fcntl.LOCK_UN)
+
+        if verify_checksum:
+            checksum_file = file_path + ".sha256"
+            if os.path.exists(checksum_file):
+                current_checksum = calculate_checksum(data)
+                stored_checksum = safe_file_read(checksum_file).strip()
+                if current_checksum != stored_checksum:
+                    logger.error(f"INTEGRITY ERROR: Checksum mismatch for {file_path}!")
+                    return default
+            else:
+                logger.warning(f"No checksum found for {file_path}, assuming first run.")
+
         return data
     except json.JSONDecodeError as e:
         logger.error(f"JSON Decode failed for {file_path}: {e}")
@@ -124,6 +148,11 @@ def validate_state(state):
         val = state['blue_alert_level']
         if not isinstance(val, int) or val < 0:
             return False
+
+    # Validate Timestamp/Sequence if present
+    if 'timestamp' in state and not isinstance(state['timestamp'], (int, float)):
+        return False
+
     return True
 
 def check_root():
@@ -149,3 +178,19 @@ def setup_logging(name, log_file=None):
         logger.addHandler(file_handler)
 
     return logger
+
+def get_directory_size_mb(path):
+    """Calculate directory size in MB."""
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+    return total_size / (1024 * 1024)
+
+def check_disk_usage(path, max_mb):
+    """Check if directory usage exceeds limit."""
+    if get_directory_size_mb(path) > max_mb:
+        return False
+    return True

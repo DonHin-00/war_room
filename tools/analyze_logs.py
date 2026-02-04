@@ -44,5 +44,15 @@ def analyze_logs():
     score_diff = stats['blue_kills'] * 25 - stats['red_impact'] * 10
     print(f"\nNet Score (approx): {score_diff}")
 
+    # Learning Analysis
+    if stats['blue_kills'] + stats['red_impact'] > 0:
+        ratio = stats['blue_kills'] / (stats['blue_kills'] + stats['red_impact'])
+        print(f"Blue Defense Ratio: {ratio:.2f}")
+
+    if stats['errors'] == 0:
+        print("\n✅ System Stability: OPTIMAL")
+    else:
+        print("\n⚠️ System Stability: DEGRADED")
+
 if __name__ == "__main__":
     analyze_logs()

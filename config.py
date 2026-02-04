@@ -45,6 +45,9 @@ RED_REWARDS = {
 MIN_ALERT = 1
 MAX_ALERT = 5
 
+# Resource Limits
+MAX_DIR_SIZE_MB = 100  # 100MB limit for simulation data
+
 # Ensure directories exist
 for d in [SIMULATION_DATA_DIR, MODELS_DIR, LOGS_DIR]:
     if not os.path.exists(d):

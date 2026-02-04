@@ -45,13 +45,28 @@ def engage_defense():
                 logger.warning("Corrupted state detected, resetting.")
                 war_state = {'blue_alert_level': 1}
 
-            q_table = utils.safe_json_read(config.Q_TABLE_BLUE)
+            # Read Q-Table with Integrity Check
+            q_table = utils.safe_json_read(config.Q_TABLE_BLUE, verify_checksum=True)
             
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '.sys_*'))
+            # Resource Protection (Anti-DoS)
+            if not utils.check_disk_usage(config.SIMULATION_DATA_DIR, config.MAX_DIR_SIZE_MB):
+                logger.critical("DISK QUOTA EXCEEDED! Initiating Emergency Purge.")
+                # Emergency Purge
+                files = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '*'))
+                for f in files:
+                    try:
+                        if not os.path.islink(f): os.remove(f)
+                    except Exception: pass
+                # Reset threats list after purge
+                visible_threats = []
+                hidden_threats = []
+            else:
+                visible_threats = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, 'malware_*'))
+                hidden_threats = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, '.sys_*'))
+
             all_threats = visible_threats + hidden_threats
             
             threat_count = len(all_threats)
@@ -129,15 +144,21 @@ def engage_defense():
             next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS])
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             q_table[f"{state_key}_{action}"] = new_val
-            utils.safe_json_write(config.Q_TABLE_BLUE, q_table)
+            # Write Q-Table with Integrity Checksum
+            utils.safe_json_write(config.Q_TABLE_BLUE, q_table, write_checksum=True)
             
             # 7. UPDATE WAR STATE
+            state_changed = False
             if mitigated > 0 and current_alert < config.MAX_ALERT:
                 war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
+                state_changed = True
             elif mitigated == 0 and current_alert > config.MIN_ALERT and action == "OBSERVE":
                 war_state['blue_alert_level'] = max(config.MIN_ALERT, current_alert - 1)
+                state_changed = True
                 
-            utils.safe_json_write(config.STATE_FILE, war_state)
+            if state_changed:
+                war_state['timestamp'] = time.time()
+                utils.safe_json_write(config.STATE_FILE, war_state)
             
             # LOG
             icon = "🛡️" if mitigated == 0 else "⚔️"
