@@ -507,3 +507,82 @@ def steganography_decode(image_path):
                 return json.loads(base64.b64decode(raw).decode())
     except Exception: pass
     return None
+
+class RLBrain:
+    """Robust Q-Learning Agent with Persistence and Federation."""
+    def __init__(self, name, actions, learning_rate=0.1, discount=0.9, epsilon=0.1):
+        self.name = name
+        self.actions = actions
+        self.lr = learning_rate
+        self.gamma = discount
+        self.epsilon = epsilon
+        self.q_table = {}
+
+        # Path
+        import config
+        self.file_path = os.path.join(config.MODELS_DIR, f"{name}_qtable.json")
+        self.load()
+
+    def get_q(self, state, action):
+        return self.q_table.get(f"{state}_{action}", 0.0)
+
+    def choose_action(self, state):
+        """Epsilon-greedy selection."""
+        if random.random() < self.epsilon:
+            return random.choice(self.actions)
+
+        # Argmax
+        q_values = [self.get_q(state, a) for a in self.actions]
+        max_q = max(q_values)
+
+        # Handle ties randomly
+        candidates = [self.actions[i] for i, q in enumerate(q_values) if q == max_q]
+        return random.choice(candidates)
+
+    def learn(self, state, action, reward, next_state):
+        """Q-Learning Update."""
+        current_q = self.get_q(state, action)
+        max_next_q = max([self.get_q(next_state, a) for a in self.actions])
+
+        new_q = current_q + self.lr * (reward + self.gamma * max_next_q - current_q)
+        self.q_table[f"{state}_{action}"] = new_q
+
+        # Periodic Save? Or caller handles it?
+        # Let's save every time for safety in this chaotic sim, or rely on caller 'sync'
+        pass
+
+    def merge(self, other_q_table):
+        """Federated Learning: Average weights with peer."""
+        for key, val in other_q_table.items():
+            current = self.q_table.get(key, 0.0)
+            # Weighted average (Trust self slightly more? Or 50/50)
+            self.q_table[key] = (current + val) / 2.0
+
+    def save(self):
+        safe_json_write(self.file_path, self.q_table, write_checksum=True)
+
+    def load(self):
+        self.q_table = safe_json_read(self.file_path, default={}, verify_checksum=True)
+
+class AnomalyDetector:
+    """Unsupervised Z-Score Anomaly Detection."""
+    def __init__(self, window_size=20):
+        self.history = []
+        self.window_size = window_size
+
+    def add_datapoint(self, value):
+        self.history.append(value)
+        if len(self.history) > self.window_size:
+            self.history.pop(0)
+
+    def is_anomaly(self, value, threshold=3.0):
+        if len(self.history) < 5: return False
+
+        mean = sum(self.history) / len(self.history)
+        variance = sum([((x - mean) ** 2) for x in self.history]) / len(self.history)
+        std_dev = math.sqrt(variance)
+
+        if std_dev == 0: return False
+
+        z_score = (value - mean) / std_dev
+        return abs(z_score) > threshold

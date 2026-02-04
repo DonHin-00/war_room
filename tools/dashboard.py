@@ -111,11 +111,19 @@ def draw_dashboard(stdscr):
             stdscr.addstr(8, 2, f"META: {meta}", curses.A_BLINK)
 
         # --- BRAIN ACTIVITY ---
-        stdscr.addstr(10, 2, "[ BRAIN ACTIVITY ]", curses.color_pair(4))
-        # Estimate learning progress by file size of q-tables if they existed,
-        # or we just show active node counts as 'Neurons'
-        stdscr.addstr(11, 2, f"Red Neurons:  {len(red_nodes)}")
-        stdscr.addstr(12, 2, f"Blue Neurons: {len(blue_nodes)}")
+        stdscr.addstr(10, 2, "[ MACHINE LEARNING METRICS ]", curses.color_pair(4))
+
+        # Read Model Stats
+        try:
+            model_files = os.listdir(config.MODELS_DIR)
+            total_size = sum([os.path.getsize(os.path.join(config.MODELS_DIR, f)) for f in model_files])
+            model_count = len(model_files)
+
+            stdscr.addstr(11, 2, f"Active Models: {model_count}")
+            stdscr.addstr(12, 2, f"Knowledge Base: {total_size} bytes")
+            stdscr.addstr(13, 2, "Federated Sync: ACTIVE")
+        except:
+            stdscr.addstr(11, 2, "ML Status: INITIALIZING...")
 
         # Simple Circle Layout
         try:

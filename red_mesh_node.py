@@ -38,25 +38,21 @@ class RedMeshNode:
         }
 
         # RL Brain (Adversarial)
-        self.q_table = {}
-        self.epsilon = 0.3
-        self.alpha = 0.4
+        self.brain = utils.RLBrain(f"RedNode-{NODE_ID}", ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE"])
+
+    def get_state(self):
+        # Quantize state: (PeerCount_Bucket, Success_Bool)
+        peer_bucket = "LOW" if len(self.peers) < 3 else "HIGH"
+        return f"{peer_bucket}"
 
     def choose_strategy(self):
-        """Select action based on Q-Learning."""
-        actions = ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE"]
-        state = "DEFAULT" # Simplified state
-
-        if random.random() < self.epsilon:
-            return random.choice(actions)
-        else:
-            return max(actions, key=lambda a: self.q_table.get(f"{state}_{a}", 0))
+        return self.brain.choose_action(self.get_state())
 
     def learn(self, action, reward):
-        """Update Q-Table."""
-        state = "DEFAULT"
-        old_val = self.q_table.get(f"{state}_{action}", 0)
-        self.q_table[f"{state}_{action}"] = old_val + self.alpha * (reward - old_val)
+        state = self.get_state()
+        # Assume next state is same for simplicity in this loop
+        self.brain.learn(state, action, reward, state)
+        self.brain.save()
 
     def setup_multicast(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -79,6 +75,7 @@ class RedMeshNode:
             "type": msg_type,
             "payload": payload,
             "genes": self.genes, # Share genes for Crossover
+            "brain": self.brain.q_table, # Federated Learning
             "ts": time.time()
         }
         data = json.dumps(msg).encode('utf-8')
@@ -175,6 +172,10 @@ class RedMeshNode:
                 # Gene Harvesting
                 if 'genes' in msg:
                     self.peer_genes[sender] = msg['genes']
+
+                # Federated Learning
+                if 'brain' in msg:
+                    self.brain.merge(msg['brain'])
 
                 if sender not in self.peers:
                     self.peers.add(sender)

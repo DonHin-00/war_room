@@ -106,9 +106,9 @@ class BlueSwarmAgent:
         self.soar = SoarEngine(self.token)
 
         # RL Defense
-        self.q_table = {}
-        self.epsilon = 0.2
-        self.alpha = 0.3
+        self.brain = utils.RLBrain(f"BlueSwarm-{AGENT_ID}",
+                                   ["TIGHTEN_TRUST", "LOOSEN_TRUST", "SOAR_LOCKDOWN", "HUNT_AGGRESSIVE"])
+        self.anomaly_engine = utils.AnomalyDetector()
 
         # Insider Threat Logic
         self.is_rogue = random.random() < 0.1 # 10% chance
@@ -254,32 +254,36 @@ class BlueSwarmAgent:
                 peer = random.choice(list(self.trust_db.keys()))
                 self.broadcast_vouch(peer)
 
+            # Anomaly Detection Input
+            # Simulating file ops metric
+            file_ops = len(os.listdir(config.SIMULATION_DATA_DIR))
+            self.anomaly_engine.add_datapoint(file_ops)
+            is_anomaly = self.anomaly_engine.is_anomaly(file_ops)
+
             # RL Defense Decision
             threat_level = len(self.immunity_db)
-            actions = ["TIGHTEN_TRUST", "LOOSEN_TRUST", "SOAR_LOCKDOWN", "HUNT_AGGRESSIVE"]
+            state = "ANOMALY" if is_anomaly else ("HIGH_THREAT" if threat_level > 5 else "LOW_THREAT")
 
-            if random.random() < self.epsilon:
-                action = random.choice(actions)
-            else:
-                state = "HIGH_THREAT" if threat_level > 5 else "LOW_THREAT"
-                action = max(actions, key=lambda a: self.q_table.get(f"{state}_{a}", 0))
+            action = self.brain.choose_action(state)
 
             reward = 0
             if action == "TIGHTEN_TRUST":
-                # Logic: Increase trust threshold
-                reward = 2 if threat_level > 5 else -1
+                reward = 2 if is_anomaly else -1
             elif action == "SOAR_LOCKDOWN":
-                self.soar.evaluate(threat_level + 10) # Force eval
-                reward = 5 if threat_level > 10 else -5
+                if is_anomaly or threat_level > 10:
+                    self.soar.evaluate(threat_level + 10)
+                    reward = 10
+                else:
+                    reward = -5 # False Positive
             elif action == "HUNT_AGGRESSIVE":
-                # Trigger EDR Scan
                 self.edr.scan_processes()
-                reward = 3
+                reward = 5 if is_anomaly else 1
+            elif action == "LOOSEN_TRUST":
+                reward = 1 if not is_anomaly else -10
 
             # Learn
-            state = "HIGH_THREAT" if threat_level > 5 else "LOW_THREAT"
-            old_val = self.q_table.get(f"{state}_{action}", 0)
-            self.q_table[f"{state}_{action}"] = old_val + self.alpha * (reward - old_val)
+            self.brain.learn(state, action, reward, state)
+            self.brain.save()
 
             time.sleep(2)
 
