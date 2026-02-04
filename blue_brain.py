@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -86,8 +85,18 @@ def engage_defense():
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
+            visible_threats = []
+            hidden_threats = []
+            try:
+                with os.scandir(WATCH_DIR) as entries:
+                    for entry in entries:
+                        if entry.name.startswith('malware_'):
+                            visible_threats.append(entry.path)
+                        elif entry.name.startswith('.sys_'):
+                            hidden_threats.append(entry.path)
+            except OSError:
+                pass
+
             all_threats = visible_threats + hidden_threats
             
             threat_count = len(all_threats)
@@ -156,4 +165,3 @@ def engage_defense():
 
 if __name__ == "__main__":
     engage_defense()
-EOF
