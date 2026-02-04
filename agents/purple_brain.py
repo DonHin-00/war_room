@@ -47,6 +47,10 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
     last_file_count = 0
     last_check_time = time.time()
 
+    # BALANCING METRICS
+    consecutive_low_alert = 0
+    consecutive_high_alert = 0
+
     iteration = 0
     try:
         while True:
@@ -59,7 +63,41 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 war_state: Dict[str, Any] = atomic_json_io(state_file)
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                # 2. BURST DETECTION (Anomaly Detection)
+                # 2. ADAPTIVE BALANCING
+                # If alert is low for too long -> Boost Red (Simulate Zero-Day?)
+                if current_alert == 1:
+                    consecutive_low_alert += 1
+                    consecutive_high_alert = 0
+                elif current_alert == 5:
+                    consecutive_high_alert += 1
+                    consecutive_low_alert = 0
+                else:
+                    consecutive_low_alert = 0
+                    consecutive_high_alert = 0
+
+                balancing_act = ""
+
+                if consecutive_low_alert > 5:
+                    # Game is boring. Inject a conflict.
+                    def stimulate_conflict(state):
+                        state['blue_alert_level'] = 3
+                        return state
+                    atomic_json_update(state_file, stimulate_conflict)
+                    balancing_act = " | ⚡ INJECTED CONFLICT (Boredom Prevention)"
+                    audit.log("PURPLE", "GAME_BALANCE", {"action": "ESCALATE", "reason": "BOREDOM"})
+                    consecutive_low_alert = 0
+
+                if consecutive_high_alert > 10:
+                    # Blue is overwhelmed. De-escalate.
+                    def calm_down(state):
+                        state['blue_alert_level'] = 3
+                        return state
+                    atomic_json_update(state_file, calm_down)
+                    balancing_act = " | 🕊️  ENFORCED CEASEFIRE (Mercy Rule)"
+                    audit.log("PURPLE", "GAME_BALANCE", {"action": "DEESCALATE", "reason": "MERCY"})
+                    consecutive_high_alert = 0
+
+                # 3. BURST DETECTION (Anomaly Detection)
                 current_time = time.time()
                 current_file_count = 0
                 try:
@@ -83,11 +121,7 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 last_file_count = current_file_count
                 last_check_time = current_time
 
-                # 3. BALANCE
-                # If alert level stays MAX for too long (e.g., > 10 iterations of Purple),
-                # we could decay it. (Not implemented yet, just logging)
-
-                log_msg = f"⚖️  Status Check: Alert Level {current_alert} | Files: {current_file_count}"
+                log_msg = f"⚖️  Status Check: Alert Level {current_alert} | Files: {current_file_count}{balancing_act}"
                 print(f"{C_PURPLE}[PURPLE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
 

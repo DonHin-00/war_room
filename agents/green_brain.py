@@ -18,13 +18,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import (
     atomic_json_io,
     atomic_json_update,
-    setup_logging
+    setup_logging,
+    AuditLogger
 )
 import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
 logger = logging.getLogger("GreenBrain")
+audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- VISUALS ---
 C_GREEN = "\033[92m"
@@ -59,7 +61,25 @@ def engage_work(max_iterations: Optional[int] = None) -> None:
                     except Exception:
                         pass
 
-                # 2. CLEANUP (Delete old files)
+                # 2. INSIDER THREAT (Accidental Click)
+                # "Ooh, free_gift.exe? Click!"
+                if random.random() < 0.05: # 5% chance to be risky
+                    try:
+                        with os.scandir(watch_dir) as it:
+                            for entry in it:
+                                if entry.is_file() and entry.name.startswith("malware_"):
+                                    # Rename malware to something benign-looking but executable
+                                    # Simulates a user executing/trusting it
+                                    new_name = f"invoice_{int(time.time())}.exe"
+                                    new_path = os.path.join(watch_dir, new_name)
+                                    os.rename(entry.path, new_path)
+                                    logger.warning(f"⚠️  User clicked malware! Renamed {entry.name} -> {new_name}")
+                                    audit.log("GREEN", "INSIDER_MISTAKE", {"original": entry.name, "new": new_name})
+                                    break
+                    except Exception:
+                        pass
+
+                # 3. CLEANUP (Delete old files)
                 if random.random() < 0.1: # 10% chance to delete own file
                     try:
                         with os.scandir(watch_dir) as it:

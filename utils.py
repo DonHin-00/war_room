@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, Callable, Union
 def safe_file_write(file_path: str, data: str) -> None:
     """Write data to a file safely using locks."""
     try:
+        # Use 'a+' to avoid truncation before lock
         with open(file_path, 'a+') as file:
             fcntl.flock(file, fcntl.LOCK_EX)
             file.seek(0)
@@ -78,16 +79,18 @@ def atomic_json_update(filepath: str, update_func: Callable[[Dict[str, Any]], Di
     This prevents race conditions by holding the lock during the read-modify-write cycle.
     """
     try:
-        # Ensure file exists
-        if not os.path.exists(filepath):
-             with open(filepath, 'w') as f: json.dump({}, f)
-
-        with open(filepath, 'r+') as f:
+        # Use 'a+' to create if missing, but allows reading/seeking.
+        # This prevents the race condition of checking exists() then opening 'w'.
+        with open(filepath, 'a+') as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 f.seek(0)
                 try:
-                    data = json.load(f)
+                    content = f.read()
+                    if content:
+                        data = json.loads(content)
+                    else:
+                        data = {}
                 except json.JSONDecodeError:
                     data = {}
 
@@ -119,6 +122,35 @@ def atomic_json_merge(filepath: str, new_data: Dict[str, Any]) -> Dict[str, Any]
         return existing_data
 
     return atomic_json_update(filepath, merge)
+
+class AuditLogger:
+    """Logs critical simulation events to a JSONL file."""
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+
+    def log(self, agent: str, event: str, details: Dict[str, Any]):
+        entry = {
+            "timestamp": time.time(),
+            "agent": agent,
+            "event": event,
+            "details": details
+        }
+        try:
+            with open(self.filepath, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(entry) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except Exception:
+            pass
+
+def is_honeypot(filepath: str) -> bool:
+    """Checks if a file is a known honeypot based on naming convention."""
+    filename = os.path.basename(filepath)
+    # Honeypot names usually mimic sensitive data
+    decoy_names = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
+    return filename in decoy_names or filename.startswith("decoy_")
 
 def calculate_entropy(data: bytes) -> float:
     """Calculate the entropy of a string of data (O(N) implementation)."""
@@ -209,34 +241,3 @@ def manage_session(session_id: str) -> None:
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass
-
-import os
-import time
-import hashlib
-import json
-from typing import Dict, Any
-
-def is_honeypot(filepath: str) -> bool:
-    """Checks if a file is a known honeypot based on naming convention."""
-    filename = os.path.basename(filepath)
-    # Honeypot names usually mimic sensitive data
-    decoy_names = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]
-    return filename in decoy_names or filename.startswith("decoy_")
-
-class AuditLogger:
-    """Logs critical simulation events to a JSONL file."""
-    def __init__(self, filepath: str):
-        self.filepath = filepath
-
-    def log(self, agent: str, event: str, details: Dict[str, Any]):
-        entry = {
-            "timestamp": time.time(),
-            "agent": agent,
-            "event": event,
-            "details": details
-        }
-        try:
-            with open(self.filepath, 'a') as f:
-                f.write(json.dumps(entry) + "\n")
-        except Exception:
-            pass
