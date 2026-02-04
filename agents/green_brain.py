@@ -64,14 +64,11 @@ def engage_work(max_iterations: Optional[int] = None) -> None:
                         pass
 
                 # 2. INSIDER THREAT (Accidental Click)
-                # "Ooh, free_gift.exe? Click!"
                 if random.random() < 0.05: # 5% chance to be risky
                     try:
                         with os.scandir(watch_dir) as it:
                             for entry in it:
                                 if entry.is_file() and entry.name.startswith("malware_"):
-                                    # Rename malware to something benign-looking but executable
-                                    # Simulates a user executing/trusting it
                                     new_name = f"invoice_{int(time.time())}.exe"
                                     new_path = os.path.join(watch_dir, new_name)
                                     os.rename(entry.path, new_path)
@@ -81,21 +78,48 @@ def engage_work(max_iterations: Optional[int] = None) -> None:
                     except Exception:
                         pass
 
-                # 3. CLEANUP (Delete old files)
-                if random.random() < 0.1: # 10% chance to delete own file
+                # 3. SHADOW IT (Unsanctioned Tools)
+                # Creates executable-looking files that aren't malware but distract Blue
+                if random.random() < 0.05:
+                    tool_name = f"game_crack_{random.randint(100,999)}.exe"
+                    filepath = os.path.join(watch_dir, tool_name)
+                    try:
+                        with open(filepath, 'wb') as f:
+                            f.write(os.urandom(512)) # Random binary data
+                        logger.info(f"💾 User installed Shadow IT: {tool_name}")
+                        audit.log("GREEN", "SHADOW_IT_INSTALL", {"file": tool_name})
+                    except Exception:
+                        pass
+
+                # 4. SECURITY AWARENESS (User Self-Defense)
+                # Users occasionally spot obvious malware and delete it themselves
+                if random.random() < 0.1:
                     try:
                         with os.scandir(watch_dir) as it:
                             for entry in it:
-                                if entry.is_file() and entry.name.startswith("user_doc_"):
-                                    # Delete random old file
-                                    if random.random() < 0.2:
+                                if entry.is_file() and (entry.name.startswith("malware_") or entry.name.endswith(".exe")):
+                                    # Users act on suspicion
+                                    if random.random() < 0.5:
                                         os.remove(entry.path)
-                                        logger.info(f"User deleted: {entry.name}")
+                                        logger.info(f"🛡️ User deleted suspicious file: {entry.name}")
+                                        audit.log("GREEN", "USER_DEFENSE", {"file": entry.name})
                                         break
                     except Exception:
                         pass
 
-                time.sleep(random.uniform(1.0, 3.0)) # Users are slower than bots
+                # 5. CLEANUP (Delete old files)
+                if random.random() < 0.1:
+                    try:
+                        with os.scandir(watch_dir) as it:
+                            for entry in it:
+                                if entry.is_file() and entry.name.startswith("user_doc_"):
+                                    if random.random() < 0.2:
+                                        os.remove(entry.path)
+                                        break
+                    except Exception:
+                        pass
+
+                time.sleep(random.uniform(1.0, 3.0))
 
             except Exception as e:
                 logger.error(f"Error in Green loop: {e}")

@@ -38,6 +38,9 @@ def engage_daemon(max_iterations: Optional[int] = None) -> None:
     logger.info(msg)
 
     watch_dir = config.file_paths['watch_dir']
+    network_dir = os.path.join(config.BASE_DIR, "network_bus")
+    if not os.path.exists(network_dir):
+        os.makedirs(network_dir)
 
     iteration = 0
     try:
@@ -47,38 +50,38 @@ def engage_daemon(max_iterations: Optional[int] = None) -> None:
             iteration += 1
 
             try:
-                # FLOOD ATTACK: Create many files rapidly
-                if random.random() < 0.5:
-                    burst_size = random.randint(10, 50)
-                    logger.info(f"Initiating Flood: {burst_size} files")
+                # 1. NETWORK FUZZING (Packet Loss Simulation)
+                # Create random packet files
+                if random.random() < 0.4:
+                    pkt_name = f"packet_{int(time.time_ns())}.pcap"
+                    try:
+                        with open(os.path.join(network_dir, pkt_name), 'w') as f:
+                            f.write("Fuzz data")
+                    except: pass
+
+                # Delete random packet files (Packet Loss)
+                if random.random() < 0.4:
+                    try:
+                        with os.scandir(network_dir) as it:
+                            for entry in it:
+                                if random.random() < 0.5:
+                                    os.remove(entry.path)
+                    except: pass
+
+                # 2. FILESYSTEM FLOOD ATTACK
+                if random.random() < 0.3:
+                    burst_size = random.randint(10, 30)
 
                     for _ in range(burst_size):
-                        # Edge Case: Zero byte file
                         if random.random() < 0.2:
                             fname = f"daemon_zero_{time.time_ns()}.tmp"
                             with open(os.path.join(watch_dir, fname), 'w') as f: pass
-
-                        # Edge Case: Deep nesting (simulated with long name)
-                        elif random.random() < 0.2:
-                            long_name = "nested_" + "dir_" * 10 + str(time.time_ns()) + ".log"
-                            # Note: We aren't creating actual dirs to avoid cleanup hell, just long names
-                            with open(os.path.join(watch_dir, long_name), 'w') as f: f.write("x")
-
-                        # Edge Case: Rapid create/delete (Flicker)
-                        elif random.random() < 0.3:
-                            fname = f"daemon_flicker_{time.time_ns()}.dat"
-                            fpath = os.path.join(watch_dir, fname)
-                            with open(fpath, 'w') as f: f.write("FLICKER")
-                            try: os.remove(fpath)
-                            except: pass
-
                         else:
-                            # Standard noise
-                            fname = f"daemon_noise_{time.time_ns()}. junk"
+                            fname = f"daemon_noise_{time.time_ns()}.junk"
                             with open(os.path.join(watch_dir, fname), 'w') as f:
                                 f.write(os.urandom(100).hex())
 
-                time.sleep(random.uniform(0.1, 0.5)) # Very fast cycle
+                time.sleep(random.uniform(0.1, 0.5))
 
             except Exception as e:
                 logger.error(f"Error in Daemon loop: {e}")

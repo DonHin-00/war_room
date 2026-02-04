@@ -54,9 +54,9 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                 war_state: Dict[str, Any] = atomic_json_io(state_file)
                 alert_level = war_state.get('blue_alert_level', 1)
 
-                # 2. DECIDE ALLEGIANCE
-                # High Alert -> Help Blue (Rapid Defense)
-                # Low Alert -> Help Red (Rapid Offense)
+                # 2. INTELLIGENT SUPPORT (Read Q-Tables)
+                # Note: Reading Q-Tables to find "gaps" is complex, for now we stick to heuristic reinforcement
+                # but with smarter targeting.
 
                 if alert_level >= 3:
                     # MODE: RAPID DEFENSE (Reinforcing Blue)
@@ -64,12 +64,18 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                     try:
                         with os.scandir(watch_dir) as it:
                             for entry in it:
-                                if entry.is_file() and entry.name.startswith("malware_"):
-                                    # Force Multiplier uses "dumb" signature match (prefix) but runs fast
-                                    try:
+                                if entry.is_file():
+                                    # Smarter cleanup: Delete ransom notes instantly
+                                    if entry.name == "RANSOMWARE_NOTE.txt":
                                         os.remove(entry.path)
                                         cleaned += 1
-                                    except: pass
+                                        logger.info("🧹 Purged Ransomware Note")
+
+                                    elif entry.name.startswith("malware_"):
+                                        try:
+                                            os.remove(entry.path)
+                                            cleaned += 1
+                                        except: pass
                     except: pass
 
                     if cleaned > 0:
@@ -79,9 +85,8 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
 
                 else:
                     # MODE: RAPID OFFENSE (Reinforcing Red)
-                    # Create noise/chaff to confuse Blue or speed up Red's goal
                     created = 0
-                    for _ in range(3): # Burst of 3
+                    for _ in range(3):
                         fname = os.path.join(watch_dir, f"malware_noise_{int(time.time())}_{random.randint(100,999)}.tmp")
                         try:
                             with open(fname, 'w') as f: f.write("NOISE")

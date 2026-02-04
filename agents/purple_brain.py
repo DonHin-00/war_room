@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import logging
+import random
 from typing import Optional, List, Dict, Any
 
 # Adjust path to import from parent directory
@@ -65,8 +66,24 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 war_state: Dict[str, Any] = atomic_json_io(state_file)
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                # 2. ADAPTIVE BALANCING
-                # If alert is low for too long -> Boost Red (Simulate Zero-Day?)
+                # 2. SCENARIO INJECTION
+                # Inject a Ransomware Scenario?
+                if random.random() < 0.02: # 2% chance per loop
+                    scenario_file = os.path.join(watch_dir, "RANSOMWARE_NOTE.txt")
+                    if not os.path.exists(scenario_file):
+                        try:
+                            with open(scenario_file, 'w') as f:
+                                f.write("ALL YOUR FILES ARE ENCRYPTED. PAY 1 BTC.")
+                            logger.info("🎬 SCENARIO INJECTED: Ransomware Outbreak")
+                            audit.log("PURPLE", "SCENARIO_START", {"name": "Ransomware"})
+                            # Force Max Alert
+                            def escalation(state):
+                                state['blue_alert_level'] = 5
+                                return state
+                            atomic_json_update(state_file, escalation)
+                        except: pass
+
+                # 3. ADAPTIVE BALANCING
                 if current_alert == 1:
                     consecutive_low_alert += 1
                     consecutive_high_alert = 0
@@ -80,26 +97,24 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 balancing_act = ""
 
                 if consecutive_low_alert > 5:
-                    # Game is boring. Inject a conflict.
                     def stimulate_conflict(state):
                         state['blue_alert_level'] = 3
                         return state
                     atomic_json_update(state_file, stimulate_conflict)
-                    balancing_act = " | ⚡ INJECTED CONFLICT (Boredom Prevention)"
-                    audit.log("PURPLE", "GAME_BALANCE", {"action": "ESCALATE", "reason": "BOREDOM"})
+                    balancing_act = " | ⚡ INJECTED CONFLICT"
+                    audit.log("PURPLE", "GAME_BALANCE", {"action": "ESCALATE"})
                     consecutive_low_alert = 0
 
                 if consecutive_high_alert > 10:
-                    # Blue is overwhelmed. De-escalate.
                     def calm_down(state):
                         state['blue_alert_level'] = 3
                         return state
                     atomic_json_update(state_file, calm_down)
-                    balancing_act = " | 🕊️  ENFORCED CEASEFIRE (Mercy Rule)"
-                    audit.log("PURPLE", "GAME_BALANCE", {"action": "DEESCALATE", "reason": "MERCY"})
+                    balancing_act = " | 🕊️  ENFORCED CEASEFIRE"
+                    audit.log("PURPLE", "GAME_BALANCE", {"action": "DEESCALATE"})
                     consecutive_high_alert = 0
 
-                # 3. BURST DETECTION (Anomaly Detection)
+                # 4. BURST DETECTION
                 current_time = time.time()
                 current_file_count = 0
                 try:
@@ -109,12 +124,9 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 delta_files = current_file_count - last_file_count
                 delta_time = current_time - last_check_time
 
-                # If > 5 files created per second, that's a burst!
                 if delta_time > 0 and (delta_files / delta_time) > 5.0:
                     logger.warning(f"🚨 BURST DETECTED: {delta_files} files in {delta_time:.2f}s")
                     audit.log("PURPLE", "ANOMALY_DETECTED", {"type": "BURST", "rate": delta_files/delta_time})
-
-                    # TRIGGER MAX ALERT
                     def escalation(state):
                         state['blue_alert_level'] = config.constraints['max_alert']
                         return state
@@ -127,7 +139,7 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 print(f"{C_PURPLE}[PURPLE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
 
-                time.sleep(2.0) # Check every 2 seconds
+                time.sleep(2.0)
 
             except Exception as e:
                 logger.error(f"Error in Purple loop: {e}")
