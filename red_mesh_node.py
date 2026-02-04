@@ -32,7 +32,8 @@ class RedMeshNode:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(('', MCAST_PORT))
 
-        mreq = struct.pack("4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
+        # Fix: Use 4s4s for 64-bit compatibility (Group, Interface)
+        mreq = struct.pack("4s4s", socket.inet_aton(MCAST_GRP), socket.inet_aton("0.0.0.0"))
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
         # Sender socket
@@ -54,6 +55,16 @@ class RedMeshNode:
         except Exception as e:
             logger.error(f"Broadcast failed: {e}")
 
+    def update_topology(self):
+        """Update shared topology file for visualization."""
+        topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
+        topo[NODE_ID] = {
+            "type": "RED",
+            "peers": list(self.peers),
+            "last_seen": time.time()
+        }
+        utils.safe_json_write(config.TOPOLOGY_FILE, topo)
+
     def listener(self):
         while self.running:
             try:
@@ -66,6 +77,7 @@ class RedMeshNode:
                 if sender not in self.peers:
                     self.peers.add(sender)
                     logger.info(f"New Peer Discovered: {sender}")
+                    self.update_topology()
 
                 msg_type = msg.get('type')
                 if msg_type == "CMD":

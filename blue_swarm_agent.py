@@ -31,7 +31,8 @@ class BlueSwarmAgent:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(('', SWARM_PORT))
 
-        mreq = struct.pack("4sl", socket.inet_aton(SWARM_GRP), socket.INADDR_ANY)
+        # Fix: Use 4s4s for 64-bit compatibility (Group, Interface)
+        mreq = struct.pack("4s4s", socket.inet_aton(SWARM_GRP), socket.inet_aton("0.0.0.0"))
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
         self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -53,7 +54,18 @@ class BlueSwarmAgent:
             logger.info(f"Broadcasted IOC: {ioc}")
         except Exception: pass
 
+    def update_topology(self):
+        """Update shared topology file for visualization."""
+        topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
+        topo[AGENT_ID] = {
+            "type": "BLUE",
+            "peers": ["SWARM"], # Abstract peer for Swarm
+            "last_seen": time.time()
+        }
+        utils.safe_json_write(config.TOPOLOGY_FILE, topo)
+
     def listener(self):
+        self.update_topology()
         while self.running:
             try:
                 data, addr = self.sock.recvfrom(1024)

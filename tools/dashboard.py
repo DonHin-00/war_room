@@ -5,7 +5,6 @@ import json
 import os
 import sys
 import threading
-import requests
 
 # Add root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -77,18 +76,29 @@ def draw_dashboard(stdscr):
         center_y = h // 2
         center_x = w // 2
 
-        # ASCII Mesh
-        graph = [
-            "   (R1) <---> (R2)   ",
-            "    ^          ^     ",
-            "    |          |     ",
-            "   (B1) <---> (B2)   "
-        ]
+        # Dynamic ASCII Mesh
+        topo = utils.safe_json_read(config.TOPOLOGY_FILE, {})
 
-        for i, row in enumerate(graph):
-            try:
-                stdscr.addstr(center_y - 2 + i, center_x - 10, row, curses.A_BOLD)
-            except: pass
+        red_nodes = [k for k,v in topo.items() if v['type'] == 'RED']
+        blue_nodes = [k for k,v in topo.items() if v['type'] == 'BLUE']
+
+        # Simple Circle Layout
+        try:
+            # Red Line
+            red_str = " <-> ".join([f"(R:{n[:4]})" for n in red_nodes[:3]])
+            stdscr.addstr(center_y - 2, max(0, center_x - len(red_str)//2), red_str, curses.color_pair(2))
+
+            # Vs
+            stdscr.addstr(center_y, center_x - 2, " VS ", curses.A_BOLD)
+
+            # Blue Line
+            blue_str = " <-> ".join([f"(B:{n[:4]})" for n in blue_nodes[:3]])
+            stdscr.addstr(center_y + 2, max(0, center_x - len(blue_str)//2), blue_str, curses.color_pair(1))
+
+            if len(red_nodes) > 3 or len(blue_nodes) > 3:
+                stdscr.addstr(center_y + 4, center_x - 10, f"+ {len(red_nodes)-3} Red, {len(blue_nodes)-3} Blue hidden")
+
+        except: pass
 
         # Separator
         for y in range(2, h-8):
