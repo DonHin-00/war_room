@@ -11,6 +11,7 @@ Q_TABLE_RED = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 SIGNATURE_FILE = os.path.join(BASE_DIR, "signatures.json")
 AUDIT_LOG = os.path.join(BASE_DIR, "audit.jsonl")
+TRACE_LOG = os.path.join(BASE_DIR, "trace.jsonl")
 INCIDENT_DIR = os.path.join(BASE_DIR, "incidents")
 
 # --- BLUE TEAM CONFIG ---

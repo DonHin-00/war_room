@@ -8,6 +8,9 @@ import json
 import hashlib
 import time
 import socket
+import traceback
+import inspect
+from contextlib import contextmanager
 from typing import Union, Dict, Any, Optional, List, Tuple
 
 # Utility functions
@@ -262,6 +265,78 @@ class AuditLogger:
                 fcntl.flock(f, fcntl.LOCK_UN)
         except OSError as e:
             logging.error(f"Audit Log Error: {e}")
+
+class TraceLogger:
+    """
+    Deep Error Tracing System.
+    Captures stack traces, local variables, and execution context on failure.
+    """
+    def __init__(self, filepath: str):
+        self.filepath = filepath
+
+    def capture_exception(self, exc: Exception, context: str = "GLOBAL") -> None:
+        """
+        Capture detailed exception info including stack frames and locals.
+
+        Args:
+            exc: The exception object.
+            context: A string label for where this occurred.
+        """
+        timestamp = time.time()
+        tb = traceback.extract_tb(exc.__traceback__)
+
+        # Capture simplified stack frames
+        stack_info = []
+        for frame in tb:
+            stack_info.append({
+                "filename": frame.filename,
+                "lineno": frame.lineno,
+                "name": frame.name,
+                "line": frame.line
+            })
+
+        # Capture locals from the frame where exception occurred (dangerous, sanitize!)
+        locals_dump = {}
+        try:
+            # Get the traceback object, walk to the last frame
+            ptr = exc.__traceback__
+            while ptr.tb_next:
+                ptr = ptr.tb_next
+
+            # Inspect locals
+            for k, v in ptr.tb_frame.f_locals.items():
+                # Only capture basic types to avoid serialization errors or huge dumps
+                if isinstance(v, (str, int, float, bool, list, dict)) and len(str(v)) < 1000:
+                    locals_dump[k] = str(v)
+                else:
+                    locals_dump[k] = f"<{type(v).__name__}>"
+        except:
+            locals_dump = {"error": "Failed to capture locals"}
+
+        report = {
+            "timestamp": timestamp,
+            "context": context,
+            "exception_type": type(exc).__name__,
+            "message": str(exc),
+            "stack": stack_info,
+            "locals": locals_dump
+        }
+
+        try:
+            with open(self.filepath, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(report) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+        except OSError: pass
+
+    @contextmanager
+    def context(self, name: str):
+        """Context manager to auto-trace exceptions within a block."""
+        try:
+            yield
+        except Exception as e:
+            self.capture_exception(e, context=name)
+            raise e
 
 
 def manage_session(session_id: str) -> None:

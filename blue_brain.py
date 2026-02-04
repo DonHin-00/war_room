@@ -36,6 +36,7 @@ class BlueDefender:
         self.alpha: float = config.AI_PARAMS['ALPHA']
         self.q_table: Dict[str, float] = {}
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
+        self.tracer = utils.TraceLogger(config.TRACE_LOG)
         self.backup_created: bool = False
         self.fim_baseline: Dict[str, str] = {}
 
@@ -164,10 +165,11 @@ class BlueDefender:
         iteration = 0
         while self.running:
             try:
-                iteration += 1
+                with self.tracer.context("BLUE_MAIN_LOOP"):
+                    iteration += 1
 
-                # 1. OBSERVE
-                war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
+                    # 1. OBSERVE
+                    war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
 
                 state_key, visible, hidden, c2, encrypted, all_threats = self.get_state(current_alert)
@@ -187,7 +189,7 @@ class BlueDefender:
                 if action == "SIGNATURE_SCAN":
                     # Check known signatures
                     known_sigs = utils.access_memory(config.SIGNATURE_FILE) or {}
-                    
+
                     for t in all_threats:
                         try:
                             sz = os.path.getsize(t)

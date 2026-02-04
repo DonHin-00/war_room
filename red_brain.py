@@ -78,6 +78,7 @@ class RedTeamer:
         self.q_table_2: Dict[str, float] = {}
         self.memory: List[Tuple[str, str, float, str]] = []
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
+        self.tracer = utils.TraceLogger(config.TRACE_LOG)
 
         self.c2_port = 8000 + secrets.randbelow(1000)
         self.c2_server = None
@@ -190,10 +191,11 @@ class RedTeamer:
         iteration = 0
         while self.running:
             try:
-                iteration += 1
-                
-                # 1. RECON
-                war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
+                with self.tracer.context("RED_MAIN_LOOP"):
+                    iteration += 1
+
+                    # 1. RECON
+                    war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
                 state_key = f"{current_alert}"
                 
