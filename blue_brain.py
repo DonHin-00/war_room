@@ -10,11 +10,13 @@ import time
 import json
 import random
 import math
+import hashlib
 from utils import safe_file_read, safe_file_write
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
+SIGNATURES_FILE = os.path.join(BASE_DIR, "signatures.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 
@@ -57,6 +59,18 @@ def calculate_shannon_entropy(filepath):
             return entropy
     except: return 0
 
+def calculate_hash(filepath):
+    """Calculates SHA256 hash of a file."""
+    sha256 = hashlib.sha256()
+    try:
+        with open(filepath, 'rb') as f:
+            while True:
+                data = f.read(65536)
+                if not data: break
+                sha256.update(data)
+        return sha256.hexdigest()
+    except: return None
+
 def access_memory(filepath, data=None):
     """Atomic JSON I/O."""
     if data is not None:
@@ -82,15 +96,19 @@ def engage_defense():
             war_state = access_memory(STATE_FILE)
             if not war_state: war_state = {'blue_alert_level': 1}
             q_table = access_memory(Q_TABLE_FILE)
+            signatures = access_memory(SIGNATURES_FILE)
+            if not isinstance(signatures, list): signatures = []
             
             current_alert = war_state.get('blue_alert_level', 1)
             
             # 2. DETECTION
             visible_threats = []
             hidden_threats = []
+            all_files = []
             try:
                 with os.scandir(WATCH_DIR) as entries:
                     for entry in entries:
+                        all_files.append(entry.path)
                         if entry.name.startswith('malware_'):
                             visible_threats.append(entry.path)
                         elif entry.name.startswith('.sys_'):
@@ -117,7 +135,13 @@ def engage_defense():
             mitigated = 0
             
             if action == "SIGNATURE_SCAN":
-                for t in visible_threats:
+                # Extended Policy: Scan ALL files for known signatures + delete visible threats
+                targets = set(visible_threats)
+                for f in all_files:
+                    if calculate_hash(f) in signatures:
+                        targets.add(f)
+
+                for t in targets:
                     try:
                         if not os.path.islink(t):
                             os.remove(t)
@@ -125,11 +149,17 @@ def engage_defense():
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
+                for t in all_threats: # Checks malware_* and .sys_*
                     # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
                     if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
                         try:
                             if not os.path.islink(t):
+                                # Learn signature before destroying
+                                f_hash = calculate_hash(t)
+                                if f_hash and f_hash not in signatures:
+                                    signatures.append(f_hash)
+                                    access_memory(SIGNATURES_FILE, signatures)
+
                                 os.remove(t)
                                 mitigated += 1
                         except: pass

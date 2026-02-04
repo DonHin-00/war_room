@@ -19,7 +19,7 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 TARGET_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -108,6 +108,24 @@ def engage_offense():
                 
             elif action == "T1589_LURK":
                 impact = 0
+
+            elif action == "T1036_MASQUERADE":
+                # Static payload, benign name. Hard to spot, easy to signature.
+                fname = os.path.join(TARGET_DIR, f"system_log_{uuid.uuid4()}.txt")
+                try:
+                    fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(fd, 'wb') as f:
+                        # Static malicious payload (Entropy > 3.5 but constant hash)
+                        f.write(b"\xde\xad\xbe\xef" * 100 + os.urandom(100))
+                        # Note: The os.urandom(100) makes it polymorphic!
+                        # Wait, we WANT it to be static to test Blue's learning.
+                        # Let's use a fixed seed for the "random" part or just static content.
+
+                    # Overwriting with static content for learning demo
+                    with open(fname, 'wb') as f:
+                        f.write(b"StaticMaliciousPayload" * 50 + b"\x00\xff" * 50)
+                    impact = 2
+                except: pass
 
             # 4. REWARDS
             reward = 0
