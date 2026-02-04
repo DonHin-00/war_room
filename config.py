@@ -4,16 +4,20 @@ import os
 
 # Base Directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WAR_ZONE_DIR = os.path.join(BASE_DIR, "war_zone")
+
+# Dynamic Sandbox for Parallel Execution
+# Default to 'war_zone' if not specified
+WAR_ZONE_ID = os.getenv("WAR_ZONE_ID", "war_zone")
+WAR_ZONE_DIR = os.path.join(BASE_DIR, WAR_ZONE_ID)
 
 # File Paths
 PATHS = {
-    'BLUE_Q_TABLE': os.path.join(BASE_DIR, "blue_q_table.json"),
-    'RED_Q_TABLE': os.path.join(BASE_DIR, "red_q_table.json"),
-    'STATE_FILE': os.path.join(BASE_DIR, "war_state.json"),
+    'BLUE_Q_TABLE': os.path.join(WAR_ZONE_DIR, "blue_q_table.json"),
+    'RED_Q_TABLE': os.path.join(WAR_ZONE_DIR, "red_q_table.json"),
+    'STATE_FILE': os.path.join(WAR_ZONE_DIR, "war_state.json"),
     'WATCH_DIR': WAR_ZONE_DIR,
     'TARGET_DIR': WAR_ZONE_DIR,
-    'LOG_FILE': os.path.join(BASE_DIR, "war_room.log"),
+    'LOG_FILE': os.path.join(WAR_ZONE_DIR, "war_room.log"),
 }
 
 # Blue Team Config
