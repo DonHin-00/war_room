@@ -23,7 +23,6 @@ class HiveState(SharedMemory):
             "active_decoys": 0
         }
         self.active_signals = []
-        # Global bias learned from evolution
         self.learned_bias = {"paranoia": 0.0, "speed": 0.0}
 
     def set_defcon(self, level: int):
@@ -38,9 +37,6 @@ class HiveState(SharedMemory):
         self._assess_defcon()
 
     def apply_learning(self, weights: Dict[str, float]):
-        """
-        Updates global bias based on Evolutionary Memory.
-        """
         if weights:
             print(f"[HIVE STATE] 🧠 Integrating Learned Wisdom: {weights}")
             self.learned_bias = weights
@@ -66,6 +62,9 @@ class HiveState(SharedMemory):
         }
         self.mood = moods[self.defcon]
 
+    def set_mood(self, mood: str):
+        self.mood = mood
+
 class SignalBus:
     def __init__(self):
         self.subscribers: Dict[str, List[Callable[[Signal], None]]] = defaultdict(list)
@@ -82,7 +81,7 @@ class SignalBus:
 class HiveMind:
     """
     The Central Orchestrator.
-    NOW WITH SELF-LEARNING.
+    NOW WITH EXTERNAL SUPPORT MODULES (Hanging Off).
     """
     def __init__(self):
         self.memory = HiveState()
@@ -90,9 +89,20 @@ class HiveMind:
         self.evolution = EvolutionaryMemory()
         self.mirage = None
 
+        # Support Modules
+        self.storage = None
+        self.coprocessor = None
+        self.gatekeeper = None
+
     def attach_mirage(self, mirage_layer):
         print("[HIVE] 🔗 Attaching Deception Module (Mirage Layer)...")
         self.mirage = mirage_layer
+
+    def attach_support(self, storage, coprocessor, gatekeeper):
+        print("[HIVE] 🔗 Attaching External Support Modules (Storage, Coprocessor, Gatekeeper)...")
+        self.storage = storage
+        self.coprocessor = coprocessor
+        self.gatekeeper = gatekeeper
 
     def broadcast(self, type: str, data: Any, source: str):
         sig = Signal(type, data, source)
@@ -100,17 +110,17 @@ class HiveMind:
         self.memory.active_signals.append(sig)
 
     def autotune(self):
-        """
-        Meta-Learning Process.
-        Adjusts HiveState based on Evolutionary History.
-        """
         print("[HIVE] 🧬 Initiating Meta-Learning Autotune...")
-        # Simplistic: Learn general weights
-        optimal = self.evolution.get_optimal_weights("login") # Specific or general
+        optimal = self.evolution.get_optimal_weights("login")
         if optimal:
             self.memory.apply_learning(optimal)
         else:
             print("[HIVE] Not enough data to evolve yet.")
 
     def record_success(self, task: str, winner: Dict, context: Dict):
+        # 1. Save to Evolution (JSON)
         self.evolution.record_cycle(task, winner, context)
+
+        # 2. Save to External Storage (SQLite) if available
+        if self.storage:
+            self.storage.save_war_story(task, winner.get("code", ""), 0.99) # Mock rate for now

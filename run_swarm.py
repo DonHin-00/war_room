@@ -7,48 +7,62 @@ from ant_swarm.core.micro_lm import MicroLM
 from ant_swarm.core.council import Council
 from ant_swarm.agents.indexer import GlobalIndexer
 from ant_swarm.agents.reverse_engineer import ReverseEngineerAgent
+from ant_swarm.support.external_storage import LongTermDrive
+from ant_swarm.support.coprocessor import Coprocessor
+from ant_swarm.support.gatekeeper import SecureGateway
 
 def main():
-    print("=== ANT SWARM v7: EVOLUTIONARY HIVE MIND ===\n")
+    print("=== ANT SWARM v8: EXTERNAL MODULES & GATEKEEPER ===\n")
 
     hive = HiveMind()
+
+    # Initialize Support Modules
+    storage = LongTermDrive()
+    coprocessor = Coprocessor(workers=4)
+    gatekeeper = SecureGateway()
+
+    # Attach "Hanging Off" Modules
+    hive.attach_support(storage, coprocessor, gatekeeper)
+
     ooda = OODALoop(hive)
 
-    # 1. First Generation: Initial Learning
-    print("[EPOCH 1] Generating Initial Population...")
-    print("[SCENARIO] User requests login function.")
-    hive.memory.defcon = 4 # Vigilant
+    # 1. Demonstrate Gatekeeper (Attack)
+    print("\n[SCENARIO] 🛡️ External Interface: Processing Ingress...")
+    attack_payload = "' OR 1=1; DROP TABLE users; --"
+    result = gatekeeper.process_ingress("192.168.1.666", attack_payload)
+    if result["status"] == "REJECTED":
+        print("  - Attack Successfully Blocked.")
 
-    doctrine = ooda.execute_cycle("login")
+    # 2. Demonstrate Gatekeeper (Valid)
+    print("\n[SCENARIO] 🛡️ External Interface: Valid Request...")
+    valid_payload = "Create a login function."
+    result = gatekeeper.process_ingress("10.0.0.5", valid_payload)
+    if result["status"] != "ACCEPTED":
+        print("  - Error: Valid request blocked.")
+        sys.exit(1)
+
+    task = result["payload"]
+
+    # 3. MicroLM Generation
+    print(f"\n[ACT] MicroLM Processing Task: '{task}'")
     lm = MicroLM()
+    doctrine = ooda.execute_cycle(task)
+    options = lm.generate_evolved_options(task, doctrine, {}, generations=1)
 
-    # We use generate_evolved_options with generations=1 (just parents)
-    # Actually, let's just use generations=2 to show breeding immediately
-    print("\n[GENETICS] 🧬 Breeding Hybrid Options (2 Generations)...")
-    options = lm.generate_evolved_options("login", doctrine, {}, generations=2)
+    # 4. Demonstrate Coprocessor Offloading (War Games)
+    print("\n[COPROCESSOR] 🧠 Offloading Heavy War Games Simulation...")
+    # We manually simulate the Council using the Coprocessor here for demo
+    # In production, Council would hold a ref to Hive.coprocessor
 
-    # Show population including children
     for opt in options:
-        print(f"  > Generated: {opt['variant_name']}")
+        # Use the Coprocessor to run the parallel simulation
+        survival = coprocessor.run_parallel_wargames(opt['code'], iterations=100)
+        print(f"  > Variant '{opt['variant_name']}' Survival: {survival:.1%}")
 
-    # Council Selection
-    print("\n[COUNCIL] Selecting Best Option...")
-    council = Council(hive)
-    decision = council.select_best_option("login", options)
-
-    if decision['approved']:
-        print(f"🎉 WINNER: {decision['selected_variant']}")
-        print(f"Code Snippet: {decision['code'].splitlines()[1]}")
-
-    # 2. Meta-Learning Phase
-    print("\n[HIVE] 🧠 Sleep Cycle: Integrating Experience...")
-    hive.autotune()
-    print(f"  Learned Bias: {hive.memory.learned_bias}")
-
-    # 3. Second Generation: Using Learned Wisdom
-    # In a real loop, this would happen next run, but we simulate it by creating a new MicroLM that reads hive bias
-    # Currently MicroLM doesn't read Hive Bias directly in this demo code, but the Concept stands.
-    print("\n[EPOCH 2] System is now optimized based on Epoch 1 success.")
+    # 5. External Storage Persistence
+    print("\n[STORAGE] 💾 Persisting results to LongTermDrive...")
+    # Simulate a win
+    hive.record_success(task, options[0], {})
 
 if __name__ == "__main__":
     main()
