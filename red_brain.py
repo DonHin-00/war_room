@@ -18,31 +18,27 @@ except ImportError:
     # If running from a different directory, try to append current dir
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     import utils
+import config
 
 # --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "red_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-
-# Use a local directory for simulation instead of /tmp
-TARGET_DIR = os.path.join(BASE_DIR, "battlefield")
-if not os.path.exists(TARGET_DIR):
-    os.makedirs(TARGET_DIR, exist_ok=True)
+Q_TABLE_FILE = config.PATHS['RED_Q_TABLE']
+STATE_FILE = config.PATHS['STATE_FILE']
+TARGET_DIR = config.PATHS['BATTLEFIELD']
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
-ALPHA = 0.4
-ALPHA_DECAY = 0.9999
-GAMMA = 0.9
-EPSILON = 0.3
-EPSILON_DECAY = 0.995
-MIN_EPSILON = 0.01
+ACTIONS = config.RED['ACTIONS']
+ALPHA = config.HYPERPARAMETERS['ALPHA']
+ALPHA_DECAY = config.HYPERPARAMETERS['ALPHA_DECAY']
+GAMMA = config.HYPERPARAMETERS['GAMMA']
+EPSILON = config.HYPERPARAMETERS['EPSILON']
+EPSILON_DECAY = config.HYPERPARAMETERS['EPSILON_DECAY']
+MIN_EPSILON = config.HYPERPARAMETERS['MIN_EPSILON']
 
 # --- REWARD CONFIGURATION (ATTACKER PROFILE) ---
-R_IMPACT = 10           # Base points for successful drop
-R_STEALTH = 15          # Points for lurking when heat is high
-R_CRITICAL = 30         # Bonus for attacking during Max Alert (Brazen)
-MAX_ALERT = 5
+R_IMPACT = config.RED['REWARDS']['IMPACT']
+R_STEALTH = config.RED['REWARDS']['STEALTH']
+R_CRITICAL = config.RED['REWARDS']['CRITICAL']
+MAX_ALERT = config.RED['ALERTS']['MAX']
 
 # --- VISUALS ---
 C_RED = "\033[91m"

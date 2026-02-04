@@ -19,34 +19,29 @@ except ImportError:
     # If running from a different directory, try to append current dir
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     import utils
+import config
 
 # --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-
-# Use a local directory for simulation instead of /tmp
-WATCH_DIR = os.path.join(BASE_DIR, "battlefield")
-if not os.path.exists(WATCH_DIR):
-    os.makedirs(WATCH_DIR, exist_ok=True)
+Q_TABLE_FILE = config.PATHS['BLUE_Q_TABLE']
+STATE_FILE = config.PATHS['STATE_FILE']
+WATCH_DIR = config.PATHS['BATTLEFIELD']
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
-ALPHA = 0.4             # Learning Rate (How fast we accept new info)
-ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
-GAMMA = 0.9             # Discount Factor (How much we care about the future)
-EPSILON = 0.3           # Exploration Rate (Curiosity)
-EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
-MIN_EPSILON = 0.01      # Always keep 1% curiosity
+ACTIONS = config.BLUE['ACTIONS']
+ALPHA = config.HYPERPARAMETERS['ALPHA']
+ALPHA_DECAY = config.HYPERPARAMETERS['ALPHA_DECAY']
+GAMMA = config.HYPERPARAMETERS['GAMMA']
+EPSILON = config.HYPERPARAMETERS['EPSILON']
+EPSILON_DECAY = config.HYPERPARAMETERS['EPSILON_DECAY']
+MIN_EPSILON = config.HYPERPARAMETERS['MIN_EPSILON']
 
 # --- REWARD CONFIGURATION (AI PERSONALITY) ---
-# Tweak these to change how the Defender behaves!
-R_MITIGATION = 25       # Reward for killing a threat
-R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
-P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
-P_NEGLIGENCE = -50      # Penalty for ignoring active malware
-MAX_ALERT = 5
-MIN_ALERT = 1
+R_MITIGATION = config.BLUE['REWARDS']['MITIGATION']
+R_PATIENCE = config.BLUE['REWARDS']['PATIENCE']
+P_WASTE = config.BLUE['REWARDS']['WASTE']
+P_NEGLIGENCE = config.BLUE['REWARDS']['NEGLIGENCE']
+MAX_ALERT = config.BLUE['ALERTS']['MAX']
+MIN_ALERT = config.BLUE['ALERTS']['MIN']
 
 # --- VISUALS ---
 C_BLUE = "\033[94m"

@@ -7,20 +7,18 @@ import sys
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import manage_session, BASE_DIR
+from utils import manage_session
+from config import PATHS
 
 class TestSessionManagement(unittest.TestCase):
     def setUp(self):
         self.session_id = "testsession123"
-        self.session_dir = os.path.join(BASE_DIR, "sessions")
+        self.session_dir = PATHS['SESSIONS_DIR']
         self.session_file = os.path.join(self.session_dir, f"session_{self.session_id}.json")
+        if not os.path.exists(self.session_dir):
+            os.makedirs(self.session_dir, exist_ok=True)
         if os.path.exists(self.session_file):
             os.remove(self.session_file)
-        if os.path.exists(self.session_dir):
-            try:
-                os.rmdir(self.session_dir)
-            except OSError:
-                pass # Directory might not be empty, which is fine for other tests
 
     def tearDown(self):
         if os.path.exists(self.session_file):

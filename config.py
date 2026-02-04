@@ -1,35 +1,64 @@
 # Centralized Configuration for Red and Blue Teams
+import os
 
-# Hyperparameters
-hyperparameters = {
-    'learning_rate': 0.001,
-    'num_episodes': 1000,
-    'discount_factor': 0.99,
-}
-
-# Rewards
-rewards = {
-    'victory': 10,
-    'defeat': -10,
-    'draw': 5,
-}
-
-# Actions
-actions = [
-    'attack',
-    'defend',
-    'retreat',
-    'gather_information'
-]
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # File Paths
-file_paths = {
-    'model_save_path': './models/',
-    'log_file_path': './logs/train.log',
+PATHS = {
+    'BASE_DIR': BASE_DIR,
+    'BLUE_Q_TABLE': os.path.join(BASE_DIR, "blue_q_table.json"),
+    'RED_Q_TABLE': os.path.join(BASE_DIR, "red_q_table.json"),
+    'STATE_FILE': os.path.join(BASE_DIR, "war_state.json"),
+    'BATTLEFIELD': os.path.join(BASE_DIR, "battlefield"),
+    'SESSIONS_DIR': os.path.join(BASE_DIR, "sessions"),
+}
+
+# Ensure directories exist
+for path in [PATHS['BATTLEFIELD'], PATHS['SESSIONS_DIR']]:
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+# Hyperparameters (Shared defaults, can be overridden per agent if needed)
+HYPERPARAMETERS = {
+    'ALPHA': 0.4,             # Learning Rate
+    'ALPHA_DECAY': 0.9999,    # Stability Factor
+    'GAMMA': 0.9,             # Discount Factor
+    'EPSILON': 0.3,           # Exploration Rate
+    'EPSILON_DECAY': 0.995,   # Mastery Curve
+    'MIN_EPSILON': 0.01,
+}
+
+# Blue Team Configuration
+BLUE = {
+    'ACTIONS': ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"],
+    'REWARDS': {
+        'MITIGATION': 25,
+        'PATIENCE': 10,
+        'WASTE': -15,
+        'NEGLIGENCE': -50,
+    },
+    'ALERTS': {
+        'MAX': 5,
+        'MIN': 1,
+    }
+}
+
+# Red Team Configuration
+RED = {
+    'ACTIONS': ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"],
+    'REWARDS': {
+        'IMPACT': 10,
+        'STEALTH': 15,
+        'CRITICAL': 30,
+    },
+    'ALERTS': {
+        'MAX': 5,
+    }
 }
 
 # Logging Settings
-logging_settings = {
-    'log_level': 'INFO',
-    'log_format': '%(asctime)s - %(levelname)s - %(message)s',
+LOGGING = {
+    'level': 'DEBUG',
+    'format': '%(asctime)s %(levelname)s:%(message)s',
+    'file': os.path.join(BASE_DIR, 'simulation.log')
 }

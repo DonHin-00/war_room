@@ -8,7 +8,11 @@ import time
 
 # Utility functions
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+try:
+    from config import PATHS
+    BASE_DIR = PATHS['BASE_DIR']
+except ImportError:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def safe_file_write(file_path, data):
     """Write data to a file safely using locks."""
@@ -77,12 +81,16 @@ def manage_session(session_id):
     if not isinstance(session_id, str) or not session_id.isalnum():
         raise ValueError("Invalid session_id. Must be alphanumeric.")
 
-    session_dir = os.path.join(BASE_DIR, "sessions")
     try:
-        os.makedirs(session_dir, exist_ok=True)
-    except OSError as e:
-        logging.error(f"Error creating session directory: {e}")
-        return
+        from config import PATHS
+        session_dir = PATHS['SESSIONS_DIR']
+    except ImportError:
+        session_dir = os.path.join(BASE_DIR, "sessions")
+        try:
+            os.makedirs(session_dir, exist_ok=True)
+        except OSError as e:
+            logging.error(f"Error creating session directory: {e}")
+            return
 
     session_file = os.path.join(session_dir, f"session_{session_id}.json")
 
