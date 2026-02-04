@@ -121,7 +121,7 @@ def engage_defense():
                         fname = os.path.basename(t)
                         if fname in known_names:
                             print(f"{C_CYAN}[BLOCK] Signature Match (Filename): {fname}{C_RESET}")
-                            os.remove(t)
+                            utils.secure_delete(t)
                             mitigated += 1
                             continue
 
@@ -131,21 +131,21 @@ def engage_defense():
                              f_hash = utils.calculate_sha256(t)
                              if f_hash in known_hashes:
                                  print(f"{C_CYAN}[BLOCK] Signature Match (SHA256): {f_hash[:8]}...{C_RESET}")
-                                 os.remove(t)
+                                 utils.secure_delete(t)
                                  mitigated += 1
                                  continue
 
                         # Fallback: Default cleanup (if allowed by policy, otherwise wait for Heuristic)
                         # Actually, SIGNATURE_SCAN usually implies we know it's bad.
                         # But in this sim, visible_threats are 'malware_*' so they are bad by definition.
-                        os.remove(t); mitigated += 1
+                        utils.secure_delete(t); mitigated += 1
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
                 # Optimization: Iterate over lists directly, avoiding 'all_threats' creation
                 # Chain iteration would be cleaner but simple loops are fast enough here
                 for t in hidden_threats:
-                    try: os.remove(t); mitigated += 1
+                    try: utils.secure_delete(t); mitigated += 1
                     except: pass
 
                 # Only analyze NEW or MODIFIED visible files for entropy
@@ -156,7 +156,7 @@ def engage_defense():
                      # Only check entropy for visible files (hidden are deleted by policy above)
                     if calculate_shannon_entropy(t) > 3.5:
                         try:
-                            os.remove(t)
+                            utils.secure_delete(t)
                             mitigated += 1
                             file_cache.invalidate(t) # Remove from cache
                         except: pass
@@ -187,7 +187,7 @@ def engage_defense():
                     for req in requests:
                         allowed, reason = web_firewall.inspect_request(req)
                         if not allowed:
-                            os.remove(req) # Block/Drop packet
+                            utils.secure_delete(req) # Block/Drop packet
                             mitigated += 1
                             # WAF logs internally, but we can note it here too
                 except: pass

@@ -14,10 +14,14 @@ DB = db_manager.DatabaseManager()
 # Utility functions
 
 def safe_file_write(file_path, data):
-    """Write data to a file safely using locks."""
-    with open(file_path, 'w') as file:
+    """Write data to a file safely using locks and secure permissions."""
+    # Atomic secure write: open with O_CREAT | O_WRONLY and 0o600
+    fd = os.open(file_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as file:
         fcntl.flock(file, fcntl.LOCK_EX)
         file.write(data)
+        file.flush()
+        os.fsync(file.fileno())
         fcntl.flock(file, fcntl.LOCK_UN)
 
 
@@ -30,6 +34,17 @@ def safe_file_read(file_path, binary=False):
         fcntl.flock(file, fcntl.LOCK_UN)
     return data
 
+def secure_delete(filepath):
+    """Overwrite file with zeros before deletion."""
+    try:
+        if os.path.exists(filepath):
+            size = os.path.getsize(filepath)
+            with open(filepath, "wb") as f:
+                f.write(b'\x00' * size)
+                f.flush()
+                os.fsync(f.fileno())
+            os.remove(filepath)
+    except: pass
 
 def safe_json_write(filepath, data):
     """Write JSON data safely."""
@@ -221,8 +236,14 @@ def calculate_sha256(filepath):
 
 def setup_logging(name, log_file_path):
     """Set up logging to a specified file and console."""
-    # Create directory if missing
-    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+    # Create directory if missing with secure permissions
+    log_dir = os.path.dirname(log_file_path)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, mode=0o700, exist_ok=True)
+
+    # Ensure log file has restricted permissions if it exists
+    if os.path.exists(log_file_path):
+        os.chmod(log_file_path, 0o600)
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)

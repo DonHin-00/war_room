@@ -162,7 +162,7 @@ def engage_offense():
                     files = [f.path for f in os.scandir(TARGET_DIR) if f.name.startswith('malware_')]
                     if files:
                         target = _choice(files)
-                        os.remove(target)
+                        utils.secure_delete(target)
                         impact = 2 # Low impact but good for evasion
                 except: pass
 

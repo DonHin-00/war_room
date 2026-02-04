@@ -26,22 +26,29 @@ def main():
 
     print("\033[92m[SIMULATION] Starting AI Cyber War...\033[0m")
 
-    # Ensure Battlefield exists
+    # Ensure Battlefield exists with secure permissions
     import config
-    os.makedirs(config.TARGET_DIR, exist_ok=True)
+    if not os.path.exists(config.TARGET_DIR):
+        os.makedirs(config.TARGET_DIR, mode=0o700, exist_ok=True)
+    else:
+        os.chmod(config.TARGET_DIR, 0o700)
 
     # 1. Start Blue Brain
-    blue = subprocess.Popen(["python3", "-u", "blue_brain.py"])
+    # Scrub environment to prevent leaks
+    clean_env = {k: v for k, v in os.environ.items()
+                 if k in ['PATH', 'PYTHONPATH', 'LANG', 'HOME', 'USER']}
+
+    blue = subprocess.Popen(["python3", "-u", "blue_brain.py"], env=clean_env)
     processes.append(blue)
 
     # 2. Start Red Brain
-    red = subprocess.Popen(["python3", "-u", "red_brain.py"])
+    red = subprocess.Popen(["python3", "-u", "red_brain.py"], env=clean_env)
     processes.append(red)
 
     # 3. Start Proxy War (Optional)
     if args.proxy:
         print("\033[95m[SIMULATION] Launching Proxy War Emulation...\033[0m")
-        proxy = subprocess.Popen(["python3", "-u", "proxy_war.py", str(args.duration)])
+        proxy = subprocess.Popen(["python3", "-u", "proxy_war.py", str(args.duration)], env=clean_env)
         processes.append(proxy)
 
     try:
