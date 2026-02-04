@@ -53,12 +53,21 @@ def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     
+    # Load Q-Table once at startup
+    q_table = access_memory(Q_TABLE_FILE)
+    if not q_table: q_table = {}
+
+    iteration_count = 0
+    SYNC_INTERVAL = 10
+
     while True:
         try:
+            iteration_count += 1
+
             # 1. RECON
             war_state = access_memory(STATE_FILE)
             if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
+            # q_table is now in memory
             
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
@@ -115,7 +124,10 @@ def engage_offense():
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
+
+            # Sync to disk periodically
+            if iteration_count % SYNC_INTERVAL == 0:
+                access_memory(Q_TABLE_FILE, q_table)
             
             # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
