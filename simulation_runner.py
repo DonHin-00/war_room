@@ -14,6 +14,7 @@ from config import PATHS
 
 BLUE_SCRIPT = "blue_brain.py"
 RED_SCRIPT = "red_brain.py"
+PURPLE_SCRIPT = "purple_brain.py"
 
 class SimulationRunner:
     def __init__(self, debug=False, reset=False, dashboard=False):
@@ -57,6 +58,11 @@ class SimulationRunner:
         print(f"[RUNNER] Starting Red Team ({RED_SCRIPT})...")
         self.processes.append(
             subprocess.Popen([sys.executable, RED_SCRIPT] + cmd_args, env=env)
+        )
+
+        print(f"[RUNNER] Starting Purple Team ({PURPLE_SCRIPT})...")
+        self.processes.append(
+            subprocess.Popen([sys.executable, PURPLE_SCRIPT], env=env)
         )
 
     def stop_agents(self):

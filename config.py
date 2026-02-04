@@ -60,6 +60,17 @@ RED = {
     }
 }
 
+# Purple Team Configuration (Safety & RoE)
+PURPLE = {
+    'THRESHOLDS': {
+        'MAX_FILES': 50,          # Too many files = Spamming/DoS
+        'MAX_ENTROPY_AVG': 7.5,   # Too much encryption = Destructive
+        'MAX_DELETIONS': 20,      # Too many deletions = Wiper activity
+    },
+    'PENALTY': -100,              # Massive penalty for RoE violation
+    'ACTIONS': ["ENFORCE_ROE", "RESET_BATTLEFIELD", "DAMPEN_REWARDS"]
+}
+
 # Logging Settings
 LOGGING = {
     'level': 'DEBUG',
