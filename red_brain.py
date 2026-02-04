@@ -23,7 +23,10 @@ class RedTeamer:
         self.running = True
         self.epsilon = config.AI_PARAMS['EPSILON_START']
         self.alpha = config.AI_PARAMS['ALPHA']
-        self.q_table = {}
+        # Double Q-Learning: Two tables
+        self.q_table_1 = {}
+        self.q_table_2 = {}
+        self.memory = [] # Experience Replay Buffer
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
         # Signal Handling
@@ -34,14 +37,19 @@ class RedTeamer:
 
     def setup(self):
         print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
-        self.q_table = utils.access_memory(config.Q_TABLE_RED) or {}
+        # Load Q-Table (legacy single file split into two or init new)
+        data = utils.access_memory(config.Q_TABLE_RED) or {}
+        self.q_table_1 = data.get('q1', {})
+        self.q_table_2 = data.get('q2', {})
+
         if not os.path.exists(config.WAR_ZONE_DIR):
             try: os.makedirs(config.WAR_ZONE_DIR)
             except: pass
 
     def shutdown(self, signum, frame):
         print(f"\n{C_RED}[SYSTEM] Red Team shutting down gracefully...{C_RESET}")
-        utils.access_memory(config.Q_TABLE_RED, self.q_table)
+        # Save both tables
+        utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
         self.running = False
         sys.exit(0)
 
@@ -49,8 +57,45 @@ class RedTeamer:
         if random.random() < self.epsilon:
             return random.choice(config.RED_ACTIONS)
         else:
-            known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.RED_ACTIONS}
+            # Double Q: Use average or sum of Q1+Q2
+            known = {}
+            for a in config.RED_ACTIONS:
+                val = self.q_table_1.get(f"{state_key}_{a}", 0) + self.q_table_2.get(f"{state_key}_{a}", 0)
+                known[a] = val
             return max(known, key=known.get)
+
+    def remember(self, state, action, reward, next_state):
+        self.memory.append((state, action, reward, next_state))
+        if len(self.memory) > config.AI_PARAMS['MEMORY_SIZE']:
+            self.memory.pop(0)
+
+    def replay(self):
+        if len(self.memory) < config.AI_PARAMS['BATCH_SIZE']:
+            return
+
+        batch = random.sample(self.memory, config.AI_PARAMS['BATCH_SIZE'])
+        for state, action, reward, next_state in batch:
+             # Randomly update Q1 or Q2
+             if random.random() < 0.5:
+                 # Update Q1 using Q2 for value estimation
+                 max_next = max([self.q_table_1.get(f"{next_state}_{a}", 0) for a in config.RED_ACTIONS])
+                 # Or correctly: use a from Q1 to query Q2? Simplified to standard Q-Learning for sim speed here,
+                 # but implementing simple Double Q Logic:
+                 # Q1(s,a) <- Q1(s,a) + alpha * (r + gamma * Q2(s', argmax Q1(s',a)) - Q1(s,a))
+
+                 # simplified max for stability in this script scope:
+                 q1_old = self.q_table_1.get(f"{state}_{action}", 0)
+                 q2_next_max = max([self.q_table_2.get(f"{next_state}_{a}", 0) for a in config.RED_ACTIONS])
+
+                 new_val = q1_old + self.alpha * (reward + config.AI_PARAMS['GAMMA'] * q2_next_max - q1_old)
+                 self.q_table_1[f"{state}_{action}"] = new_val
+             else:
+                 # Update Q2 using Q1
+                 q2_old = self.q_table_2.get(f"{state}_{action}", 0)
+                 q1_next_max = max([self.q_table_1.get(f"{next_state}_{a}", 0) for a in config.RED_ACTIONS])
+
+                 new_val = q2_old + self.alpha * (reward + config.AI_PARAMS['GAMMA'] * q1_next_max - q2_old)
+                 self.q_table_2[f"{state}_{action}"] = new_val
 
     def run(self):
         iteration = 0
@@ -107,21 +152,56 @@ class RedTeamer:
                 elif action == "T1589_LURK":
                     impact = 0
 
-                # 4. REWARD
+                elif action == "T1486_ENCRYPT":
+                    # Ransomware: Rename random visible files to .enc
+                    targets = [f for f in os.listdir(config.WAR_ZONE_DIR) if not f.endswith(".enc") and not f.startswith(".")]
+                    if targets:
+                        target = random.choice(targets)
+                        src = os.path.join(config.WAR_ZONE_DIR, target)
+                        dst = src + ".enc"
+                        try:
+                            # If it's a honeypot, we get trapped!
+                            if utils.is_honeypot(src):
+                                impact = -1 # Special signal for trap
+                            else:
+                                os.rename(src, dst)
+                                impact = 6
+                                self.audit_logger.log_event("RED", "RANSOMWARE", f"Encrypted {target}")
+                        except: pass
+
+                elif action == "T1547_PERSISTENCE":
+                    # Persistence: Create a hidden startup script
+                    fname = os.path.join(config.WAR_ZONE_DIR, f".startup_{random.randint(10,99)}.sh")
+                    try:
+                        utils.secure_create(fname, "#!/bin/bash\n./malware.sh")
+                        impact = 4
+                    except: pass
+
+                # 4. REWARD CALCULATION
                 reward = 0
                 if impact > 0: reward = config.RED_REWARDS['IMPACT']
+                if impact == 6: reward = config.RED_REWARDS['RANSOM_SUCCESS']
+                if impact == -1: reward = config.RED_REWARDS['TRAPPED']
+
                 if current_alert >= 4 and action == "T1589_LURK": reward = config.RED_REWARDS['STEALTH']
                 if current_alert == config.MAX_ALERT and impact > 0: reward = config.RED_REWARDS['CRITICAL']
                 if action == "T1071_C2_BEACON": reward = config.RED_REWARDS['C2_SUCCESS']
+                if action == "T1547_PERSISTENCE" and impact > 0: reward = config.RED_REWARDS['PERSISTENCE_SUCCESS']
 
-                # 5. LEARN
-                old_val = self.q_table.get(f"{state_key}_{action}", 0)
-                next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in config.RED_ACTIONS])
-                new_val = old_val + self.alpha * (reward + config.AI_PARAMS['GAMMA'] * next_max - old_val)
-                self.q_table[f"{state_key}_{action}"] = new_val
+                # 5. LEARN (Double Q + Replay)
+                # We need next state for proper learning.
+                # Simplification: Assume next state is roughly same key or +1 alert.
+                # In strict RL, we observe S' after act.
+                # Let's peek at new state
+                new_war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
+                next_alert = new_war_state.get('blue_alert_level', 1)
+                next_state_key = f"{next_alert}"
+
+                self.remember(state_key, action, reward, next_state_key)
+                self.replay()
 
                 if iteration % config.AI_PARAMS['SYNC_INTERVAL'] == 0:
-                    utils.access_memory(config.Q_TABLE_RED, self.q_table)
+                    utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
 
                 # 6. TRIGGER ALERTS
                 if impact > 0 and random.random() > 0.5:

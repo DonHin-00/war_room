@@ -30,6 +30,7 @@ class BlueDefender:
         self.alpha = config.AI_PARAMS['ALPHA']
         self.q_table = {}
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
+        self.backup_created = False
 
         # Signal Handling
         signal.signal(signal.SIGINT, self.shutdown)
@@ -53,11 +54,12 @@ class BlueDefender:
         visible_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, 'malware_*'))
         hidden_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, '.sys_*'))
         c2_beacons = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.c2_beacon'))
+        encrypted_files = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.enc'))
 
-        all_threats = visible_threats + hidden_threats + c2_beacons
+        all_threats = visible_threats + hidden_threats + c2_beacons + encrypted_files
         threat_count = len(all_threats)
 
-        return f"{current_alert}_{threat_count}", visible_threats, hidden_threats, c2_beacons, all_threats
+        return f"{current_alert}_{threat_count}", visible_threats, hidden_threats, c2_beacons, encrypted_files, all_threats
 
     def choose_action(self, state_key):
         if random.random() < self.epsilon:
@@ -101,7 +103,7 @@ class BlueDefender:
                 war_state = utils.access_memory(config.STATE_FILE) or {'blue_alert_level': 1}
                 current_alert = war_state.get('blue_alert_level', 1)
 
-                state_key, visible, hidden, c2, all_threats = self.get_state(current_alert)
+                state_key, visible, hidden, c2, encrypted, all_threats = self.get_state(current_alert)
                 threat_count = len(all_threats)
 
                 # 2. DECIDE
@@ -113,6 +115,7 @@ class BlueDefender:
 
                 # 3. ACT
                 mitigated = 0
+                restored = 0
 
                 if action == "SIGNATURE_SCAN":
                     # Check known signatures
@@ -137,8 +140,8 @@ class BlueDefender:
 
                 elif action == "HEURISTIC_SCAN":
                     for t in all_threats:
+                        if not os.path.exists(t): continue
                         entropy = utils.calculate_entropy(t)
-                        # Detect C2 beacons (usually small, specific pattern) or High Entropy
                         is_c2 = t.endswith(".c2_beacon")
 
                         if ".sys" in t or entropy > 3.5 or is_c2:
@@ -158,13 +161,51 @@ class BlueDefender:
                                 mitigated += 1
                             except: pass
 
+                elif action == "DEPLOY_DECOY":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"accounts_{random.randint(1000,9999)}.honey")
+                    try:
+                        utils.secure_create(fname, "admin:password123")
+                        print(f"{C_BLUE}[DEFENSE] Deployed Honey Token: {fname}{C_RESET}")
+                    except: pass
+
+                elif action == "DEPLOY_TRAP":
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"backup_{random.randint(100,999)}.tar_pit")
+                    try:
+                        # Large empty file
+                        with open(fname, 'wb') as f: f.truncate(1024 * 1024 * 50) # 50MB sparse file
+                    except: pass
+
+                elif action == "BACKUP_CRITICAL":
+                    self.backup_created = True
+                    # In a real sim we'd copy files. Here we just set a flag and maybe creating a marker
+                    pass
+
+                elif action == "RESTORE_CRITICAL":
+                    if self.backup_created and encrypted:
+                        for enc in encrypted:
+                            try:
+                                # Restore logic: Rename .enc back to original (simulated restore)
+                                orig = enc.replace(".enc", "")
+                                os.rename(enc, orig)
+                                restored += 1
+                                self.report_incident(enc, "RANSOMWARE_RECOVERY", "RESTORE")
+                            except: pass
+
                 # 4. REWARD
                 reward = 0
                 if mitigated > 0: reward = config.BLUE_REWARDS['MITIGATION']
+                if restored > 0: reward = config.BLUE_REWARDS['RESTORE_SUCCESS']
                 if action == "HEURISTIC_SCAN" and threat_count == 0: reward = config.BLUE_REWARDS['WASTE']
                 if current_alert >= 4 and action == "OBSERVE": reward = config.BLUE_REWARDS['PATIENCE']
                 if action == "IGNORE" and threat_count > 0: reward = config.BLUE_REWARDS['NEGLIGENCE']
-                
+
+                # Check for Honeypot Triggers (Simulated via external feedback or Red logs?
+                # Ideally Red reports getting trapped, or Blue checks if honeypot was modified.
+                # For this sim, we rely on Audit Log? Or state?
+                # Simplification: We can't easily see if Red touched it unless Red changed it.
+                # Assuming Red's 'TRAPPED' reward handles their penalty. Blue needs a signal.
+                # We'll skip Blue's explicit reward for now unless we implement file access monitoring.)
+
                 # 5. LEARN (Q-Learning)
                 old_val = self.q_table.get(f"{state_key}_{action}", 0)
                 next_max = max([self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS])

@@ -13,32 +13,45 @@ AUDIT_LOG = os.path.join(BASE_DIR, "audit.jsonl")
 INCIDENT_DIR = os.path.join(BASE_DIR, "incidents")
 
 # --- BLUE TEAM CONFIG ---
-BLUE_ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
+BLUE_ACTIONS = [
+    "SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE",
+    "DEPLOY_DECOY", "DEPLOY_TRAP", "BACKUP_CRITICAL", "RESTORE_CRITICAL"
+]
 BLUE_REWARDS = {
     'MITIGATION': 25,
     'PATIENCE': 10,
     'WASTE': -15,
-    'NEGLIGENCE': -50
+    'NEGLIGENCE': -50,
+    'HONEYPOT_TRIGGERED': 100, # Massive reward for trapping Red
+    'RESTORE_SUCCESS': 30
 }
 
 # --- RED TEAM CONFIG ---
-RED_ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1071_C2_BEACON"]
+RED_ACTIONS = [
+    "T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK",
+    "T1071_C2_BEACON", "T1486_ENCRYPT", "T1547_PERSISTENCE"
+]
 RED_REWARDS = {
     'IMPACT': 10,
     'STEALTH': 15,
     'CRITICAL': 30,
-    'C2_SUCCESS': 50
+    'C2_SUCCESS': 50,
+    'RANSOM_SUCCESS': 60,
+    'PERSISTENCE_SUCCESS': 40,
+    'TRAPPED': -50 # Penalty for hitting a honeypot
 }
 
 # --- COMMON AI CONFIG ---
 AI_PARAMS = {
-    'ALPHA': 0.4,
+    'ALPHA': 0.1,           # Lower learning rate for Double Q
     'ALPHA_DECAY': 0.9999,
-    'GAMMA': 0.9,
-    'EPSILON_START': 0.3,
+    'GAMMA': 0.95,
+    'EPSILON_START': 0.5,   # Higher exploration for new actions
     'EPSILON_DECAY': 0.995,
-    'MIN_EPSILON': 0.01,
-    'SYNC_INTERVAL': 10
+    'MIN_EPSILON': 0.02,
+    'SYNC_INTERVAL': 10,
+    'MEMORY_SIZE': 1000,    # Experience Replay Buffer Size
+    'BATCH_SIZE': 32        # Batch size for learning
 }
 
 # --- ALERT LEVELS ---

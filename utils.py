@@ -145,3 +145,11 @@ def manage_session(session_id):
     """Manage a user session given a session ID."""
     # Placeholder for session management logic
     pass
+
+def is_honeypot(filepath):
+    """Check if a file is a known honeypot."""
+    return filepath.endswith(".honey") or "decoy" in filepath
+
+def is_tar_pit(filepath):
+    """Check if a file is a tar pit (slows down read)."""
+    return filepath.endswith(".tar_pit")
