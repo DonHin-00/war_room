@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -6,154 +5,203 @@ Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: NIST SP 800-61, MITRE Shield
 """
 
-import glob
 import os
 import time
 import json
 import random
-import math
+import signal
+import subprocess
+import logging
+import re
+from threat_intel import ThreatIntel
+import config
 
-# --- SYSTEM CONFIGURATION ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
-STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
-WATCH_DIR = "/tmp"
+# --- SETUP LOGGING ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [BLUE] - %(message)s')
 
-# --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
-ALPHA = 0.4             # Learning Rate (How fast we accept new info)
-ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
-GAMMA = 0.9             # Discount Factor (How much we care about the future)
-EPSILON = 0.3           # Exploration Rate (Curiosity)
-EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
-MIN_EPSILON = 0.01      # Always keep 1% curiosity
+class BlueDefender:
+    def __init__(self):
+        self.threat_intel = ThreatIntel()
+        self.threat_intel.fetch_feed()
+        self.q_table = self.load_memory(config.Q_TABLE_BLUE)
+        self.state = {'blue_alert_level': 1}
+        self.running = True
 
-# --- REWARD CONFIGURATION (AI PERSONALITY) ---
-# Tweak these to change how the Defender behaves!
-R_MITIGATION = 25       # Reward for killing a threat
-R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
-P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
-P_NEGLIGENCE = -50      # Penalty for ignoring active malware
-MAX_ALERT = 5
-MIN_ALERT = 1
+        # Hyperparameters
+        self.epsilon = config.EPSILON_START
+        self.alpha = config.ALPHA
+        self.gamma = config.GAMMA
 
-# --- VISUALS ---
-C_BLUE = "\033[94m"
-C_CYAN = "\033[96m"
-C_RESET = "\033[0m"
+    def load_memory(self, filepath):
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r') as f: return json.load(f)
+            except: return {}
+        return {}
 
-# --- DEFENSIVE UTILITIES ---
-
-def calculate_shannon_entropy(filepath):
-    """Detects High Entropy (Encrypted/Obfuscated) files."""
-    try:
-        with open(filepath, 'rb') as f:
-            data = f.read()
-            if not data: return 0
-            entropy = 0
-            for x in range(256):
-                p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
-                if p_x > 0:
-                    entropy += - p_x * math.log(p_x, 2)
-            return entropy
-    except: return 0
-
-def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
-    if data is not None:
+    def save_memory(self, filepath, data):
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
         except: pass
-    if os.path.exists(filepath):
+
+    def get_state_key(self):
+        # Read alert level
+        return str(self.state.get('blue_alert_level', 1))
+
+    def choose_action(self, state_key):
+        if random.random() < self.epsilon:
+            return random.choice(config.BLUE_ACTIONS)
+        else:
+            values = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS}
+            if not values: return random.choice(config.BLUE_ACTIONS)
+            return max(values, key=values.get)
+
+    def learn(self, state_key, action, reward, next_state_key):
+        old_val = self.q_table.get(f"{state_key}_{action}", 0)
+
+        next_values = [self.q_table.get(f"{next_state_key}_{a}", 0) for a in config.BLUE_ACTIONS]
+        next_max = max(next_values) if next_values else 0
+
+        new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
+        self.q_table[f"{state_key}_{action}"] = new_val
+        self.save_memory(config.Q_TABLE_BLUE, self.q_table)
+
+    # --- DEFENSIVE UTILITIES ---
+
+    def network_hunt(self):
+        """Scan active connections for IOCs"""
+        logging.info("Scanning network connections (ss -tunap)...")
+        hits = 0
         try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
-
-# --- MAIN LOOP ---
-
-def engage_defense():
-    global EPSILON, ALPHA
-    print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
-    
-    while True:
-        try:
-            # 1. PREPARATION
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
+            # Run ss to get all TCP/UDP connections with process info
+            # -t: tcp, -u: udp, -n: numeric, -a: all, -p: processes
+            output = subprocess.check_output(["ss", "-tunap"], text=True)
             
-            current_alert = war_state.get('blue_alert_level', 1)
-            
-            # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
-            
-            threat_count = len(all_threats)
-            state_key = f"{current_alert}_{threat_count}"
-            
-            # 3. DECISION
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
-            else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
-            
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
-
-            # 4. ERADICATION
-            mitigated = 0
-            
-            if action == "SIGNATURE_SCAN":
-                for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
-                    except: pass
+            for line in output.splitlines():
+                # Parse remote IP
+                # Example: tcp ESTAB 0 0 10.0.0.1:45322 1.2.3.4:80 users:(("python3",pid=123,fd=3))
+                # Regex to extract remote IP and PID
+                match = re.search(r'\s+(\d+\.\d+\.\d+\.\d+):(\d+)\s+users:\(\(".*?",pid=(\d+)', line)
+                if match:
+                    remote_ip = match.group(1)
+                    remote_port = match.group(2)
+                    pid = int(match.group(3))
                     
-            elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
-                        try: os.remove(t); mitigated += 1
-                        except: pass
-            
-            elif action == "OBSERVE": pass
-            elif action == "IGNORE": pass
+                    if self.threat_intel.is_malicious(remote_ip):
+                        logging.warning(f"IOC DETECTED! Process {pid} connected to malicious IP {remote_ip}:{remote_port}")
+                        self.terminate_threat(pid)
+                        hits += 1
 
-            # 5. REWARD CALCULATION
-            reward = 0
-            if mitigated > 0: reward = R_MITIGATION
-            if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
-            if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
-            if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
+                    # Also check against local "known bad" from Red Team logs/state if we want to cheat (simulation)
+                    # But we are doing emulation, so we stick to the feed.
             
-            # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
-            
-            # 7. UPDATE WAR STATE
-            if mitigated > 0 and current_alert < MAX_ALERT:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-            elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+            return 20 if hits > 0 else -1 # High reward for catch, slight penalty for waste
+        except Exception as e:
+            logging.error(f"Network scan failed: {e}")
+            return 0
+
+    def terminate_threat(self, pid):
+        try:
+            # Verify it's not a critical system process (simple check)
+            if pid < 1000:
+                logging.warning(f"Refusing to kill system PID {pid}")
+                return
+
+            # Check process name
+            try:
+                with open(f"/proc/{pid}/cmdline", 'r') as f:
+                    cmd = f.read()
+                    logging.info(f"Terminating PID {pid}: {cmd}")
+            except: pass
+
+            os.kill(pid, signal.SIGKILL)
+            logging.info(f"Process {pid} KILLED.")
+            self.escalate_alert()
+        except ProcessLookupError:
+            logging.info(f"Process {pid} already dead.")
+        except Exception as e:
+            logging.error(f"Failed to kill {pid}: {e}")
+
+    def file_scan_heuristic(self):
+        """Scan for suspicious files (persistence)"""
+        logging.info("Scanning for persistence artifacts...")
+        hits = 0
+        # Check ~/.config/autostart
+        target_dir = os.path.expanduser("~/.config/autostart")
+        if os.path.exists(target_dir):
+            for f in os.listdir(target_dir):
+                if f.endswith(".desktop") and "update" in f:
+                    # Simple heuristic: "update" in user autostart is suspicious in this sim
+                    full_path = os.path.join(target_dir, f)
+                    try:
+                        os.remove(full_path)
+                        logging.warning(f"Removed suspicious persistence file: {full_path}")
+                        hits += 1
+                        self.escalate_alert()
+                    except: pass
+
+        # Check /tmp/ for suspicious scripts
+        for f in os.listdir("/tmp"):
+            if f.startswith("malware_") or f.startswith(".sys_") or f == ".rootkit_marker":
+                try:
+                    os.remove(os.path.join("/tmp", f))
+                    logging.warning(f"Removed artifact: {f}")
+                    hits += 1
+                except: pass
                 
-            access_memory(STATE_FILE, war_state)
-            
-            # LOG
-            icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
-            
-            time.sleep(0.5 if current_alert >= 4 else 1.0)
+        return 10 if hits > 0 else -1
 
-        except KeyboardInterrupt:
-            break
-        except Exception:
-            time.sleep(1)
+    def escalate_alert(self):
+        self.state['blue_alert_level'] = min(config.MAX_ALERT_LEVEL, self.state['blue_alert_level'] + 1)
+        self.save_memory(config.STATE_FILE, self.state)
+
+    def deescalate_alert(self):
+        self.state['blue_alert_level'] = max(config.MIN_ALERT_LEVEL, self.state['blue_alert_level'] - 1)
+        self.save_memory(config.STATE_FILE, self.state)
+
+    def run(self):
+        logging.info("Blue Defender Active. Monitoring...")
+        while self.running:
+            try:
+                state_key = self.get_state_key()
+                action = self.choose_action(state_key)
+
+                logging.info(f"Action: {action} (Alert Level: {state_key})")
+                reward = 0
+
+                if action == "NETWORK_HUNT":
+                    reward = self.network_hunt()
+                elif action == "HEURISTIC_SCAN":
+                    reward = self.file_scan_heuristic()
+                elif action == "SIGNATURE_SCAN":
+                    # Placeholder for signature scan
+                    time.sleep(1)
+                    reward = 0
+                elif action == "OBSERVE":
+                    time.sleep(1)
+                    # Small reward for patience if alert is high
+                    if int(state_key) > 3: reward = 5
+                elif action == "IGNORE":
+                    time.sleep(1)
+                    reward = -5 # Don't ignore things
+
+                # Decay epsilon
+                self.epsilon = max(config.EPSILON_MIN, self.epsilon * config.EPSILON_DECAY)
+
+                # Learn
+                next_state_key = self.get_state_key()
+                self.learn(state_key, action, reward, next_state_key)
+
+                # Cooldown
+                time.sleep(random.uniform(1, 2))
+
+            except KeyboardInterrupt:
+                logging.info("Blue Team standing down.")
+                self.running = False
+            except Exception as e:
+                logging.error(f"Blue Brain Crash: {e}")
+                time.sleep(1)
 
 if __name__ == "__main__":
-    engage_defense()
-EOF
+    defender = BlueDefender()
+    defender.run()
