@@ -3,44 +3,149 @@ import fcntl
 import logging
 import math
 import random
+import json
+import sys
+
+# Configure Logging for Utils
+logger = logging.getLogger("Utils")
 
 # Utility functions
 
 def safe_file_write(file_path, data):
-    """Write data to a file safely using locks."""
-    with open(file_path, 'w') as file:
-        fcntl.flock(file, fcntl.LOCK_EX)
-        file.write(data)
-        fcntl.flock(file, fcntl.LOCK_UN)
-
+    """Write string data to a file safely using locks."""
+    try:
+        with open(file_path, 'w') as file:
+            fcntl.flock(file, fcntl.LOCK_EX)
+            file.write(data)
+            fcntl.flock(file, fcntl.LOCK_UN)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to write file {file_path}: {e}")
+        return False
 
 def safe_file_read(file_path):
-    """Read data from a file safely using locks."""
-    with open(file_path, 'r') as file:
-        fcntl.flock(file, fcntl.LOCK_SH)
-        data = file.read()
-        fcntl.flock(file, fcntl.LOCK_UN)
-    return data
+    """Read string data from a file safely using locks."""
+    try:
+        if not os.path.exists(file_path):
+            return ""
+        with open(file_path, 'r') as file:
+            fcntl.flock(file, fcntl.LOCK_SH)
+            data = file.read()
+            fcntl.flock(file, fcntl.LOCK_UN)
+        return data
+    except Exception as e:
+        logger.error(f"Failed to read file {file_path}: {e}")
+        return ""
 
+def secure_create(filepath, content, is_binary=False):
+    """Securely create a file, failing if it exists (Atomic)."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    mode = 0o600
+    try:
+        fd = os.open(filepath, flags, mode)
+        with os.fdopen(fd, 'wb' if is_binary else 'w') as f:
+            f.write(content)
+        return True
+    except OSError:
+        return False
+
+def safe_json_write(file_path, data):
+    """Write JSON data to a file safely using locks."""
+    try:
+        # Atomic write pattern: write to temp, flush, sync, rename?
+        # Or just flock on the main file. Simpler for this scope is flock.
+        with open(file_path, 'w') as file:
+            fcntl.flock(file, fcntl.LOCK_EX)
+            json.dump(data, file, indent=4)
+            file.flush()
+            os.fsync(file.fileno())
+            fcntl.flock(file, fcntl.LOCK_UN)
+        return True
+    except TypeError as e:
+        logger.error(f"JSON Serialization failed for {file_path}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to write JSON {file_path}: {e}")
+        return False
+
+def safe_json_read(file_path, default=None):
+    """Read JSON data from a file safely using locks."""
+    if default is None:
+        default = {}
+
+    if not os.path.exists(file_path):
+        return default
+
+    try:
+        with open(file_path, 'r') as file:
+            fcntl.flock(file, fcntl.LOCK_SH)
+            # Handle empty files
+            content = file.read()
+            if not content.strip():
+                return default
+            file.seek(0)
+            data = json.load(file)
+            fcntl.flock(file, fcntl.LOCK_UN)
+        return data
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON Decode failed for {file_path}: {e}")
+        return default
+    except Exception as e:
+        logger.error(f"Failed to read JSON {file_path}: {e}")
+        return default
 
 def calculate_entropy(data):
-    """Calculate the entropy of a string of data."""
+    """
+    Calculate the Shannon entropy of a byte string or string.
+    If string, converts to utf-8 bytes.
+    """
+    if not data:
+        return 0
+
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+
     if len(data) == 0:
         return 0
-    probabilities = [float(data.count(x)) / len(data) for x in set(data)]
-    entropy = -sum(p * math.log2(p) for p in probabilities)
+
+    entropy = 0
+    for x in range(256):
+        p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
+        if p_x > 0:
+            entropy += - p_x * math.log(p_x, 2)
+
     return entropy
 
+def validate_state(state):
+    """Ensure state dictionary has valid types (Input Validation)."""
+    if not isinstance(state, dict):
+        return False
+    if 'blue_alert_level' in state:
+        val = state['blue_alert_level']
+        if not isinstance(val, int) or val < 0:
+            return False
+    return True
 
-def setup_logging(log_file_path):
-    """Set up logging to a specified file."""
-    logging.basicConfig(filename=log_file_path,
-                        level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)s:%(message)s')
+def check_root():
+    """Fail if running as root."""
+    if hasattr(os, 'getuid'):
+        if os.getuid() == 0:
+            sys.stderr.write("❌ SECURITY ERROR: Do not run this simulation as root!\n")
+            sys.exit(1)
 
+def setup_logging(name, log_file=None):
+    """Set up logging."""
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
 
-def manage_session(session_id):
-    """Manage a user session given a session ID."""
-    # Placeholder for session management logic
-    pass
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
 
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
