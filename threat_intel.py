@@ -58,7 +58,15 @@ class ThreatIntel:
                 content = response.read().decode('utf-8', errors='ignore')
 
                 # Parsing Logic
-                if "domain" in name.lower() or "url" in name.lower() or "phish" in name.lower():
+                if "hash" in name.lower() or "malware" in name.lower() or "fox" in name.lower():
+                    ioc_type = "hash"
+                    # Regex for SHA256
+                    hash_pattern = re.compile(r'\b[a-fA-F0-9]{64}\b')
+                    found = hash_pattern.findall(content)
+                    for h in found:
+                        iocs_found.add(h)
+
+                elif "domain" in name.lower() or "url" in name.lower() or "phish" in name.lower():
                     ioc_type = "domain"
                     # Simple regex for domains/URLs
                     # This is rough but fast. Better parsers exist but this is stdlib only.

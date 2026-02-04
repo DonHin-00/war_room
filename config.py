@@ -5,6 +5,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # File Paths
+DB_PATH = os.path.join(BASE_DIR, "simulation.db")
 Q_TABLE_BLUE = os.path.join(BASE_DIR, "blue_q_table.json")
 Q_TABLE_RED = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
