@@ -12,6 +12,7 @@ WATCH_DIR = "/tmp"
 THREAT_FEED_CACHE = os.path.join(BASE_DIR, "threat_feed_cache.json")
 
 # Threat Intelligence Sources (Free, No API Key, Live)
+# Includes "Big" aggregators and definitive lists
 THREAT_FEEDS = {
     "Feodo_Tracker": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
     "CINS_Army": "http://cinsscore.com/list/ci-badguys.txt",
@@ -19,7 +20,9 @@ THREAT_FEEDS = {
     "Blocklist_DE": "https://lists.blocklist.de/lists/all.txt",
     "DigitalSide": "https://osint.digitalside.it/Threat-Intel/lists/latestips.txt",
     "EmergingThreats": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
-    "BinaryDefense": "https://www.binarydefense.com/banlist.txt"
+    "BinaryDefense": "https://www.binarydefense.com/banlist.txt",
+    "IPSum_Aggregator": "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt",
+    "Tor_Exit_Nodes": "https://check.torproject.org/torbulkexitlist"
 }
 
 # AI Hyperparameters

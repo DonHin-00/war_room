@@ -130,8 +130,8 @@ class BlueDefender:
         target_dir = os.path.expanduser("~/.config/autostart")
         if os.path.exists(target_dir):
             for f in os.listdir(target_dir):
-                if f.endswith(".desktop") and "update" in f:
-                    # Simple heuristic: "update" in user autostart is suspicious in this sim
+                # Heuristic: Only target our known simulation pattern "system_update_"
+                if f.endswith(".desktop") and f.startswith("system_update_"):
                     full_path = os.path.join(target_dir, f)
                     try:
                         os.remove(full_path)
