@@ -9,7 +9,7 @@ import glob
 import os
 import time
 import json
-import random
+import secrets
 import math
 import signal
 import sys
@@ -128,8 +128,8 @@ class BlueDefender:
 
     def choose_action(self, state_key: str) -> str:
         """Select an action using Epsilon-Greedy strategy."""
-        if random.random() < self.epsilon:
-            return random.choice(config.BLUE_ACTIONS)
+        if (secrets.randbelow(100) / 100.0) < self.epsilon:
+            return secrets.choice(config.BLUE_ACTIONS)
         else:
             known = {a: self.q_table.get(f"{state_key}_{a}", 0) for a in config.BLUE_ACTIONS}
             return max(known, key=known.get)
@@ -255,14 +255,14 @@ class BlueDefender:
                             except OSError: pass
 
                 elif action == "DEPLOY_DECOY":
-                    fname = os.path.join(config.WAR_ZONE_DIR, f"accounts_{random.randint(1000,9999)}.honey")
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"accounts_{1000 + secrets.randbelow(9000)}.honey")
                     try:
                         utils.secure_create(fname, "admin:password123")
                         print(f"{C_BLUE}[DEFENSE] Deployed Honey Token: {fname}{C_RESET}")
                     except OSError: pass
 
                 elif action == "DEPLOY_TRAP":
-                    fname = os.path.join(config.WAR_ZONE_DIR, f"backup_{random.randint(100,999)}.tar_pit")
+                    fname = os.path.join(config.WAR_ZONE_DIR, f"backup_{100 + secrets.randbelow(900)}.tar_pit")
                     try:
                         # Large empty file
                         with open(fname, 'wb') as f: f.truncate(1024 * 1024 * 50) # 50MB sparse file

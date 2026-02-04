@@ -8,7 +8,7 @@ Frameworks: MITRE ATT&CK Matrix
 import os
 import time
 import json
-import random
+import secrets
 import signal
 import sys
 import utils
@@ -79,7 +79,7 @@ class RedTeamer:
         self.memory: List[Tuple[str, str, float, str]] = []
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
-        self.c2_port = random.randint(8000, 9000)
+        self.c2_port = 8000 + secrets.randbelow(1000)
         self.c2_server = None
         self.active_payloads = []
 
@@ -135,8 +135,9 @@ class RedTeamer:
 
     def choose_action(self, state_key: str) -> str:
         """Select an action using Double Q-Learning strategy."""
-        if random.random() < self.epsilon:
-            return random.choice(config.RED_ACTIONS)
+        # Using secrets for exploration choice is safer though slightly slower
+        if (secrets.randbelow(100) / 100.0) < self.epsilon:
+            return secrets.choice(config.RED_ACTIONS)
         else:
             # Double Q: Use average or sum of Q1+Q2
             known = {}
@@ -156,10 +157,15 @@ class RedTeamer:
         if len(self.memory) < config.AI_PARAMS['BATCH_SIZE']:
             return
 
+        # Random sampling for replay buffer doesn't strictly require CSPRNG, but for consistency:
+        # secrets doesn't have sample, so we implement a simple one or keep random for this non-security part?
+        # Let's keep random for ML sampling performance as it's not a security vulnerability.
+        import random
         batch = random.sample(self.memory, config.AI_PARAMS['BATCH_SIZE'])
+
         for state, action, reward, next_state in batch:
              # Randomly update Q1 or Q2
-             if random.random() < 0.5:
+             if secrets.randbelow(2) == 0:
                  # Update Q1 using Q2 for value estimation
                  max_next = max([self.q_table_1.get(f"{next_state}_{a}", 0) for a in config.RED_ACTIONS])
                  # Or correctly: use a from Q1 to query Q2? Simplified to standard Q-Learning for sim speed here,
@@ -211,7 +217,7 @@ class RedTeamer:
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
                     try:
-                        size = random.randint(800, 1200)
+                        size = 800 + secrets.randbelow(400)
                         data = os.urandom(size).decode('latin1')
                         utils.secure_create(fname, data)
                         impact = 3
@@ -263,7 +269,7 @@ class RedTeamer:
 
                 elif action == "T1547_PERSISTENCE":
                     # Persistence: Create a hidden startup script
-                    fname = os.path.join(config.WAR_ZONE_DIR, f".startup_{random.randint(10,99)}.sh")
+                    fname = os.path.join(config.WAR_ZONE_DIR, f".startup_{10 + secrets.randbelow(90)}.sh")
                     try:
                         utils.secure_create(fname, "#!/bin/bash\n./malware.sh")
                         impact = 4
@@ -335,12 +341,14 @@ class RedTeamer:
                     utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
 
                 # 6. TRIGGER ALERTS
-                if impact > 0 and random.random() > 0.5:
+                if impact > 0 and secrets.randbelow(2) == 0:
                     war_state['blue_alert_level'] = min(config.MAX_ALERT, current_alert + 1)
                     utils.access_memory(config.STATE_FILE, war_state)
 
                 print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
 
+                # Import random just for sleep jitter, non-critical
+                import random
                 time.sleep(random.uniform(0.5, 1.5))
 
             except Exception as e:

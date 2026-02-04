@@ -2,7 +2,7 @@ import os
 import fcntl
 import logging
 import math
-import random
+import secrets
 import collections
 import json
 import hashlib
@@ -33,14 +33,16 @@ def safe_bind_socket(host: str, port: int) -> socket.socket:
 
 def safe_file_write(file_path: str, data: str) -> None:
     """
-    Write data to a file safely using exclusive locks.
+    Write data to a file safely using exclusive locks and 0o600 permissions.
 
     Args:
         file_path: Path to the file.
         data: String content to write.
     """
     try:
-        with open(file_path, 'w') as file:
+        # Open with O_CREAT so we can set permissions atomically on creation
+        fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as file:
             fcntl.flock(file, fcntl.LOCK_EX)
             file.write(data)
             fcntl.flock(file, fcntl.LOCK_UN)
@@ -157,6 +159,7 @@ MEMORY_CACHE: Dict[str, Tuple[float, Any]] = {}
 def access_memory(filepath: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Atomic JSON I/O with read caching based on mtime.
+    Uses safe_file_write for secure persistence.
 
     Args:
         filepath: Path to the JSON file.
@@ -170,7 +173,9 @@ def access_memory(filepath: str, data: Optional[Dict[str, Any]] = None) -> Dict[
     # WRITE: Always write to disk if data is provided
     if data is not None:
         try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            json_str = json.dumps(data, indent=4)
+            safe_file_write(filepath, json_str)
+
             # Update cache timestamp to avoid immediate re-read
             if os.path.exists(filepath):
                  MEMORY_CACHE[filepath] = (os.path.getmtime(filepath), data)
@@ -276,3 +281,19 @@ def is_honeypot(filepath: str) -> bool:
 def is_tar_pit(filepath: str) -> bool:
     """Check if a file is a tar pit (slows down read)."""
     return filepath.endswith(".tar_pit")
+
+def is_safe_path(base_dir: str, path: str) -> bool:
+    """
+    Ensure path is within base_dir to prevent traversal attacks.
+
+    Args:
+        base_dir: The authorized directory.
+        path: The path to check.
+
+    Returns:
+        True if safe, False otherwise.
+    """
+    # Resolve absolute paths
+    base_abs = os.path.abspath(base_dir)
+    path_abs = os.path.abspath(path)
+    return path_abs.startswith(base_abs)

