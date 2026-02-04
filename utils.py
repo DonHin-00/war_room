@@ -67,6 +67,30 @@ def analyze_magic(data_head: bytes) -> str:
             return ftype
     return "UNKNOWN"
 
+def metamorph_code(source_code: str) -> str:
+    """
+    Apply simple metamorphic changes to Python code to alter its hash.
+    - Inserts random comments.
+    - Renames standard variables (not implemented fully to avoid syntax breaks, relying on dead code).
+    - Inserts dead code blocks.
+    """
+    lines = source_code.splitlines()
+    new_lines = []
+
+    for line in lines:
+        new_lines.append(line)
+        # 10% chance to insert junk
+        if secrets.randbelow(10) == 0:
+            junk_type = secrets.choice(["COMMENT", "DEAD_CODE"])
+            if junk_type == "COMMENT":
+                new_lines.append(f"{' '*4}# {secrets.token_hex(8)}")
+            elif junk_type == "DEAD_CODE":
+                var_name = f"_{secrets.token_hex(4)}"
+                val = secrets.randbelow(1000)
+                new_lines.append(f"{' '*4}if {val} > {val+1}: {var_name} = {val}")
+
+    return "\n".join(new_lines)
+
 def safe_bind_socket(host: str, port: int) -> socket.socket:
     """
     Create and bind a TCP socket safely with address reuse.

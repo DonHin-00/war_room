@@ -47,6 +47,16 @@ def main():
         env=env
     )
 
+    # Start Green Team (User Simulation)
+    print("Launching Green Team...")
+    green_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/green_brain.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=env
+    )
+
     duration = 20
     print(f"Running simulation for {duration} seconds...")
 
@@ -71,6 +81,8 @@ def main():
         print("\nStopping bots...")
         blue_process.terminate()
         red_process.terminate()
+        try: green_process.terminate()
+        except: pass
 
         try:
             blue_stdout, blue_stderr = blue_process.communicate(timeout=5)

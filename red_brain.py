@@ -241,8 +241,16 @@ class RedTeamer:
                         fake_name = secrets.choice(["cupsd_helper.py", "systemd_journal.py", "cron_job.py"])
                         payload_dst = os.path.join(config.WAR_ZONE_DIR, fake_name)
 
-                        import shutil
-                        shutil.copy2(payload_src, payload_dst)
+                        # Metamorphic: Read, Mutate, Write
+                        try:
+                            with open(payload_src, 'r') as f:
+                                code = f.read()
+
+                            new_code = utils.metamorph_code(code)
+
+                            with open(payload_dst, 'w') as f:
+                                f.write(new_code)
+                        except: pass
 
                         if os.path.exists(payload_dst):
                             proc = subprocess.Popen(
