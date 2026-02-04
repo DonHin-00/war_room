@@ -1,2 +1,6 @@
 paramiko
 requests
+rich
+networkx
+bcrypt
+tqdm
