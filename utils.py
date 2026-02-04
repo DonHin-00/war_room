@@ -235,8 +235,35 @@ def check_disk_usage(path, max_mb):
 class IdentityManager:
     def __init__(self, db_path):
         self.db_path = db_path
-        # In a real kernel, this key is protected. Here we simulate it.
-        self._secret = b'super-secret-kernel-key'
+        self._secret = self._load_or_generate_secret()
+
+    def _load_or_generate_secret(self):
+        """Load secret from Env or File (Securely)."""
+        # 1. Environment Variable
+        env_secret = os.environ.get('RANGE_SECRET')
+        if env_secret:
+            return env_secret.encode()
+
+        # 2. Key File
+        secret_file = ".range_secret"
+        if os.path.exists(secret_file):
+            try:
+                with open(secret_file, 'rb') as f:
+                    return f.read()
+            except Exception: pass
+
+        # 3. Generate New
+        key = secrets.token_bytes(32)
+        try:
+            # Atomic secure write
+            fd = os.open(secret_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'wb') as f:
+                f.write(key)
+        except OSError:
+            # Race condition or perm issue, just use transient key (failsafe)
+            logger.warning("Could not persist secret key. Using transient key.")
+
+        return key
 
     def login(self, agent_name):
         """Issue a session token."""

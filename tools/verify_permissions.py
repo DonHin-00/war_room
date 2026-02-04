@@ -12,8 +12,8 @@ def check_permissions():
 
     critical_files = {
         "config.py": 0o600,
-        "blue_brain.py": 0o700, # executable
-        "red_brain.py": 0o700,  # executable
+        "blue_edr.py": 0o700, # executable
+        "red_c2.py": 0o700,  # executable
     }
 
     failed = False

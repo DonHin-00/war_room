@@ -60,8 +60,9 @@ class C2Handler(http.server.BaseHTTPRequestHandler):
 
 def run_server():
     try:
-        with socketserver.TCPServer(("", PORT), C2Handler) as httpd:
-            logger.info(f"C2 Server listening on port {PORT}")
+        # Secure Default: Bind to localhost only
+        with socketserver.TCPServer(("127.0.0.1", PORT), C2Handler) as httpd:
+            logger.info(f"C2 Server listening on 127.0.0.1:{PORT}")
             httpd.serve_forever()
     except OSError as e:
         logger.error(f"C2 Bind Failed: {e}")

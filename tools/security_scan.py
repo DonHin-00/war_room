@@ -24,6 +24,9 @@ def scan_file(filepath):
                     # Ignore harmless prints in this script
                     if name == "Print Debugging" and "tools/security_scan.py" in filepath:
                         continue
+                    # Ignore commented prints
+                    if name == "Print Debugging" and line.strip().startswith("#"):
+                        continue
                     issues.append(f"[{name}] {filepath}:{i} - {line.strip()}")
     return issues
 
