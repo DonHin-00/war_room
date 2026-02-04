@@ -3,6 +3,7 @@ import os
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
 WAR_ZONE_DIR: str = os.environ.get("WAR_ZONE_DIR", "/tmp")
+CRITICAL_DIR: str = os.path.join(WAR_ZONE_DIR, "critical")
 
 # --- FILE PATHS ---
 Q_TABLE_BLUE = os.path.join(BASE_DIR, "blue_q_table.json")
@@ -23,13 +24,14 @@ BLUE_REWARDS = {
     'WASTE': -15,
     'NEGLIGENCE': -50,
     'HONEYPOT_TRIGGERED': 100, # Massive reward for trapping Red
-    'RESTORE_SUCCESS': 30
+    'RESTORE_SUCCESS': 30,
+    'FIM_ALERT': 50
 }
 
 # --- RED TEAM CONFIG ---
 RED_ACTIONS = [
     "T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK",
-    "T1071_C2_BEACON", "T1486_ENCRYPT", "T1547_PERSISTENCE"
+    "T1071_C2_BEACON", "T1486_ENCRYPT", "T1547_PERSISTENCE", "T1041_EXFILTRATION"
 ]
 RED_REWARDS = {
     'IMPACT': 10,
@@ -38,6 +40,7 @@ RED_REWARDS = {
     'C2_SUCCESS': 50,
     'RANSOM_SUCCESS': 60,
     'PERSISTENCE_SUCCESS': 40,
+    'EXFIL_SUCCESS': 80,
     'TRAPPED': -50 # Penalty for hitting a honeypot
 }
 

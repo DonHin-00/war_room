@@ -37,6 +37,7 @@ class BlueDefender:
         self.q_table: Dict[str, float] = {}
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
         self.backup_created: bool = False
+        self.fim_baseline: Dict[str, str] = {}
 
         # Signal Handling
         signal.signal(signal.SIGINT, self.shutdown)
@@ -50,6 +51,15 @@ class BlueDefender:
         self.q_table = utils.access_memory(config.Q_TABLE_BLUE) or {}
         if not os.path.exists(config.INCIDENT_DIR):
             os.makedirs(config.INCIDENT_DIR)
+
+        # Establish FIM Baseline
+        if os.path.exists(config.CRITICAL_DIR):
+            for f in os.listdir(config.CRITICAL_DIR):
+                path = os.path.join(config.CRITICAL_DIR, f)
+                try:
+                    with open(path, 'rb') as file:
+                        self.fim_baseline[path] = hashlib.sha256(file.read()).hexdigest()
+                except OSError: pass
 
     def shutdown(self, signum: int, frame: Any) -> None:
         """Graceful shutdown handler."""
@@ -201,7 +211,20 @@ class BlueDefender:
                             self.audit_logger.log_event("BLUE", "PROCESS_KILL", f"Killed PID {pid}")
                         except OSError: pass
 
-                    # 2. File Scan
+                    # 2. FIM Check
+                    for path, baseline_hash in self.fim_baseline.items():
+                        if os.path.exists(path):
+                            try:
+                                with open(path, 'rb') as f:
+                                    current_hash = hashlib.sha256(f.read()).hexdigest()
+                                if current_hash != baseline_hash:
+                                    self.report_incident(path, "INTEGRITY_VIOLATION", "RESTORE")
+                                    print(f"{C_BLUE}[DEFENSE] FIM Alert: {path} modified!{C_RESET}")
+                                    mitigated += 1 # Count FIM detection as mitigation step
+                                    # Ideally restore from golden image (not implemented yet)
+                            except OSError: pass
+
+                    # 3. File Scan
                     for t in all_threats:
                         if not os.path.exists(t): continue
                         entropy = utils.calculate_entropy(t)

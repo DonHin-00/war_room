@@ -13,6 +13,15 @@ def main():
     if os.path.exists(war_zone_dir):
         shutil.rmtree(war_zone_dir)
     os.makedirs(war_zone_dir)
+
+    # Setup Critical Infrastructure
+    critical_dir = os.path.join(war_zone_dir, "critical")
+    os.makedirs(critical_dir)
+    with open(os.path.join(critical_dir, "shadow"), "w") as f:
+        f.write("root:$6$sensitivehash:18000:0:99999:7:::")
+    with open(os.path.join(critical_dir, "database.db"), "w") as f:
+        f.write("customer_data|credit_cards|pii")
+
     print(f"Created isolated war zone at: {war_zone_dir}")
 
     env = os.environ.copy()

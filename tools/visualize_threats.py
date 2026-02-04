@@ -69,10 +69,16 @@ def main():
 
             # --- DEFENSIVE ASSETS ---
             print(f"╠{'─'*60}╣")
-            print(f"║ {'DEFENSIVE ASSETS':^58} ║")
+            print(f"║ {'DEFENSIVE ASSETS & HEALTH':^58} ║")
             print(f"╠{'─'*60}╣")
             print(f"║ Honey Tokens     : {len(honeypots):<3} 🍯 {' ' * 38}║")
             print(f"║ Tar Pits         : {len(tarpits):<3} 🕸️ {' ' * 38}║")
+
+            # Check critical files
+            crit_ok = 0
+            if os.path.exists(config.CRITICAL_DIR):
+                crit_ok = len(os.listdir(config.CRITICAL_DIR))
+            print(f"║ Critical Files   : {crit_ok:<3} 🛡️ {' ' * 38}║")
 
             # --- INTELLIGENCE ---
             print(f"╠{'═'*60}╣")

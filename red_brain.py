@@ -24,6 +24,7 @@ C_RESET = "\033[0m"
 
 class C2Handler(BaseHTTPRequestHandler):
     current_command = "SLEEP"
+    exfiltrated_data = 0
 
     def do_GET(self):
         if self.path == "/command":
@@ -34,6 +35,17 @@ class C2Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
         elif "/log" in self.path:
+            self.send_response(200)
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        if self.path == "/exfil":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            C2Handler.exfiltrated_data += len(post_data)
             self.send_response(200)
             self.end_headers()
         else:
@@ -237,10 +249,22 @@ class RedTeamer:
                         impact = 4
                     except OSError: pass
 
+                elif action == "T1041_EXFILTRATION":
+                    if self.active_payloads:
+                        C2Handler.current_command = "EXFIL"
+                        # Check if we got data
+                        if C2Handler.exfiltrated_data > 0:
+                            impact = 7
+                            self.audit_logger.log_event("RED", "EXFILTRATION", f"Stolen: {C2Handler.exfiltrated_data} bytes")
+                    else:
+                        # Need payload first
+                        impact = 0
+
                 # 4. REWARD CALCULATION
                 reward = 0
                 if impact > 0: reward = config.RED_REWARDS['IMPACT']
                 if impact == 6: reward = config.RED_REWARDS['RANSOM_SUCCESS']
+                if impact == 7: reward = config.RED_REWARDS['EXFIL_SUCCESS']
                 if impact == -1: reward = config.RED_REWARDS['TRAPPED']
 
                 if current_alert >= 4 and action == "T1589_LURK": reward = config.RED_REWARDS['STEALTH']
