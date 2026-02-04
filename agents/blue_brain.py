@@ -40,7 +40,7 @@ if not os.path.exists(BACKUP_DIR):
     except OSError: pass
 
 # --- HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "PROCESS_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "PROCESS_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "INTEGRITY_CHECK", "OBSERVE", "IGNORE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -405,11 +405,23 @@ class BlueDefender:
                             try:
                                 with open(os.path.join('/proc', pid, 'cmdline'), 'rb') as f:
                                     cmd = f.read().decode().replace('\0', ' ')
-                                    if "malware_live" in cmd and "python" in cmd:
+                                    if ("malware_live" in cmd or "sys_d_monitor" in cmd) and "python" in cmd:
                                         self.logger.warning(f"Malicious process detected! PID: {pid}. TERMINATING.")
                                         os.kill(int(pid), signal.SIGKILL)
                                         mitigated += 2 # High reward for killing active code
                             except: pass
+                    except: pass
+
+                elif action == "INTEGRITY_CHECK":
+                    # Self-Healing: Check if signatures.json is valid/empty
+                    try:
+                        if os.path.exists(SIGNATURES_FILE):
+                            content = safe_file_read(SIGNATURES_FILE)
+                            if not content or content == "[]":
+                                self.logger.warning("Integrity Violation! Signatures wiped. Restoring from Master.")
+                                # Restore logic: re-seed with a known bad hash (simulation)
+                                self.signatures = ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"]
+                                self._access_memory(SIGNATURES_FILE, self.signatures)
                     except: pass
 
                 # 5. REWARD

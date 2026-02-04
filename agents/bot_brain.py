@@ -39,6 +39,11 @@ class AnomalyDetector:
         self.threshold = 3       # Max access events per window
         self.window = 5.0        # Time window in seconds
 
+        # Long-Term Tracking (Slow Drip)
+        self.long_term_history = {} # {filepath: count}
+        self.long_term_threshold = 5
+        self.long_term_window = 60.0
+
     def log_access(self, filepath):
         now = time.time()
         if filepath not in self.access_history:
@@ -47,9 +52,17 @@ class AnomalyDetector:
         # Prune old events
         self.access_history[filepath] = [t for t in self.access_history[filepath] if t > now - self.window]
 
+        # Long Term
+        if filepath not in self.long_term_history: self.long_term_history[filepath] = []
+        self.long_term_history[filepath].append(now)
+        self.long_term_history[filepath] = [t for t in self.long_term_history[filepath] if t > now - self.long_term_window]
+
     def is_under_attack(self, filepath):
         # Burst detection: High frequency access
-        return len(self.access_history.get(filepath, [])) > self.threshold
+        burst = len(self.access_history.get(filepath, [])) > self.threshold
+        # Slow Drip detection: Moderate frequency over long time
+        drip = len(self.long_term_history.get(filepath, [])) > self.long_term_threshold
+        return burst or drip
 
 class BotWAF:
     def __init__(self):
