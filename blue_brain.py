@@ -11,6 +11,16 @@ import time
 import json
 import random
 import math
+import signal
+import sys
+import logging
+from typing import Dict, Any, List
+
+# Import shared utilities if available
+try:
+    import utils
+except ImportError:
+    utils = None
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,15 +30,9 @@ WATCH_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
-ALPHA = 0.4             # Learning Rate (How fast we accept new info)
-ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
-GAMMA = 0.9             # Discount Factor (How much we care about the future)
-EPSILON = 0.3           # Exploration Rate (Curiosity)
-EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
-MIN_EPSILON = 0.01      # Always keep 1% curiosity
+MIN_EPSILON = 0.01
 
 # --- REWARD CONFIGURATION (AI PERSONALITY) ---
-# Tweak these to change how the Defender behaves!
 R_MITIGATION = 25       # Reward for killing a threat
 R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
 P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
@@ -41,11 +45,19 @@ C_BLUE = "\033[94m"
 C_CYAN = "\033[96m"
 C_RESET = "\033[0m"
 
+# Setup Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format=f"{C_BLUE}[%(levelname)s] %(message)s{C_RESET}"
+)
+logger = logging.getLogger("BlueTeam")
+
 # --- DEFENSIVE UTILITIES ---
 
 def calculate_shannon_entropy(filepath):
     """Detects High Entropy (Encrypted/Obfuscated) files."""
     try:
+        if os.path.islink(filepath): return 0 # Symlink safety
         with open(filepath, 'rb') as f:
             data = f.read()
             if not data: return 0
@@ -55,103 +67,183 @@ def calculate_shannon_entropy(filepath):
                 if p_x > 0:
                     entropy += - p_x * math.log(p_x, 2)
             return entropy
-    except: return 0
+    except Exception: return 0
 
-def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
-    if data is not None:
+class StateManager:
+    """
+    Manages state persistence with caching and optimization.
+    """
+    def __init__(self):
+        self.state_cache: Dict[str, Any] = {}
+        self.state_mtime: float = 0.0
+
+    def load_json(self, filepath: str) -> Dict[str, Any]:
+        """Safely loads JSON data from a file."""
+        if not os.path.exists(filepath):
+            return {}
         try:
-            with open(filepath, 'w') as f: json.dump(data, f, indent=4)
-        except: pass
-    if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Failed to read {filepath}: {e}")
+            return {}
+
+    def save_json(self, filepath: str, data: Dict[str, Any]) -> None:
+        """Safely saves JSON data to a file using atomic write patterns."""
+        if utils:
+            try:
+                utils.safe_file_write(filepath, json.dumps(data, indent=4))
+                return
+            except Exception: pass
+
         try:
-            with open(filepath, 'r') as f: return json.load(f)
-        except: return {}
-    return {}
+            temp_path = filepath + ".tmp"
+            with open(temp_path, 'w') as f:
+                json.dump(data, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, filepath)
+        except IOError as e:
+            logger.error(f"Failed to write {filepath}: {e}")
 
-# --- MAIN LOOP ---
-
-def engage_defense():
-    global EPSILON, ALPHA
-    print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
-    
-    while True:
+    def get_war_state(self) -> Dict[str, Any]:
+        """Retrieves the shared war state with mtime caching."""
+        if not os.path.exists(STATE_FILE):
+            return {'blue_alert_level': 1}
         try:
-            # 1. PREPARATION
-            war_state = access_memory(STATE_FILE)
-            if not war_state: war_state = {'blue_alert_level': 1}
-            q_table = access_memory(Q_TABLE_FILE)
-            
-            current_alert = war_state.get('blue_alert_level', 1)
-            
-            # 2. DETECTION
-            visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
-            hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
-            
-            threat_count = len(all_threats)
-            state_key = f"{current_alert}_{threat_count}"
-            
-            # 3. DECISION
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
-            else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
-            
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+            mtime = os.stat(STATE_FILE).st_mtime
+            if mtime > self.state_mtime:
+                self.state_cache = self.load_json(STATE_FILE)
+                self.state_mtime = mtime
+        except OSError: pass
+        return self.state_cache
 
-            # 4. ERADICATION
-            mitigated = 0
-            
-            if action == "SIGNATURE_SCAN":
-                for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
-                    except: pass
-                    
-            elif action == "HEURISTIC_SCAN":
-                for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
-                    if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+    def update_war_state(self, updates: Dict[str, Any]) -> None:
+        """Updates the shared war state."""
+        current = self.load_json(STATE_FILE)
+        current.update(updates)
+        self.save_json(STATE_FILE, current)
+        self.state_cache = current
+        try:
+            self.state_mtime = os.stat(STATE_FILE).st_mtime
+        except OSError:
+            self.state_mtime = time.time()
+
+class BlueDefender:
+    def __init__(self):
+        self.alpha = 0.4
+        self.alpha_decay = 0.9999
+        self.gamma = 0.9
+        self.epsilon = 0.3
+        self.epsilon_decay = 0.995
+
+        self.q_table: Dict[str, float] = {}
+        self.running = True
+        self.state_manager = StateManager()
+
+        signal.signal(signal.SIGINT, self.shutdown)
+        signal.signal(signal.SIGTERM, self.shutdown)
+
+    def load_memory(self):
+        self.q_table = self.state_manager.load_json(Q_TABLE_FILE)
+        logger.info(f"Memory Loaded. Q-Table Size: {len(self.q_table)}")
+
+    def sync_memory(self):
+        self.state_manager.save_json(Q_TABLE_FILE, self.q_table)
+
+    def shutdown(self, signum, frame):
+        logger.info("Shutting down... Syncing memory.")
+        self.sync_memory()
+        self.running = False
+        sys.exit(0)
+
+    def engage(self):
+        logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
+        self.load_memory()
+
+        while self.running:
+            try:
+                # 1. PREPARATION
+                war_state = self.state_manager.get_war_state()
+                if not war_state: war_state = {'blue_alert_level': 1}
+                current_alert = war_state.get('blue_alert_level', 1)
+
+                # 2. DETECTION
+                visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
+                hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
+                all_threats = visible_threats + hidden_threats
+
+                threat_count = len(all_threats)
+                state_key = f"{current_alert}_{threat_count}"
+
+                # 3. DECISION
+                if random.random() < self.epsilon:
+                    action = random.choice(ACTIONS)
+                else:
+                    best_action = None
+                    max_q = -float('inf')
+                    for a in ACTIONS:
+                        q = self.q_table.get(f"{state_key}_{a}", 0.0)
+                        if q > max_q:
+                            max_q = q
+                            best_action = a
+                    action = best_action
+
+                self.epsilon = max(MIN_EPSILON, self.epsilon * self.epsilon_decay)
+                self.alpha = max(0.1, self.alpha * self.alpha_decay)
+
+                # 4. ERADICATION
+                mitigated = 0
+                if action == "SIGNATURE_SCAN":
+                    for t in visible_threats:
                         try: os.remove(t); mitigated += 1
                         except: pass
-            
-            elif action == "OBSERVE": pass
-            elif action == "IGNORE": pass
 
-            # 5. REWARD CALCULATION
-            reward = 0
-            if mitigated > 0: reward = R_MITIGATION
-            if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
-            if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
-            if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
-            
-            # 6. LEARN
-            old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
-            new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-            q_table[f"{state_key}_{action}"] = new_val
-            access_memory(Q_TABLE_FILE, q_table)
-            
-            # 7. UPDATE WAR STATE
-            if mitigated > 0 and current_alert < MAX_ALERT:
-                war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
-            elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
-                war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
+                elif action == "HEURISTIC_SCAN":
+                    for t in all_threats:
+                        if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
+                            try: os.remove(t); mitigated += 1
+                            except: pass
+
+                # 5. REWARD CALCULATION
+                reward = 0
+                if mitigated > 0: reward = R_MITIGATION
+                if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
+                if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
+                if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
                 
-            access_memory(STATE_FILE, war_state)
-            
-            # LOG
-            icon = "🛡️" if mitigated == 0 else "⚔️"
-            print(f"{C_BLUE}[BLUE AI]{C_RESET} {icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
-            
-            time.sleep(0.5 if current_alert >= 4 else 1.0)
+                # 6. LEARN
+                current_q_key = f"{state_key}_{action}"
+                old_val = self.q_table.get(current_q_key, 0.0)
+                next_max = -float('inf')
+                for a in ACTIONS:
+                    q = self.q_table.get(f"{state_key}_{a}", 0.0)
+                    if q > next_max: next_max = q
 
-        except KeyboardInterrupt:
-            break
-        except Exception:
-            time.sleep(1)
+                new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
+                self.q_table[current_q_key] = new_val
+                self.sync_memory() # Blue team can also benefit from periodic sync, but let's leave it safe for now.
+
+                # 7. UPDATE WAR STATE
+                if mitigated > 0 and current_alert < MAX_ALERT:
+                    self.state_manager.update_war_state({'blue_alert_level': min(MAX_ALERT, current_alert + 1)})
+                elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
+                    self.state_manager.update_war_state({'blue_alert_level': max(MIN_ALERT, current_alert - 1)})
+
+                icon = "🛡️" if mitigated == 0 else "⚔️"
+                logger.info(f"{icon} State: {state_key} | Action: {action} | Kill: {mitigated} | Q: {new_val:.2f}")
+
+                time.sleep(0.5 if current_alert >= 4 else 1.0)
+
+            except KeyboardInterrupt:
+                self.shutdown(None, None)
+            except Exception as e:
+                logger.error(f"Loop Error: {e}")
+                time.sleep(1)
+
+def engage_defense():
+    bot = BlueDefender()
+    bot.engage()
 
 if __name__ == "__main__":
     engage_defense()
