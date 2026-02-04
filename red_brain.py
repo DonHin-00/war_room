@@ -5,8 +5,6 @@ Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: MITRE ATT&CK Matrix
 
 This module implements the Red Team Agent in "Emulation Mode".
-It executes a predefined set of adversary techniques (TTPs) based on probabilities,
-simulating a realistic threat actor without Reinforcement Learning overhead.
 """
 
 import os
@@ -27,9 +25,6 @@ utils.setup_logging(config.PATHS["LOG_RED"])
 logger = logging.getLogger("RedTeam")
 
 class RedTeamer:
-    """
-    The Red Team Emulation Agent.
-    """
     def __init__(self):
         self.running = True
         self.iteration_count = 0
@@ -46,18 +41,23 @@ class RedTeamer:
         self.running = False
         sys.exit(0)
 
+    def update_heartbeat(self):
+        """Touch a heartbeat file to signal liveness."""
+        hb_file = os.path.join(config.PATHS["DATA_DIR"], "red.heartbeat")
+        try:
+            with open(hb_file, 'w') as f:
+                f.write(str(time.time()))
+        except: pass
+
+    # --- TACTICS (Same as before) ---
     def generate_payload(self, obfuscate=False):
-        """Generates payload content."""
         base_content = b"echo 'malware_payload'"
         if obfuscate:
             padding = utils.generate_high_entropy_data(random.randint(512, 4096))
             return base_content + b"\n#PAD:" + padding
         return base_content
 
-    # --- TACTICS ---
-
     def t1046_recon(self):
-        """Network Service Scanning (Simulated)."""
         traps = 0
         try:
             if os.path.exists(config.PATHS["WAR_ZONE"]):
@@ -69,7 +69,6 @@ class RedTeamer:
         return {"impact": 1, "traps_found": traps}
 
     def t1027_obfuscate(self):
-        """Obfuscated Files or Information."""
         fname = f"malware_crypt_{int(time.time())}_{secrets.token_hex(4)}.bin"
         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
         with open(target_file, 'wb') as f:
@@ -77,14 +76,12 @@ class RedTeamer:
         return {"impact": 3, "file": fname}
 
     def t1003_rootkit(self):
-        """OS Credential Dumping / Rootkit."""
         fname = f".sys_shadow_{int(time.time())}_{secrets.token_hex(4)}"
         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
         with open(target_file, 'w') as f: f.write("uid=0(root)")
         return {"impact": 5, "file": fname}
 
     def t1036_masquerade(self):
-        """Masquerading (Benign filenames)."""
         names = ["system.log", "config.ini", "update.tmp"]
         fname = f"{random.choice(names)}_{secrets.token_hex(4)}"
         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
@@ -94,7 +91,6 @@ class RedTeamer:
         return {"impact": 4, "file": fname}
 
     def t1486_encrypt(self):
-        """Data Encrypted for Impact (Ransomware)."""
         try:
             targets = []
             with os.scandir(config.PATHS["WAR_ZONE"]) as it:
@@ -105,7 +101,7 @@ class RedTeamer:
             if not targets: return {"impact": 0, "status": "no_targets"}
 
             target = random.choice(targets)
-            utils.safe_file_read(target) # Simulate read
+            utils.safe_file_read(target)
 
             encrypted_path = target + ".enc"
             with open(encrypted_path, 'wb') as f:
@@ -117,7 +113,6 @@ class RedTeamer:
         except: return {"impact": 0, "status": "failed"}
 
     def t1071_c2_beacon(self):
-        """Application Layer Protocol (C2 Beacon)."""
         fname = "c2_beacon.dat"
         target_file = os.path.join(config.PATHS["WAR_ZONE"], fname)
         with open(target_file, 'a') as f:
@@ -125,7 +120,6 @@ class RedTeamer:
         return {"impact": 2, "file": fname}
 
     def t1055_injection(self):
-        """Process Injection (Ghost PIDs)."""
         if not os.path.exists(config.PATHS["PROC"]):
             try: os.makedirs(config.PATHS["PROC"], mode=0o700)
             except: pass
@@ -136,7 +130,6 @@ class RedTeamer:
         return {"impact": 5, "pid": pid}
 
     def t1070_wipe_logs(self):
-        """Indicator Removal on Host."""
         if os.path.exists(config.PATHS["AUDIT_LOG"]):
             os.remove(config.PATHS["AUDIT_LOG"])
             return {"impact": 10, "status": "wiped"}
@@ -153,9 +146,8 @@ class RedTeamer:
         while self.running:
             try:
                 self.iteration_count += 1
+                self.update_heartbeat() # Liveness check
                 
-                # Emulation Logic: Random Choice based on Weights
-                # Weights favor Recon and C2, with occasional Attacks
                 actions = [
                     (self.t1046_recon, 0.3),
                     (self.t1071_c2_beacon, 0.2),
@@ -175,15 +167,11 @@ class RedTeamer:
 
                 tactic_name = tactic_func.__name__.upper()
 
-                # Execute
                 try:
                     result = tactic_func()
                     impact = result.pop("impact", 0)
-
-                    # Log
                     self.audit_logger.log_event("RED", tactic_name, result)
                     logger.info(f"Executed: {tactic_name} | Impact: {impact}")
-
                 except Exception as e:
                     logger.warning(f"Failed {tactic_name}: {e}")
 

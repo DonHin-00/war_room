@@ -2,6 +2,7 @@
 """
 War Room Orchestrator
 Runs the AI Cyber War Simulation (Blue vs Red) in a controlled environment.
+Now with Watchdog integration for resilience.
 """
 
 import subprocess
@@ -37,43 +38,43 @@ def run_simulation(duration=60, reset=False):
 
     clean_battlefield()
 
-    # Start Agents
-    print("🔵 Deploying Blue Team (Sentinel)...")
-    blue_proc = subprocess.Popen([sys.executable, "blue_brain.py"],
-                                 cwd=config.PATHS["BASE_DIR"])
+    # Start Agents directly via Watchdog or alongside it?
+    # Requirement: "Integrate Watchdog... Spawn watchdog alongside agents."
+    # AND "Watchdog... monitors... restarts"
+    # So Simulation Runner spawns Watchdog, Watchdog spawns/manages Agents.
+    # OR Simulation Runner spawns everything and Watchdog monitors.
+    # The watchdog script I wrote spawns agents. So Runner just needs to spawn Watchdog.
 
-    print("🔴 Deploying Red Team (Predator)...")
-    red_proc = subprocess.Popen([sys.executable, "red_brain.py"],
-                                cwd=config.PATHS["BASE_DIR"])
+    print("🐕 Deploying Daemon Watchdog (Manager)...")
+    watchdog_proc = subprocess.Popen([sys.executable, "tools/watchdog.py"],
+                                     cwd=config.PATHS["BASE_DIR"])
 
     print(f"⏱️  Simulation Active for {duration} seconds. Press Ctrl+C to abort.")
 
     start_time = time.time()
     try:
         while (time.time() - start_time) < duration:
-            # Monitor health
-            if blue_proc.poll() is not None:
-                print("⚠️  Blue Team crashed! Restarting...")
-                blue_proc = subprocess.Popen([sys.executable, "blue_brain.py"], cwd=config.PATHS["BASE_DIR"])
-
-            if red_proc.poll() is not None:
-                print("⚠️  Red Team crashed! Restarting...")
-                red_proc = subprocess.Popen([sys.executable, "red_brain.py"], cwd=config.PATHS["BASE_DIR"])
-
+            if watchdog_proc.poll() is not None:
+                print("⚠️  Watchdog crashed! Restarting system...")
+                watchdog_proc = subprocess.Popen([sys.executable, "tools/watchdog.py"],
+                                                 cwd=config.PATHS["BASE_DIR"])
             time.sleep(1)
 
     except KeyboardInterrupt:
         print("\n🛑 Simulation Aborted by User.")
     finally:
-        print("🛑 Terminating Agents...")
-        blue_proc.send_signal(signal.SIGINT)
-        red_proc.send_signal(signal.SIGINT)
+        print("🛑 Terminating Simulation...")
+        # Killing Watchdog should trigger its cleanup (it traps SIGINT)
+        watchdog_proc.send_signal(signal.SIGINT)
+        try:
+            watchdog_proc.wait(timeout=5)
+        except:
+            watchdog_proc.kill()
 
-        # Give them time to save memory
-        time.sleep(2)
-
-        if blue_proc.poll() is None: blue_proc.kill()
-        if red_proc.poll() is None: red_proc.kill()
+        # Ensure agents are dead if Watchdog failed to kill them
+        # (Cleanup is good practice)
+        os.system("pkill -f red_brain.py")
+        os.system("pkill -f blue_brain.py")
 
         print("✅ Simulation Complete.")
         print(f"📂 Artifacts located in: {config.PATHS['WAR_ZONE']}")

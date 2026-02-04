@@ -17,6 +17,7 @@ PATHS = {
     "BASE_DIR": BASE_DIR,
     "WAR_ZONE": WAR_ZONE_DIR,
     "PROC": PROC_DIR,
+    "DATA_DIR": DATA_DIR, # Added for Watchdog
     "Q_TABLE_RED": os.path.join(DATA_DIR, "red_q_table.json"),
     "Q_TABLE_BLUE": os.path.join(DATA_DIR, "blue_q_table.json"),
     "WAR_STATE": os.path.join(DATA_DIR, "war_state.json"),
