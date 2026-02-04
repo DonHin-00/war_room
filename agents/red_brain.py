@@ -196,6 +196,31 @@ class RedAttacker:
                                         impact = 4 # High impact if successful
                     except Exception: pass
 
+                elif action == "T1020_EXFIL_PASTE":
+                    # Generate Dummy CCs and shoot them to paste site
+                    try:
+                        # Generate "Realistic" CC (Valid Luhn)
+                        # Prefix 4000 (Visa) + 12 digits
+                        def luhn_calc(n):
+                            r = [int(x) for x in str(n)][::-1]
+                            return (10 - (sum(r[0::2]) + sum(sum(divmod(d*2,10)) for d in r[1::2])) % 10) % 10
+
+                        base = f"4000{random.randint(10000000000, 99999999999)}"
+                        chk = luhn_calc(base)
+                        cc = f"{base}{chk}"
+
+                        # Write to file
+                        fname = f"PASTE_DUMP_{uuid.uuid4()}.txt"
+                        fpath = os.path.join(TARGET_DIR, fname)
+                        content = f"DUMP: {cc} | EXP: 12/30 | CVV: {random.randint(100,999)}"
+                        safe_file_write(fpath, content)
+
+                        # "Shoot out" to Paste Site (Move file)
+                        paste_path = os.path.join(PASTE_DIR, fname)
+                        os.rename(fpath, paste_path)
+                        impact = 5 # Success!
+                    except Exception: pass
+
                 # 4. REWARDS
                 reward = 0
                 if impact > 0: reward = R_IMPACT

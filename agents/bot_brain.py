@@ -21,8 +21,12 @@ from utils import safe_file_read, safe_file_write
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_FILE = os.path.join(BASE_DIR, "bot.log")
 PORTS_DIR = "/tmp/ports" # Simulated open ports
+PASTE_DIR = "/tmp/mock_pastes"
 if not os.path.exists(PORTS_DIR):
     try: os.mkdir(PORTS_DIR)
+    except: pass
+if not os.path.exists(PASTE_DIR):
+    try: os.mkdir(PASTE_DIR)
     except: pass
 
 class BotWAF:
@@ -64,11 +68,23 @@ class BotWAF:
                 except: pass
 
     def monitor_traffic(self):
-        """Monitors access to ports directory (simulated by checking file stats/locks)."""
-        # In a real file-based sim, detecting 'read' is hard without auditing.
-        # We'll simulate 'exfiltration' detection if the bait files are modified or copied (Red Team logic).
-        # For now, we clean up any 'exfiltrated' copies we find in the root tmp dir if they match our bait.
-        pass
+        """Monitors access to ports and mock pastes."""
+        try:
+            # Check Pastes for Honey Pot Cards
+            if os.path.exists(PASTE_DIR):
+                with os.scandir(PASTE_DIR) as entries:
+                    for entry in entries:
+                        if entry.is_file():
+                            try:
+                                with open(entry.path, 'r', errors='ignore') as f:
+                                    content = f.read()
+                                    # Check for our specific honey pot tokens
+                                    if "4532015112830369" in content or "4485123456781234" in content:
+                                        self.logger.warning(f"CRITICAL ALERT: Honey Pot Credit Cards detected on public paste! File: {entry.name}")
+                                        # "Take down" the paste
+                                        os.remove(entry.path)
+                            except: pass
+        except: pass
 
     def run(self):
         self.logger.info("Bot WAF Initialized. Guarding Ports.")

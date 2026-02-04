@@ -18,10 +18,11 @@ import logging
 import threading
 import queue
 import sys
+import re
 
 # Adjust path to find utils in parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import safe_file_read, safe_file_write
+from utils import safe_file_read, safe_file_write, luhn_verify
 
 # --- CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +40,7 @@ if not os.path.exists(BACKUP_DIR):
     except OSError: pass
 
 # --- HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DEPLOY_DECOY", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -353,6 +354,46 @@ class BlueDefender:
                                     try: os.remove(entry.path)
                                     except OSError: pass
                     except OSError: pass
+
+                elif action == "DEPLOY_HONEY_CC":
+                    # Plant a file with "Honey Pot" Credit Cards (Valid Luhn, but tracked)
+                    fname = os.path.join(WATCH_DIR, "database_dump_users.csv")
+                    if not os.path.exists(fname):
+                        try:
+                            # 4000 0000 0000 0000 is usually valid/test, but let's make a specific valid one
+                            # 4532 0151 1283 0369 (Random valid gen)
+                            content = "user_id,cc_number,exp\n101,4532015112830369,12/28\n102,4485123456781234,11/29"
+                            safe_file_write(fname, content)
+                        except: pass
+
+                elif action == "DLP_SCAN":
+                    # Scan for sensitive patterns (Credit Cards)
+                    try:
+                        visible_threats, hidden_threats, all_files = self.scan_directory()
+                        for filepath in all_files:
+                            # Skip scanning our own backups or huge files
+                            if "blue_backups" in filepath: continue
+
+                            if os.path.getsize(filepath) < 102400: # Only scan small files for PII
+                                try:
+                                    with open(filepath, 'r', errors='ignore') as f:
+                                        content = f.read()
+                                        # Regex for potential CC: 13-19 digits
+                                        potential_ccs = re.findall(r'\b(?:\d[ -]*?){13,19}\b', content)
+                                        for cc in potential_ccs:
+                                            clean_cc = re.sub(r'\D', '', cc)
+                                            if len(clean_cc) >= 13 and luhn_verify(clean_cc):
+                                                # HIT! Sensitive data found.
+                                                # Check if it's our own honey pot
+                                                if "database_dump_users.csv" in filepath:
+                                                    continue # Allow our bait to exist
+
+                                                self.logger.warning(f"DLP Alert! Credit Card data found in {filepath}. Quarantining.")
+                                                os.remove(filepath)
+                                                mitigated += 1
+                                                break
+                                except: pass
+                    except: pass
 
                 # 5. REWARD
                 reward = 0

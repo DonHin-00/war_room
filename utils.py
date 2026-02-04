@@ -31,6 +31,13 @@ def calculate_entropy(data):
     entropy = -sum(p * math.log2(p) for p in probabilities)
     return entropy
 
+def luhn_verify(n):
+    """Check if a number string passes the Luhn algorithm (Credit Card validation)."""
+    try:
+        r = [int(ch) for ch in str(n)][::-1]
+        return (sum(r[0::2]) + sum(sum(divmod(d*2,10)) for d in r[1::2])) % 10 == 0
+    except: return False
+
 
 def setup_logging(log_file_path):
     """Set up logging to a specified file."""
