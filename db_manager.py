@@ -48,7 +48,7 @@ class DatabaseManager:
             )
         ''')
 
-        # 4. Experience Replay (Reinforced Info)
+        # 4. Experience Replay (Reinforced Info + Shadow Learning)
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS experience_replay (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +57,8 @@ class DatabaseManager:
                 action TEXT,
                 reward REAL,
                 next_state TEXT,
-                timestamp REAL
+                timestamp REAL,
+                source TEXT DEFAULT 'real' -- 'real' or 'proxy'
             )
         ''')
 
@@ -131,11 +132,11 @@ class DatabaseManager:
         return row[0] if row else None
 
     # --- Experience Replay ---
-    def save_experience(self, agent, state, action, reward, next_state):
+    def save_experience(self, agent, state, action, reward, next_state, source='real'):
         self.cursor.execute('''
-            INSERT INTO experience_replay (agent, state, action, reward, next_state, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (agent, state, action, reward, next_state, time.time()))
+            INSERT INTO experience_replay (agent, state, action, reward, next_state, timestamp, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (agent, state, action, reward, next_state, time.time(), source))
         # Keep buffer size manageable (e.g., last 1000)
         # Note: Doing this every insert is slow, maybe optimize later or use a scheduled job
         # For now, just let it grow, simulation is short.
