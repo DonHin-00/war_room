@@ -12,7 +12,7 @@ WATCH_DIR = "/tmp"
 THREAT_FEED_CACHE = os.path.join(BASE_DIR, "threat_feed_cache.json")
 
 # Threat Intelligence Sources (Free, No API Key, Live)
-# Includes "Big" aggregators and definitive lists
+# 15+ Feeds including Aggregators, Botnet Trackers, and Phishing Lists
 THREAT_FEEDS = {
     "Feodo_Tracker": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
     "CINS_Army": "http://cinsscore.com/list/ci-badguys.txt",
@@ -22,7 +22,14 @@ THREAT_FEEDS = {
     "EmergingThreats": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
     "BinaryDefense": "https://www.binarydefense.com/banlist.txt",
     "IPSum_Aggregator": "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt",
-    "Tor_Exit_Nodes": "https://check.torproject.org/torbulkexitlist"
+    "Tor_Exit_Nodes": "https://check.torproject.org/torbulkexitlist",
+    "URLHaus": "https://urlhaus.abuse.ch/downloads/hostfile/",
+    "ThreatFox": "https://threatfox.abuse.ch/export/json/recent/",
+    "MalwareBazaar": "https://bazaar.abuse.ch/export/txt/sha256/recent/", # Hashes, treated differently or just logged
+    "Botvrij_IOC": "https://www.botvrij.eu/data/ioclist.ip-dst",
+    "SANS_Top20": "https://isc.sans.edu/feeds/suspiciousdomains_High.txt", # Domains
+    "OpenPhish": "https://openphish.com/feed.txt",
+    "Bambenek_C2": "https://osint.bambenekconsulting.com/feeds/c2-ipmasterlist.txt"
 }
 
 # AI Hyperparameters

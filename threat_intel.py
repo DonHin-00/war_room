@@ -2,6 +2,7 @@
 """
 Threat Intelligence Module
 Fetches and manages real-world threat data from multiple free sources.
+Implements rigorous validation to prevent data poisoning.
 """
 
 import json
@@ -11,17 +12,15 @@ import urllib.request
 import urllib.error
 import random
 import logging
+import ipaddress
+import re
 
 try:
     import config
 except ImportError:
     # Fallback if config is not in python path
     class Config:
-        THREAT_FEEDS = {
-            "Feodo_Tracker": "https://feodotracker.abuse.ch/downloads/ipblocklist.json",
-            "CINS_Army": "http://cinsscore.com/list/ci-badguys.txt",
-            "GreenSnow": "https://blocklist.greensnow.co/greensnow.txt"
-        }
+        THREAT_FEEDS = {}
         THREAT_FEED_CACHE = "threat_feed_cache.json"
     config = Config()
 
@@ -55,6 +54,23 @@ class ThreatIntel:
         except Exception as e:
             print(f"[ThreatIntel] Cache save failed: {e}")
 
+    def validate_ip(self, ip):
+        """
+        Validates an IP address.
+        Returns True if the IP is valid, public, and not reserved/local.
+        Prevents data poisoning where feeds inject localhost/LAN IPs.
+        """
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved:
+                return False
+            # IPv4 specific check for 0.0.0.0
+            if str(ip) == "0.0.0.0":
+                return False
+            return True
+        except ValueError:
+            return False
+
     def fetch_feed(self, force=False):
         """Fetches the latest threat feeds."""
         # Update if cache is older than 24 hours or forced
@@ -70,23 +86,31 @@ class ThreatIntel:
                     url,
                     headers={'User-Agent': 'WarRoom-Simulation/1.0'}
                 )
-                with urllib.request.urlopen(req) as response:
-                    content = response.read().decode('utf-8')
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    content = response.read().decode('utf-8', errors='ignore')
                     if not content:
                         print(f"[ThreatIntel] Empty response from {name}.")
                         continue
 
                     # Determine format and parse
                     parsed_ips = set()
-                    if url.endswith('.json'):
+
+                    # Heuristic for JSON vs Text
+                    if content.strip().startswith('{') or content.strip().startswith('['):
                         parsed_ips = self._parse_json(content)
                     else:
                         parsed_ips = self._parse_text(content)
 
-                    print(f"[ThreatIntel] {name}: Found {len(parsed_ips)} IPs.")
-                    new_ips.update(parsed_ips)
+                    # Validate extracted IPs
+                    valid_ips = set()
+                    for ip in parsed_ips:
+                        if self.validate_ip(ip):
+                            valid_ips.add(ip)
 
-            except urllib.error.URLError as e:
+                    print(f"[ThreatIntel] {name}: Found {len(valid_ips)} valid IPs (from {len(parsed_ips)} raw).")
+                    new_ips.update(valid_ips)
+
+            except (urllib.error.URLError, TimeoutError) as e:
                 print(f"[ThreatIntel] Network error fetching {name}: {e}")
             except Exception as e:
                 print(f"[ThreatIntel] Error processing {name}: {e}")
@@ -100,35 +124,43 @@ class ThreatIntel:
             print("[ThreatIntel] Warning: No IPs found in any feed.")
 
     def _parse_json(self, content):
-        """Parses JSON feeds (specifically Feodo Tracker style)."""
+        """Parses JSON feeds."""
         ips = set()
         try:
             data = json.loads(content)
+            # Flatten if dict
+            if isinstance(data, dict):
+                 data = data.values() # Try to iterate values if it's a dict wrapper
+
+            # Recursive search or specific keys?
+            # Given the variety, we'll try specific keys from known feeds
             if isinstance(data, list):
                 for entry in data:
                     if isinstance(entry, dict):
-                        if 'ip_address' in entry:
-                            ips.add(entry['ip_address'])
-                        elif 'dst_ip' in entry:
-                            ips.add(entry['dst_ip'])
+                        # Feodo / ThreatFox keys
+                        for key in ['ip_address', 'dst_ip', 'ioc_value', 'ip']:
+                            if key in entry and entry[key]:
+                                ips.add(entry[key])
+                                break
         except json.JSONDecodeError:
             pass
         return ips
 
     def _parse_text(self, content):
-        """Parses plain text feeds (one IP per line)."""
+        """Parses plain text/CSV feeds."""
         ips = set()
+        ip_pattern = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+
         for line in content.splitlines():
             line = line.strip()
-            # Ignore comments and empty lines
             if not line or line.startswith('#') or line.startswith('//'):
                 continue
-            # Simple validation: looks like an IP (contains dots, numbers)
-            # We could use regex but simple checks suffice for speed
-            parts = line.split() # Sometimes feeds have "IP # comment"
-            potential_ip = parts[0]
-            if potential_ip.count('.') == 3 and all(c.isdigit() or c == '.' for c in potential_ip):
-                 ips.add(potential_ip)
+
+            # Extract all IPs in the line using Regex
+            # This handles CSVs, Hostfiles, and plain lists
+            found = ip_pattern.findall(line)
+            for ip in found:
+                ips.add(ip)
         return ips
 
     def is_malicious(self, ip):
