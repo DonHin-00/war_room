@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -12,6 +11,7 @@ import time
 import json
 import random
 import math
+import utils
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,13 +49,7 @@ def calculate_shannon_entropy(filepath):
     try:
         with open(filepath, 'rb') as f:
             data = f.read()
-            if not data: return 0
-            entropy = 0
-            for x in range(256):
-                p_x = float(data.count(x.to_bytes(1, 'little'))) / len(data)
-                if p_x > 0:
-                    entropy += - p_x * math.log(p_x, 2)
-            return entropy
+            return utils.calculate_entropy(data)
     except: return 0
 
 def access_memory(filepath, data=None):
@@ -156,4 +150,3 @@ def engage_defense():
 
 if __name__ == "__main__":
     engage_defense()
-EOF
