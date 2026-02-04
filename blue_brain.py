@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -58,15 +57,30 @@ def calculate_shannon_entropy(filepath):
             return entropy
     except: return 0
 
+MEMORY_CACHE = {}
+
 def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
+    """Atomic JSON I/O with Caching."""
+    global MEMORY_CACHE
+
     if data is not None:
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
+            if os.path.exists(filepath):
+                MEMORY_CACHE[filepath] = {'mtime': os.path.getmtime(filepath), 'data': data}
         except: pass
+
     if os.path.exists(filepath):
         try:
-            with open(filepath, 'r') as f: return json.load(f)
+            current_mtime = os.path.getmtime(filepath)
+            if filepath in MEMORY_CACHE and MEMORY_CACHE[filepath]['mtime'] == current_mtime:
+                return MEMORY_CACHE[filepath]['data'].copy()
+
+            with open(filepath, 'r') as f:
+                content = json.load(f)
+
+            MEMORY_CACHE[filepath] = {'mtime': current_mtime, 'data': content}
+            return content.copy()
         except: return {}
     return {}
 
@@ -156,4 +170,3 @@ def engage_defense():
 
 if __name__ == "__main__":
     engage_defense()
-EOF
