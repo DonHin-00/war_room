@@ -57,8 +57,31 @@ def safe_json_read(file_path):
         return {}
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logging.warning(f"Corrupted JSON in {file_path}: {e}. Resetting.")
         return {}
+
+def validate_state(state):
+    """Validate and repair the war state."""
+    required_keys = {'blue_alert_level'}
+    if not isinstance(state, dict):
+        return {'blue_alert_level': 1}
+
+    for key in required_keys:
+        if key not in state:
+            state[key] = 1
+
+    # Ensure types
+    try:
+        state['blue_alert_level'] = int(state['blue_alert_level'])
+    except (ValueError, TypeError):
+        state['blue_alert_level'] = 1
+
+    # Clamp values
+    if state['blue_alert_level'] < 1: state['blue_alert_level'] = 1
+    if state['blue_alert_level'] > 5: state['blue_alert_level'] = 5
+
+    return state
 
 
 def calculate_entropy(data):

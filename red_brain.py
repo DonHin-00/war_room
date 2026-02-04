@@ -104,8 +104,7 @@ class RedTeamer:
             try:
                 # 1. RECON
                 war_state = access_memory(STATE_FILE)
-                if not war_state: war_state = {'blue_alert_level': 1}
-                # q_table is now self.q_table
+                war_state = utils.validate_state(war_state) # Self-heal
                 
                 current_alert = war_state.get('blue_alert_level', 1)
                 state_key = f"{current_alert}"

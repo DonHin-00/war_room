@@ -136,7 +136,7 @@ class BlueDefender:
             try:
                 # 1. PREPARATION
                 war_state = access_memory(STATE_FILE)
-                if not war_state: war_state = {'blue_alert_level': 1}
+                war_state = utils.validate_state(war_state) # Self-heal
 
                 current_alert = war_state.get('blue_alert_level', 1)
 
