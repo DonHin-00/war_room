@@ -16,11 +16,12 @@ BLUE_SCRIPT = "blue_brain.py"
 RED_SCRIPT = "red_brain.py"
 
 class SimulationRunner:
-    def __init__(self, debug=False, reset=False):
+    def __init__(self, debug=False, reset=False, dashboard=False):
         self.processes = []
         self.running = True
         self.debug = debug
         self.reset = reset
+        self.dashboard = dashboard
 
         # Forward signals
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -40,6 +41,13 @@ class SimulationRunner:
             cmd_args.append("--debug")
         if self.reset:
             cmd_args.append("--reset")
+
+        # Start Dashboard if requested
+        if self.dashboard:
+            print(f"[RUNNER] Starting Dashboard...")
+            self.processes.append(
+                subprocess.Popen([sys.executable, "tools/visualize_threats.py"], env=env)
+            )
 
         print(f"[RUNNER] Starting Blue Team ({BLUE_SCRIPT})...")
         self.processes.append(
@@ -85,7 +93,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AI Cyber War Simulation Runner")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--reset", action="store_true", help="Reset memory (Q-tables) before starting")
+    parser.add_argument("--dashboard", action="store_true", help="Enable real-time dashboard")
     args = parser.parse_args()
 
-    runner = SimulationRunner(debug=args.debug, reset=args.reset)
+    runner = SimulationRunner(debug=args.debug, reset=args.reset, dashboard=args.dashboard)
     runner.run()
