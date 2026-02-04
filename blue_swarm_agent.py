@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
 import signal
+import urllib.parse
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 
@@ -145,15 +146,46 @@ class BlueSwarmAgent:
 
     def network_listener(self):
         """Monitor network traffic for signatures (IDS)."""
+        last_check = time.time()
+        packet_count = 0
+
         while self.running and self.nic.connected:
-            msg = self.nic.recv()
+            msg = self.nic.recv(timeout=0.1)
+
+            # Anomaly Detection: Volume
+            now = time.time()
+            packet_count += 1
+            if now - last_check > 1.0:
+                if packet_count > 50: # Threshold
+                    logger.warning(f"IDS ALERT: Volumetric Anomaly ({packet_count} pps)")
+                packet_count = 0
+                last_check = now
+
             if msg and self.nic.is_tap:
                 # IDS Analysis
-                payload = str(msg.get('payload', ''))
+                raw_payload = str(msg.get('payload', ''))
                 src = msg.get('src')
 
-                # Signatures
-                if "OR '1'='1" in payload or "<script>" in payload:
+                # Normalization
+                decoded_payload = urllib.parse.unquote(raw_payload)
+
+                # Signatures (on both raw and decoded)
+                signatures = ["OR '1'='1", "<script>", "1=1", "alert("]
+
+                threat = False
+                for sig in signatures:
+                    if sig in raw_payload or sig in decoded_payload:
+                        threat = True
+                        break
+
+                # Hex Decode Check
+                if "\\x" in raw_payload:
+                    try:
+                        # Simple check if lots of hex
+                        if raw_payload.count("\\x") > 5: threat = True
+                    except: pass
+
+                if threat:
                     logger.critical(f"IDS ALERT: Attack detected from {src}")
                     self.network_threats_detected += 1
                     self.share_intel(f"NET_ATTACK_{src}")

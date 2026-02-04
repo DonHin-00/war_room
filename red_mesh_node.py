@@ -14,6 +14,7 @@ import secrets
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 import utils
+import urllib.parse
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 
@@ -113,6 +114,14 @@ class RedMeshNode:
             "path": attack['path'],
             "data": attack['data']
         }
+
+        # Obfuscation (Evolutionary)
+        if random.random() < self.genes['stealth']:
+            # URL Encode values
+            for k, v in payload['data'].items():
+                if isinstance(v, str) and random.random() > 0.5:
+                    payload['data'][k] = urllib.parse.quote(v)
+                    attack['desc'] += " (Obfuscated)"
 
         logger.info(f"🚀 LAUNCHING NET EXPLOIT: {attack['desc']} -> {target}")
         self.nic.send(target, payload)

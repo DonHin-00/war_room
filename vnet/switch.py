@@ -7,6 +7,8 @@ from .protocol import *
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SWITCH] - %(message)s')
 logger = logging.getLogger(__name__)
 
+MAX_CONNECTIONS = 50
+
 class VirtualSwitch:
     def __init__(self, host=DEFAULT_SWITCH_HOST, port=DEFAULT_SWITCH_PORT):
         self.host = host
@@ -20,12 +22,20 @@ class VirtualSwitch:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.host, self.port))
-        self.sock.listen(50)
+        self.sock.listen(MAX_CONNECTIONS)
         logger.info(f"Virtual Switch Online at {self.host}:{self.port}")
 
         while self.running:
             try:
                 conn, addr = self.sock.accept()
+
+                # Connection Limit
+                with self.lock:
+                    if len(self.clients) + len(self.taps) >= MAX_CONNECTIONS:
+                        logger.warning(f"Refused connection from {addr} (Limit Reached)")
+                        conn.close()
+                        continue
+
                 threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
             except OSError:
                 break
@@ -34,9 +44,12 @@ class VirtualSwitch:
         ip_addr = None
         try:
             # First message must be HELLO
+            conn.settimeout(5.0) # Handshake timeout
             msg = read_message(conn)
+            conn.settimeout(None)
+
             if not msg or msg['type'] != MSG_HELLO:
-                logger.warning(f"Invalid Handshake from {addr}")
+                logger.debug(f"Invalid Handshake from {addr}")
                 return
 
             ip_addr = msg['src']
