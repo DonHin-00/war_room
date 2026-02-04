@@ -1,5 +1,6 @@
 from typing import Dict, Any, List
 from rich.console import Console
+import random
 
 console = Console()
 
@@ -31,6 +32,15 @@ class AdaptiveHost:
         self.creds = creds
 
     def interact(self, payload: str, source_ip: str) -> str:
+        # 1. Watchtower Integration (Adversarial)
+        # If payload is NOT blended (i.e. simple string), high chance of detection
+        if "{" not in payload and "SELECT" not in payload and "exploit" not in payload:
+             # It looks like raw junk -> Suspicious
+             if random.random() < 0.3:
+                 console.print(f"[{self.name}] 🦅 Watchtower: Anomalous traffic pattern detected from {source_ip}.")
+                 # No ban implemented here to keep test flow going, but alert is logged
+
+        # 2. Adaptation Logic
         if "exploit" in payload:
             self.alert_level += 1
             console.print(f"[{self.name}] ⚠️ Alert Level: {self.alert_level}")
@@ -38,7 +48,10 @@ class AdaptiveHost:
                 self.creds = "admin:NEW_PASS_9999"
                 console.print(f"[{self.name}] 🛡️ ADAPTATION: Credentials Rotated!")
 
-        if payload == self.creds:
+        # 3. Credential Check (simulated extraction from blended payload)
+        # We assume the "Blended" payload still contains the key string if we parse it
+        # For simulation simplicity, we check if the raw creds are *in* the payload string
+        if self.creds in payload:
             self.compromised = True
             return f"ACCESS GRANTED. Data: {self.data}"
 
@@ -50,7 +63,6 @@ class NetworkSim:
     """
     def __init__(self):
         self.firewall = Firewall()
-        # FIX: Ensure Bastion data matches CoreDB actual credentials
         core_creds = "root:secret_123"
         self.hosts = {
             "10.0.0.1": AdaptiveHost("Bastion", "10.0.0.1", "DMZ", f"INTERNAL_IP=192.168.1.50\nCORE_CREDS={core_creds}", "admin:1234"),
@@ -58,6 +70,10 @@ class NetworkSim:
         }
 
     def route_packet(self, src_ip: str, dst_ip: str, payload: str) -> str:
+        # Chaos Engineering: Random Packet Drop
+        if random.random() < 0.05: # 5% packet loss
+            return "CONNECTION REFUSED (Packet Loss)"
+
         src_zone = "INTERNET"
         if src_ip in self.hosts: src_zone = self.hosts[src_ip].zone
 
