@@ -14,6 +14,7 @@ import math
 import signal
 import sys
 import hashlib
+import subprocess
 
 import utils
 import config
@@ -57,21 +58,57 @@ class BlueDefender:
         self.running = False
         sys.exit(0)
 
+    def scan_network(self) -> List[str]:
+        """Check for suspicious listening ports > 1024 (Simulating socket scanning)."""
+        suspicious_ports = []
+        try:
+            # Use 'ss' to list listening tcp ports
+            output = subprocess.check_output(["ss", "-tlnH"], text=True)
+            for line in output.splitlines():
+                parts = line.split()
+                if len(parts) > 3:
+                    address = parts[3] # e.g. 127.0.0.1:8080
+                    if ':' in address:
+                        port_str = address.split(':')[-1]
+                        if port_str.isdigit():
+                            port = int(port_str)
+                            if port > 8000 and port < 9000: # We know Red range
+                                suspicious_ports.append(str(port))
+        except (OSError, subprocess.CalledProcessError): pass
+        return suspicious_ports
+
+    def scan_processes(self) -> List[int]:
+        """Scan for malicious processes (malware.py)."""
+        pids = []
+        try:
+            # Simple ps aux check
+            output = subprocess.check_output(["ps", "-ef"], text=True)
+            for line in output.splitlines():
+                if "payloads/malware.py" in line:
+                    parts = line.split()
+                    if len(parts) > 1 and parts[1].isdigit():
+                        pids.append(int(parts[1]))
+        except (OSError, subprocess.CalledProcessError): pass
+        return pids
+
     def get_state(self, current_alert: int) -> Tuple[str, List[str], List[str], List[str], List[str], List[str]]:
         """
         Scan environment and determine current state.
-
-        Returns:
-            Tuple containing state_key and lists of various threat types.
+        Now includes Network and Process intelligence.
         """
         visible_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, 'malware_*'))
         hidden_threats = glob.glob(os.path.join(config.WAR_ZONE_DIR, '.sys_*'))
         c2_beacons = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.c2_beacon'))
         encrypted_files = glob.glob(os.path.join(config.WAR_ZONE_DIR, '*.enc'))
 
-        all_threats = visible_threats + hidden_threats + c2_beacons + encrypted_files
-        threat_count = len(all_threats)
+        # Add active processes/ports to threat count
+        active_pids = self.scan_processes()
+        active_ports = self.scan_network()
 
+        all_threats = visible_threats + hidden_threats + c2_beacons + encrypted_files
+        threat_count = len(all_threats) + len(active_pids) + len(active_ports)
+
+        # State key complexity increases
         return f"{current_alert}_{threat_count}", visible_threats, hidden_threats, c2_beacons, encrypted_files, all_threats
 
     def choose_action(self, state_key: str) -> str:
@@ -154,6 +191,17 @@ class BlueDefender:
                             except OSError: pass
 
                 elif action == "HEURISTIC_SCAN":
+                    # 1. Kill Processes
+                    active_pids = self.scan_processes()
+                    for pid in active_pids:
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                            mitigated += 1
+                            print(f"{C_BLUE}[DEFENSE] Killed Active Malware PID: {pid}{C_RESET}")
+                            self.audit_logger.log_event("BLUE", "PROCESS_KILL", f"Killed PID {pid}")
+                        except OSError: pass
+
+                    # 2. File Scan
                     for t in all_threats:
                         if not os.path.exists(t): continue
                         entropy = utils.calculate_entropy(t)

