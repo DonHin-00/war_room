@@ -14,7 +14,9 @@ import utils
 
 # --- SYSTEM INITIALIZATION ---
 utils.check_root()
+utils.limit_resources(config.MAX_MEMORY_MB)
 logger = utils.setup_logging("RedBrain", config.RED_LOG)
+audit = utils.AuditLogger(config.AUDIT_LOG)
 
 # --- AI STATE ---
 ALPHA = config.HYPERPARAMETERS['learning_rate']
@@ -72,18 +74,23 @@ def engage_offense():
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f"malware_bait_{secrets.token_hex(8)}.sh")
                 if utils.secure_create(fname, "echo 'scan'"):
                     impact = 1
+                    audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "RECON", "file": fname})
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
+                # Polymorphism: Mutate payload to change hash
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f"malware_crypt_{secrets.token_hex(8)}.bin")
-                if utils.secure_create(fname, os.urandom(1024), is_binary=True):
+                payload = os.urandom(1024) + secrets.token_bytes(random.randint(16, 64))
+
+                if utils.secure_create(fname, payload, is_binary=True):
                     impact = 3
+                    audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "OBFUSCATE", "file": fname})
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
                 fname = os.path.join(config.SIMULATION_DATA_DIR, f".sys_shadow_{secrets.token_hex(8)}")
                 if utils.secure_create(fname, "uid=0(root)"):
                     impact = 5
+                    audit.log_event("RED", "PAYLOAD_DROPPED", {"type": "ROOTKIT", "file": fname})
                 
             elif action == "T1589_LURK":
                 impact = 0

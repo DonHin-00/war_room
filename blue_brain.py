@@ -14,7 +14,9 @@ import utils
 
 # --- SYSTEM INITIALIZATION ---
 utils.check_root()
+utils.limit_resources(config.MAX_MEMORY_MB)
 logger = utils.setup_logging("BlueBrain", config.BLUE_LOG)
+audit = utils.AuditLogger(config.AUDIT_LOG)
 
 # --- AI STATE ---
 # We use config hyperparameters
@@ -47,6 +49,9 @@ def engage_defense():
 
             # Read Q-Table with Integrity Check
             q_table = utils.safe_json_read(config.Q_TABLE_BLUE, verify_checksum=True)
+
+            # Load Signatures
+            signatures = utils.safe_json_read(config.SIGNATURE_DB, [])
             
             current_alert = war_state.get('blue_alert_level', 1)
             
@@ -88,19 +93,21 @@ def engage_defense():
             if action == "SIGNATURE_SCAN":
                 for t in visible_threats:
                     # Security: Prevent symlink attacks
-                    if os.path.islink(t):
-                        try:
+                    if os.path.islink(t): continue
+
+                    # Check against Signature DB
+                    try:
+                        with open(t, 'rb') as f: content = f.read()
+                        file_hash = utils.calculate_checksum(content.decode('latin1')) # Hacky decode for binary
+
+                        if file_hash in signatures:
                             os.remove(t)
                             mitigated += 1
-                        except OSError as e:
-                            logger.error(f"Failed to remove symlink {t}: {e}")
-                        continue
-
-                    try:
-                        os.remove(t)
-                        mitigated += 1
-                    except OSError as e:
-                        logger.error(f"Failed to remove file {t}: {e}")
+                            audit.log_event("BLUE", "SIGNATURE_MATCH", {"file": t, "hash": file_hash})
+                    except Exception as e:
+                        # Fallback to blind delete if it looks like malware but fails read?
+                        # No, strict signature match means we only kill what we know.
+                        pass
                     
             elif action == "HEURISTIC_SCAN":
                 for t in all_threats:
@@ -124,8 +131,17 @@ def engage_defense():
 
                     if ".sys" in t or entropy > 3.5:
                         try:
+                            # Learning: Add to Signatures
+                            with open(t, 'rb') as f: content = f.read()
+                            file_hash = utils.calculate_checksum(content.decode('latin1'))
+                            if file_hash not in signatures:
+                                signatures.append(file_hash)
+                                utils.safe_json_write(config.SIGNATURE_DB, signatures)
+                                audit.log_event("BLUE", "NEW_SIGNATURE_LEARNED", {"hash": file_hash})
+
                             os.remove(t)
                             mitigated += 1
+                            audit.log_event("BLUE", "THREAT_ELIMINATED", {"file": t, "entropy": entropy})
                         except OSError as e:
                             logger.error(f"Failed to remove suspect {t}: {e}")
             

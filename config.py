@@ -13,6 +13,7 @@ LOGS_DIR = os.path.join(BASE_DIR, "logs")
 Q_TABLE_BLUE = os.path.join(BASE_DIR, "blue_q_table.json")
 Q_TABLE_RED = os.path.join(BASE_DIR, "red_q_table.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
+SIGNATURE_DB = os.path.join(BASE_DIR, "signatures.json")
 
 # Hyperparameters
 HYPERPARAMETERS = {
@@ -47,6 +48,8 @@ MAX_ALERT = 5
 
 # Resource Limits
 MAX_DIR_SIZE_MB = 100  # 100MB limit for simulation data
+MAX_MEMORY_MB = 50     # 50MB RAM limit per agent
+MAX_CPU_PERCENT = 80   # Not easily enforceable via resource module, but noted.
 
 # Ensure directories exist
 for d in [SIMULATION_DATA_DIR, MODELS_DIR, LOGS_DIR]:
@@ -59,3 +62,4 @@ for d in [SIMULATION_DATA_DIR, MODELS_DIR, LOGS_DIR]:
 # Log Files
 BLUE_LOG = os.path.join(LOGS_DIR, "blue.log")
 RED_LOG = os.path.join(LOGS_DIR, "red.log")
+AUDIT_LOG = os.path.join(LOGS_DIR, "audit.jsonl")

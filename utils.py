@@ -6,6 +6,8 @@ import random
 import json
 import sys
 import hashlib
+import time
+import resource
 
 # Configure Logging for Utils
 logger = logging.getLogger("Utils")
@@ -74,9 +76,12 @@ def safe_json_write(file_path, data, write_checksum=False):
         logger.error(f"Failed to write JSON {file_path}: {e}")
         return False
 
-def calculate_checksum(data_dict):
-    """Calculate SHA256 checksum of a dictionary."""
-    encoded = json.dumps(data_dict, sort_keys=True).encode('utf-8')
+def calculate_checksum(data):
+    """Calculate SHA256 checksum of data (dict or string)."""
+    if isinstance(data, dict):
+        encoded = json.dumps(data, sort_keys=True).encode('utf-8')
+    else:
+        encoded = str(data).encode('utf-8')
     return hashlib.sha256(encoded).hexdigest()
 
 def safe_json_read(file_path, default=None, verify_checksum=False):
@@ -162,6 +167,19 @@ def check_root():
             sys.stderr.write("❌ SECURITY ERROR: Do not run this simulation as root!\n")
             sys.exit(1)
 
+def limit_resources(max_ram_mb=50):
+    """Limit the current process resources (Sandboxing)."""
+    try:
+        # Limit RAM
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        # Set limit to max_ram_mb
+        limit_bytes = max_ram_mb * 1024 * 1024
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, hard))
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to set resource limits: {e}")
+        return False
+
 def setup_logging(name, log_file=None):
     """Set up logging."""
     handler = logging.StreamHandler()
@@ -194,3 +212,106 @@ def check_disk_usage(path, max_mb):
     if get_directory_size_mb(path) > max_mb:
         return False
     return True
+
+class AuditLogger:
+    """Tamper-evident logger using hash chaining."""
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self._ensure_file()
+
+    def _ensure_file(self):
+        if not os.path.exists(self.filepath):
+            with open(self.filepath, 'w') as f:
+                # Genesis block
+                genesis = {
+                    "timestamp": time.time(),
+                    "event": "GENESIS",
+                    "agent": "SYSTEM",
+                    "prev_hash": "0" * 64,
+                    "hash": ""
+                }
+                genesis['hash'] = calculate_checksum(genesis)
+                f.write(json.dumps(genesis) + "\n")
+
+    def log_event(self, agent, event, details=None):
+        """Log an event with cryptographic linkage to previous entry."""
+        try:
+            # Read last line to get prev_hash
+            last_line = ""
+            with open(self.filepath, 'r') as f:
+                # Efficiently read last line? For now, read all is safe-ish given rotation/size
+                # Better: seek to end and backtrack, but jsonl lines vary in length.
+                # Simple approach: readlines()[-1]
+                lines = f.readlines()
+                if lines:
+                    last_line = lines[-1]
+
+            prev_entry = json.loads(last_line) if last_line else {}
+            prev_hash = prev_entry.get("hash", "0" * 64)
+
+            entry = {
+                "timestamp": time.time(),
+                "agent": agent,
+                "event": event,
+                "details": details or {},
+                "prev_hash": prev_hash
+            }
+
+            # Calculate hash of this entry (excluding its own hash field)
+            entry_hash = calculate_checksum(entry)
+            entry['hash'] = entry_hash
+
+            # Atomic append
+            with open(self.filepath, 'a') as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                f.write(json.dumps(entry) + "\n")
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+            return True
+        except Exception as e:
+            logger.error(f"Audit log failed: {e}")
+            return False
+
+def verify_audit_log(filepath):
+    """Verify the hash chain of an audit log."""
+    if not os.path.exists(filepath):
+        return False, "File missing"
+
+    try:
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+
+        if not lines:
+            return False, "Empty file"
+
+        prev_hash = "0" * 64 # Genesis prev_hash assumption
+
+        for i, line in enumerate(lines):
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                return False, f"Corrupt JSON at line {i+1}"
+
+            # 1. Check if entry points to previous hash
+            if i == 0:
+                 if entry['prev_hash'] != "0" * 64:
+                     return False, "Genesis block invalid"
+            else:
+                if entry['prev_hash'] != prev_hash:
+                    return False, f"Broken chain at line {i+1}. Expected {prev_hash[:8]}..., got {entry['prev_hash'][:8]}..."
+
+            # 2. Recalculate hash
+            stored_hash = entry['hash']
+            # Create copy without hash to calculate
+            calc_entry = entry.copy()
+            del calc_entry['hash']
+            calculated_hash = calculate_checksum(calc_entry)
+
+            if calculated_hash != stored_hash:
+                 return False, f"Tampered entry at line {i+1}"
+
+            prev_hash = stored_hash
+
+        return True, "Chain valid"
+    except Exception as e:
+        return False, f"Verification error: {e}"
