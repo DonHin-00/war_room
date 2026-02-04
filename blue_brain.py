@@ -5,7 +5,6 @@ Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: NIST SP 800-61, MITRE Shield
 """
 
-import glob
 import os
 import time
 import json
