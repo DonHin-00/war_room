@@ -16,10 +16,13 @@ import threading
 # Adjust path to find utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import safe_file_read, safe_file_write
+from agents.support.mirage import Mirage
+from agents.support.gatekeeper import Gatekeeper
 
 # --- CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_FILE = os.path.join(BASE_DIR, "bot.log")
+GATEKEEPER_STATE = os.path.join(BASE_DIR, "gatekeeper.json")
 PORTS_DIR = "/tmp/ports" # Simulated open ports
 PASTE_DIR = "/tmp/mock_pastes"
 if not os.path.exists(PORTS_DIR):
@@ -53,7 +56,8 @@ class BotWAF:
         self.running = True
         self.setup_logging()
         self.ai_brain = AnomalyDetector()
-        self.active_countermeasures = False
+        self.mirage = Mirage()
+        self.gatekeeper = Gatekeeper(GATEKEEPER_STATE, self.logger)
 
         # Signal Handling
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -76,15 +80,20 @@ class BotWAF:
 
     def deploy_poisoned_bait(self):
         """Plants bait data in the ports directory."""
-        baits = ["customer_data.db", "admin_creds.xml", "api_keys.json"]
-        for b in baits:
-            fname = os.path.join(PORTS_DIR, b)
-            if not os.path.exists(fname):
+        # High Fidelity Deception
+        targets = {
+            "customer_data.db": self.mirage.generate_user_db,
+            "aws_config.ini": self.mirage.generate_aws_config,
+            "legacy_api.json": lambda: '{"api_key": "PROD_KEY_999", "endpoint": "v1/legacy"}'
+        }
+
+        for fname, generator in targets.items():
+            fpath = os.path.join(PORTS_DIR, fname)
+            if not os.path.exists(fpath):
                 try:
-                    # Poisoned content: tracking tokens
-                    content = f"TRACKING_TOKEN_{random.randint(1000,9999)}"
-                    safe_file_write(fname, content)
-                    self.logger.info(f"Deployed poisoned bait: {b}")
+                    content = generator()
+                    safe_file_write(fpath, content)
+                    self.logger.info(f"Deployed High-Fidelity Bait: {fname}")
                 except: pass
 
     def monitor_traffic(self):
@@ -121,18 +130,21 @@ class BotWAF:
 
     def activate_shadow_ban(self, filepath):
         """Replaces file content with junk dynamically (Shadow Banning)."""
-        if self.active_countermeasures: return
+        target_id = os.path.basename(filepath)
 
-        self.logger.warning(f"AI WAF: Burst access detected on {os.path.basename(filepath)}. Engaging Shadow Ban.")
-        self.active_countermeasures = True
+        if self.gatekeeper.is_banned(target_id):
+            # Already banned, ensure junk is served
+            try:
+                safe_file_write(filepath, self.mirage.generate_junk_data())
+            except: pass
+            return
+
+        self.logger.warning(f"AI WAF: Burst detected on {target_id}. Escalating to Gatekeeper.")
+        self.gatekeeper.report_offense(target_id)
 
         try:
-            # Overwrite with Junk
-            junk = f"JUNK_DATA_{os.urandom(32).hex()}"
-            safe_file_write(filepath, junk)
-
-            # Reset after cooldown (simulated by a timer logic or just leaving it poisoned for this run)
-            # For this sim, we leave it poisoned to prove the effect.
+            # Immediate neutralization
+            safe_file_write(filepath, self.mirage.generate_junk_data())
         except: pass
 
     def run(self):
