@@ -42,33 +42,41 @@ def engage_offense():
     
     # Load Q-Table once
     q_table = utils.safe_json_read(Q_TABLE_FILE)
+    state_loader = utils.SmartJSONLoader(STATE_FILE, {'blue_alert_level': 1})
     step_count = 0
+
+    # Local optimizations
+    _random = random.random
+    _choice = random.choice
+    _sleep = time.sleep
+    _max = max
+    _time = time.time
 
     while True:
         try:
             step_count += 1
             
             # 1. RECON
-            war_state = utils.safe_json_read(STATE_FILE, {'blue_alert_level': 1})
+            war_state = state_loader.load()
             current_alert = war_state.get('blue_alert_level', 1)
             state_key = f"{current_alert}"
             
             # 2. STRATEGY
-            if random.random() < EPSILON:
-                action = random.choice(ACTIONS)
+            if _random() < EPSILON:
+                action = _choice(ACTIONS)
             else:
-                known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
-                action = max(known, key=known.get)
+                action = _max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0))
                 
-            EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
+            EPSILON = _max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
+            ALPHA = _max(0.1, ALPHA * ALPHA_DECAY)
 
             # 3. EXECUTION
             impact = 0
+            timestamp = int(_time())
             
             if action == "T1046_RECON":
                 # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                fname = os.path.join(TARGET_DIR, f"malware_bait_{timestamp}.sh")
                 try: 
                     with open(fname, 'w') as f: f.write("echo 'scan'")
                     impact = 1
@@ -76,7 +84,7 @@ def engage_offense():
                 
             elif action == "T1027_OBFUSCATE":
                 # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
+                fname = os.path.join(TARGET_DIR, f"malware_crypt_{timestamp}.bin")
                 try:
                     with open(fname, 'wb') as f: f.write(os.urandom(1024))
                     impact = 3
@@ -84,7 +92,7 @@ def engage_offense():
                 
             elif action == "T1003_ROOTKIT":
                 # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
+                fname = os.path.join(TARGET_DIR, f".sys_shadow_{timestamp}")
                 try:
                     with open(fname, 'w') as f: f.write("uid=0(root)")
                     impact = 5
@@ -101,7 +109,7 @@ def engage_offense():
             
             # 5. LEARN
             old_val = q_table.get(f"{state_key}_{action}", 0)
-            next_max = max([q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS])
+            next_max = _max(q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS)
             new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
             
             q_table[f"{state_key}_{action}"] = new_val
@@ -111,18 +119,18 @@ def engage_offense():
                 utils.safe_json_write(Q_TABLE_FILE, q_table)
             
             # 6. TRIGGER ALERTS
-            if impact > 0 and random.random() > 0.5:
+            if impact > 0 and _random() > 0.5:
                 war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 1)
                 utils.safe_json_write(STATE_FILE, war_state)
             
             print(f"{C_RED}[RED AI] {C_RESET} 👹 State: {state_key} | Tech: {action} | Impact: {impact} | Q: {new_val:.2f}")
             
-            time.sleep(random.uniform(0.5, 1.5))
+            _sleep(random.uniform(0.5, 1.5))
             
         except KeyboardInterrupt:
             break
         except Exception:
-            time.sleep(1)
+            _sleep(1)
 
 if __name__ == "__main__":
     engage_offense()

@@ -43,6 +43,29 @@ def safe_json_read(filepath, default=None):
     except: return default
 
 
+class SmartJSONLoader:
+    """Cached JSON loader that only re-reads if file modified."""
+    def __init__(self, filepath, default=None):
+        self.filepath = filepath
+        self.default = default if default is not None else {}
+        self.last_mtime = 0
+        self.cache = self.default
+
+    def load(self):
+        try:
+            if not os.path.exists(self.filepath):
+                return self.default
+
+            mtime = os.path.getmtime(self.filepath)
+            if mtime > self.last_mtime:
+                self.cache = safe_json_read(self.filepath, self.default)
+                self.last_mtime = mtime
+
+            return self.cache
+        except:
+            return self.cache
+
+
 def scan_threats(watch_dir):
     """Efficiently scan for visible and hidden threats."""
     visible = []
