@@ -11,6 +11,7 @@ import json
 import random
 import math
 import hashlib
+import shutil
 from utils import safe_file_read, safe_file_write
 
 # --- SYSTEM CONFIGURATION ---
@@ -19,9 +20,13 @@ Q_TABLE_FILE = os.path.join(BASE_DIR, "blue_q_table.json")
 SIGNATURES_FILE = os.path.join(BASE_DIR, "signatures.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
+BACKUP_DIR = os.path.join(WATCH_DIR, ".blue_backups")
+if not os.path.exists(BACKUP_DIR):
+    try: os.mkdir(BACKUP_DIR)
+    except: pass
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DEPLOY_DECOY", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DEPLOY_DECOY", "BACKUP_RESTORE", "OBSERVE", "IGNORE"]
 ALPHA = 0.4             # Learning Rate (How fast we accept new info)
 ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
 GAMMA = 0.9             # Discount Factor (How much we care about the future)
@@ -173,6 +178,38 @@ def engage_defense():
                         try:
                             safe_file_write(fname, "HONEYPOT_TOKEN_DO_NOT_TOUCH")
                         except: pass
+
+            elif action == "BACKUP_RESTORE":
+                # 1. Backup User Files (txt, yaml, csv)
+                try:
+                    with os.scandir(WATCH_DIR) as entries:
+                        for entry in entries:
+                            if entry.is_file() and entry.name.endswith((".txt", ".yaml", ".csv")) and not entry.name.startswith("RANSOM"):
+                                shutil.copy2(entry.path, os.path.join(BACKUP_DIR, entry.name))
+                except: pass
+
+                # 2. Restore Encrypted Files
+                try:
+                    with os.scandir(WATCH_DIR) as entries:
+                        for entry in entries:
+                            if entry.name.endswith(".enc"):
+                                # Ransomware detected!
+                                original_name = entry.name[:-4] # Remove .enc
+                                backup_path = os.path.join(BACKUP_DIR, original_name)
+
+                                # Kill the encrypted file
+                                try: os.remove(entry.path)
+                                except: pass
+
+                                # Restore if we have it
+                                if os.path.exists(backup_path):
+                                    shutil.copy2(backup_path, os.path.join(WATCH_DIR, original_name))
+                                    mitigated += 1
+
+                            elif entry.name.startswith("RANSOM_NOTE"):
+                                try: os.remove(entry.path)
+                                except: pass
+                except: pass
             
             elif action == "OBSERVE": pass
             elif action == "IGNORE": pass

