@@ -21,7 +21,7 @@ import utils
 C_GREEN = "\033[92m"
 C_RESET = "\033[0m"
 
-class GreenIntegrator:
+class SecurityOperations:
     def __init__(self):
         self.running = True
         self.tracer = utils.TraceLogger(config.TRACE_LOG)
@@ -30,10 +30,10 @@ class GreenIntegrator:
         self.setup()
 
     def setup(self):
-        print(f"{C_GREEN}[SYSTEM] Green Team (DevSecOps) Initialized.{C_RESET}")
+        print(f"{C_GREEN}[SYSTEM] SecOps Agent Initialized.{C_RESET}")
 
     def shutdown(self, signum, frame):
-        print(f"\n{C_GREEN}[SYSTEM] Green Team shift ended...{C_RESET}")
+        print(f"\n{C_GREEN}[SYSTEM] SecOps Shift Ended...{C_RESET}")
         self.running = False
         sys.exit(0)
 
@@ -64,7 +64,7 @@ class GreenIntegrator:
 
                     utils.secure_create(path, new_content)
                     os.chmod(path, 0o755)
-                    print(f"{C_GREEN}[GREEN] Hot-patched {s}{C_RESET}")
+                    print(f"{C_GREEN}[SECOPS] Hot-patched {s}{C_RESET}")
 
                     # Restart the service (Kill old PID)
                     # We find the PID by command line match
@@ -81,10 +81,10 @@ class GreenIntegrator:
                                             stdout=subprocess.DEVNULL,
                                             stderr=subprocess.DEVNULL)
                     except Exception as e:
-                        self.tracer.capture_exception(e, context="GREEN_RESTART")
+                        self.tracer.capture_exception(e, context="SECOPS_RESTART")
 
             except Exception as e:
-                self.tracer.capture_exception(e, context="GREEN_INSTRUMENT")
+                self.tracer.capture_exception(e, context="SECOPS_INSTRUMENT")
 
     def harden_infrastructure(self):
         """Enforce least privilege permissions."""
@@ -97,7 +97,7 @@ class GreenIntegrator:
                 if f.endswith(".conf") or f.endswith(".yaml"):
                     os.chmod(path, 0o600)
             except Exception as e:
-                self.tracer.capture_exception(e, context="GREEN_HARDEN")
+                self.tracer.capture_exception(e, context="SECOPS_HARDEN")
 
     def run(self):
         while self.running:
@@ -111,9 +111,9 @@ class GreenIntegrator:
 
                 time.sleep(random.uniform(2.0, 4.0))
             except Exception as e:
-                self.tracer.capture_exception(e, context="GREEN_LOOP")
+                self.tracer.capture_exception(e, context="SECOPS_LOOP")
                 time.sleep(1)
 
 if __name__ == "__main__":
-    bot = GreenIntegrator()
+    bot = SecurityOperations()
     bot.run()

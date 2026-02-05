@@ -22,7 +22,7 @@ import utils
 C_ORANGE = "\033[33m"
 C_RESET = "\033[0m"
 
-class OrangeEducator:
+class ThreatIntelCore:
     def __init__(self):
         self.running = True
         self.tracer = utils.TraceLogger(config.TRACE_LOG)
@@ -31,10 +31,10 @@ class OrangeEducator:
         self.setup()
 
     def setup(self):
-        print(f"{C_ORANGE}[SYSTEM] Orange Team (Educators) Initialized.{C_RESET}")
+        print(f"{C_ORANGE}[SYSTEM] Threat Intel Core Initialized.{C_RESET}")
 
     def shutdown(self, signum, frame):
-        print(f"\n{C_ORANGE}[SYSTEM] Orange Team workshop closed...{C_RESET}")
+        print(f"\n{C_ORANGE}[SYSTEM] Threat Intel Shift Ended...{C_RESET}")
         self.running = False
         sys.exit(0)
 
@@ -49,7 +49,7 @@ class OrangeEducator:
                     if "EXFILTRATION" in line or "RANSOMWARE" in line:
                         attacks_detected += 1
         except Exception as e:
-            self.tracer.capture_exception(e, context="ORANGE_ANALYZE")
+            self.tracer.capture_exception(e, context="INTEL_ANALYZE")
 
         if attacks_detected > 0:
             self.publish_standards(attacks_detected)
@@ -66,13 +66,13 @@ class OrangeEducator:
         path = os.path.join(config.BASE_DIR, "intelligence", "coding_standards.json")
         try:
             utils.safe_file_write(path, json.dumps(standards, indent=4))
-            # print(f"{C_ORANGE}[ORANGE] Updated Secure Coding Standards (Urgency: {urgency_level}){C_RESET}")
+            # print(f"{C_ORANGE}[INTEL] Updated Secure Coding Standards (Urgency: {urgency_level}){C_RESET}")
         except Exception as e:
-            self.tracer.capture_exception(e, context="ORANGE_PUBLISH")
+            self.tracer.capture_exception(e, context="INTEL_PUBLISH")
 
     def run_workshop(self):
         """
-        Simulate a training session by analyzing audit logs and generating a report.
+        Analyze audit logs and generate a Threat Landscape Report.
         Updates coding standards based on the threat landscape.
         """
         if not os.path.exists(config.AUDIT_LOG):
@@ -92,7 +92,7 @@ class OrangeEducator:
 
             # Generate Report
             with open(report_path, 'w') as f:
-                f.write("=== ORANGE TEAM WORKSHOP REPORT ===\n")
+                f.write("=== THREAT INTELLIGENCE REPORT ===\n")
                 f.write(f"Generated: {time.ctime()}\n")
                 f.write(f"Total Incidents Analyzed: {stats['TOTAL']}\n")
                 f.write("-" * 30 + "\n")
@@ -115,10 +115,10 @@ class OrangeEducator:
                 urgency = 3
 
             self.publish_standards(urgency)
-            # print(f"{C_ORANGE}[ORANGE] Workshop Complete. Report generated.{C_RESET}")
+            # print(f"{C_ORANGE}[INTEL] Report Generated.{C_RESET}")
 
         except Exception as e:
-            self.tracer.capture_exception(e, context="ORANGE_WORKSHOP")
+            self.tracer.capture_exception(e, context="INTEL_WORKSHOP")
 
     def run(self):
         while self.running:
@@ -131,9 +131,9 @@ class OrangeEducator:
 
                 time.sleep(random.uniform(5.0, 10.0))
             except Exception as e:
-                self.tracer.capture_exception(e, context="ORANGE_LOOP")
+                self.tracer.capture_exception(e, context="INTEL_LOOP")
                 time.sleep(1)
 
 if __name__ == "__main__":
-    bot = OrangeEducator()
+    bot = ThreatIntelCore()
     bot.run()

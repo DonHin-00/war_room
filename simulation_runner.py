@@ -47,30 +47,30 @@ def main():
         env=env
     )
 
-    # Start Yellow Team (Builders)
-    print("Launching Yellow Team...")
-    yellow_process = subprocess.Popen(
-        [sys.executable, "-u", "agents/yellow_brain.py"],
+    # Start Sysadmin/SRE (Builders)
+    print("Launching Sysadmin Agent (SRE)...")
+    sysadmin_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/sysadmin_brain.py"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
         env=env
     )
 
-    # Start Green Team (DevSecOps)
-    print("Launching Green Team...")
-    green_process = subprocess.Popen(
-        [sys.executable, "-u", "agents/green_brain.py"],
+    # Start SecOps (DevSecOps)
+    print("Launching SecOps Agent...")
+    secops_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/secops_brain.py"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
         env=env
     )
 
-    # Start Orange Team (Educators)
-    print("Launching Orange Team...")
-    orange_process = subprocess.Popen(
-        [sys.executable, "-u", "agents/orange_brain.py"],
+    # Start Threat Intel (Educators)
+    print("Launching Threat Intel Agent...")
+    intel_process = subprocess.Popen(
+        [sys.executable, "-u", "agents/intelligence_brain.py"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,
@@ -101,11 +101,11 @@ def main():
         print("\nStopping bots...")
         blue_process.terminate()
         red_process.terminate()
-        try: yellow_process.terminate()
+        try: sysadmin_process.terminate()
         except: pass
-        try: green_process.terminate()
+        try: secops_process.terminate()
         except: pass
-        try: orange_process.terminate()
+        try: intel_process.terminate()
         except: pass
 
         try:

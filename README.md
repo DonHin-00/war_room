@@ -23,25 +23,25 @@ Sentinel orchestrates five specialized autonomous agents, each mimicking a speci
     *   **Heuristics:** Detection of anomaly patterns and unauthorized file modifications (FIM).
 *   **AI:** Adapts defensive posture (Alert Levels) and learns signatures of successful attacks.
 
-### 🟡 Yellow Team (The Builders)
-*   **Role:** Developers & End Users.
+### 🟡 Sysadmin / SRE (The Builders)
+*   **Role:** Site Reliability Engineers & End Users.
 *   **Behavior:**
     *   Builds functional HTTP services (`app_*.py`).
     *   **User Simulation:** Occasionally executes "interesting" files, creating a realistic attack surface for Phishing.
-    *   **Dynamic Security:** Toggles between writing "Vulnerable" vs. "Secure" code based on organizational urgency (controlled by Orange Team).
+    *   **Dynamic Security:** Toggles between writing "Vulnerable" vs. "Secure" code based on organizational urgency (controlled by Threat Intel).
 
-### 🟢 Green Team (DevSecOps)
+### 🟢 SecOps (Integration)
 *   **Role:** Integration & Hardening.
 *   **Capabilities:**
-    *   **Hot Patching:** Detects active vulnerabilities in Yellow services and applies live patches.
+    *   **Hot Patching:** Detects active vulnerabilities in SRE services and applies live patches.
     *   **Logging:** Injects instrumentation for better observability.
     *   **Trace Logging:** robustly captures and logs runtime errors.
 
-### 🟠 Orange Team (The Educator)
-*   **Role:** Threat Intelligence & Governance.
+### 🟠 Threat Intelligence (Governance)
+*   **Role:** Threat Intelligence & Strategy.
 *   **Capabilities:**
     *   **Feedback Loop:** Analyzes audit logs for successful Red Team attacks.
-    *   **Policy Enforcement:** Updates `coding_standards.json` to enforce stricter development practices when threats are high, directly influencing Yellow Team behavior.
+    *   **Policy Enforcement:** Updates `coding_standards.json` to enforce stricter development practices when threats are high, directly influencing Sysadmin behavior.
 
 ---
 

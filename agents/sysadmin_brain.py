@@ -21,9 +21,9 @@ import utils
 C_YELLOW = "\033[93m"
 C_RESET = "\033[0m"
 
-class YellowBuilder:
+class SystemReliabilityEngineer:
     """
-    Yellow Team: Builders & Developers.
+    Sysadmin / SRE: Builders & Developers.
     Creates infrastructure, writes code, and occasionally introduces vulnerabilities (simulated).
     """
     def __init__(self):
@@ -35,10 +35,10 @@ class YellowBuilder:
         self.setup()
 
     def setup(self):
-        print(f"{C_YELLOW}[SYSTEM] Yellow Team (Builders) Initialized.{C_RESET}")
+        print(f"{C_YELLOW}[SYSTEM] Sysadmin Agent (SRE) Initialized.{C_RESET}")
 
     def shutdown(self, signum, frame):
-        print(f"\n{C_YELLOW}[SYSTEM] Yellow Team finished sprint...{C_RESET}")
+        print(f"\n{C_YELLOW}[SYSTEM] SRE Shift Ended...{C_RESET}")
         # Kill running services
         for p in self.active_services:
             try: p.terminate()
@@ -109,9 +109,9 @@ if __name__ == "__main__":
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL)
             self.active_services.append(proc)
-            # print(f"{C_YELLOW}[YELLOW] Launched {os.path.basename(fname)} on port {port}{C_RESET}")
+            # print(f"{C_YELLOW}[SRE] Launched {os.path.basename(fname)} on port {port}{C_RESET}")
         except Exception as e:
-            self.tracer.capture_exception(e, context="YELLOW_BUILD")
+            self.tracer.capture_exception(e, context="SRE_BUILD")
 
     def simulate_user_activity(self):
         """
@@ -137,7 +137,7 @@ if __name__ == "__main__":
                                 stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL)
         except Exception as e:
-            self.tracer.capture_exception(e, context="YELLOW_USER_ERROR")
+            self.tracer.capture_exception(e, context="SRE_USER_ERROR")
 
     def patch_vulnerability(self):
         """Simulate patching: Decommission old services and cleanup artifacts."""
@@ -168,7 +168,7 @@ if __name__ == "__main__":
                             os.remove(path)
                     except: pass
         except Exception as e:
-            self.tracer.capture_exception(e, context="YELLOW_PATCH")
+            self.tracer.capture_exception(e, context="SRE_PATCH")
 
     def run(self):
         secure_mode = False
@@ -200,9 +200,9 @@ if __name__ == "__main__":
 
                 time.sleep(random.uniform(2.0, 5.0))
             except Exception as e:
-                self.tracer.capture_exception(e, context="YELLOW_LOOP")
+                self.tracer.capture_exception(e, context="SRE_LOOP")
                 time.sleep(1)
 
 if __name__ == "__main__":
-    bot = YellowBuilder()
+    bot = SystemReliabilityEngineer()
     bot.run()
