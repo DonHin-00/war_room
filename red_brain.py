@@ -62,6 +62,7 @@ def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
     print(f"{C_RED}[SYSTEM] Loaded Advanced Obfuscation Module (Rolling Keys Enabled){C_RESET}")
+    print(f"{C_RED}[SYSTEM] Loaded Viral Hydra Module (Flu Logic Enabled){C_RESET}")
     
     while True:
         try:
@@ -95,12 +96,10 @@ def engage_offense():
                     with open(fname, 'wb') as f: f.write(obfuscated)
                     impact = 1
                 except Exception as e:
-                    # print(f"Error dropping recon: {e}")
                     pass
                 
             elif action == "T1027_OBFUSCATE":
                 # Drops a fake PDF that contains a Beacon script
-                # The action name is obfuscate, but here it implies delivering an obfuscated C2 beacon
                 fname = os.path.join(TARGET_DIR, f"invoice_{int(time.time())}.pdf")
                 try:
                     raw_payload = ammo.get_beacon_payload()
@@ -110,13 +109,15 @@ def engage_offense():
                 except: pass
                 
             elif action == "T1003_ROOTKIT":
-                # Drops a fake ELF/System file with Persistence script
+                # DEPLOYS VIRAL HYDRA (The Flu)
+                # Drops a fake ELF/System file with the Viral Payload
                 fname = os.path.join(TARGET_DIR, f".sys_driver_{int(time.time())}.o")
                 try:
-                    raw_payload = ammo.get_persistence_payload()
+                    raw_payload = ammo.get_hydra_payload()
                     obfuscated = Obfuscator.obfuscate(raw_payload, fmt='elf')
                     with open(fname, 'wb') as f: f.write(obfuscated)
-                    impact = 5
+                    impact = 15 # High impact for Hydra
+                    print(f"{C_RED}[RED AI] >> DEPLOYING HYDRA FLU VARIANT <<{C_RESET}")
                 except: pass
                 
             elif action == "T1589_LURK":
@@ -128,6 +129,8 @@ def engage_offense():
             if impact > 0: reward = R_IMPACT
             if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
             if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
+            # Bonus for Hydra
+            if action == "T1003_ROOTKIT": reward += 20
             
             # 5. LEARN
             old_val = q_table.get(f"{state_key}_{action}", 0)

