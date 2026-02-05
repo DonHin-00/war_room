@@ -44,14 +44,15 @@ class GreenIntegrator:
         self.running = False
 
     def generate_traffic(self):
-        """Browses Yellow Team services."""
-        ports = [8081, 8082]
-        for port in ports:
-            try:
-                url = f"http://127.0.0.1:{port}/"
-                with urllib.request.urlopen(url, timeout=1) as response:
-                    self.logger.info(f"Visited {url} - Status: {response.status}")
-            except: pass
+        """Browses Yellow Team services via WAF."""
+        # WAF is on 9000, forwarding to 8081 (Yellow)
+        # We can also hit other endpoints if WAF supported routing, but for now just /
+        try:
+            url = f"http://127.0.0.1:9000/"
+            with urllib.request.urlopen(url, timeout=1) as response:
+                self.logger.info(f"Visited {url} - Status: {response.status}")
+        except Exception as e:
+            self.logger.error(f"Traffic failed: {e}")
 
     def do_work(self):
         """Creates legitimate business files."""

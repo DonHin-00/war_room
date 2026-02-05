@@ -13,6 +13,7 @@ import logging
 import sys
 import os
 import signal
+import subprocess
 
 # Adjust path to find utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,15 +35,21 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path.startswith("/search"):
             # Patched version (Simulated)
             query = self.path.split("=")[-1]
+            result = f"Results: {query}"
+
             if ";" in query and not hasattr(self.server, "patched"):
-                # Vulnerable if NOT patched
+                # Vulnerable if NOT patched - Active RCE
                 try:
-                    cmd = query.split(";")[1]
-                    with open(os.path.join(TARGET_DIR, "pwned_by_red.txt"), "w") as f:
-                        f.write(f"Executed: {cmd}")
-                except: pass
+                    cmd = query.split(";")[1].strip()
+                    # Sandbox: Only allow echo/whoami/ls
+                    if cmd.startswith(("echo", "whoami", "ls")):
+                        output = subprocess.check_output(cmd, shell=True, timeout=1).decode()
+                        result += f"\n[RCE OUTPUT]: {output}"
+                except Exception as e:
+                    result += f"\n[RCE ERROR]: {e}"
+
             self.send_response(200)
-            self.wfile.write(f"Results: {query}".encode())
+            self.wfile.write(result.encode())
         else:
             self.send_response(404)
 

