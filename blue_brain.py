@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -75,6 +74,7 @@ def access_memory(filepath, data=None):
 def engage_defense():
     global EPSILON, ALPHA
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
+    print(f"{C_CYAN}[SENTINEL] Sentinel System Updated: Integration with Cyber Muzzle Active{C_RESET}")
     
     while True:
         try:
@@ -156,4 +156,3 @@ def engage_defense():
 
 if __name__ == "__main__":
     engage_defense()
-EOF
