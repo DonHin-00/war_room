@@ -10,6 +10,7 @@ from irondome.agents import LogAgent
 from soc_dashboard import app as soc_app
 from sim.clients import run_clients
 from sim.adversary import run_adversary
+import red_brain  # Import the Red Team AI
 
 def setup_db(app):
     with app.app_context():
@@ -92,6 +93,11 @@ if __name__ == "__main__":
 
     t_adv = threading.Thread(target=run_adversary, daemon=True)
     t_adv.start()
+
+    # Start Advanced Red Team (APT)
+    print("Deploying Advanced Persistent Threat (Red Team)...")
+    t_red = threading.Thread(target=red_brain.engage_offense, daemon=True)
+    t_red.start()
 
     print("Simulation Running. Press Ctrl+C to stop.")
     print("Bank URL: http://localhost:5000")
