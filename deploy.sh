@@ -4,6 +4,7 @@
 echo "[*] Cleaning up old processes..."
 pkill -f "python blue_brain.py"
 pkill -f "python red_brain.py"
+pkill -f "ant_swarm.main"
 pkill -f "python api.py"
 kill $(lsof -t -i :5173) 2>/dev/null
 kill $(lsof -t -i :3000) 2>/dev/null
