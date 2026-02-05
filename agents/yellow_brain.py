@@ -45,16 +45,35 @@ class YellowBuilder:
         self.running = False
         sys.exit(0)
 
-    def build_service(self):
+    def build_service(self, secure_mode=False):
         """Create and RUN a 'Service' (HTTP Server) in the War Zone."""
         service_type = secrets.choice(["app", "api", "portal"])
         port = 9000 + secrets.randbelow(1000)
         fname = os.path.join(config.WAR_ZONE_DIR, f"app_{service_type}_{port}.py")
 
-        # Emulated Vulnerable Application (Standard Lib HTTP Server)
+        # Logic for Secure vs Vulnerable Code
+        if secure_mode:
+            log_logic = """
+        # SECURE: No sensitive data logging
+        parsed = urllib.parse.urlparse(self.path)
+        # Safe logging (stdout only, no file write)
+        if parsed.query:
+            print(f"Safe Log: {parsed.query}")
+            """
+        else:
+            log_logic = """
+        # SIMULATED VULNERABILITY: Logging query params to disk (LFI/Info Leak)
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.query:
+            with open("access_log.txt", "a") as f:
+                f.write(f"Query: {parsed.query}\\n")
+            """
+
+        # Emulated Application (Standard Lib HTTP Server)
         content = f"""
 #!/usr/bin/env python3
 # Service: {service_type} on Port {port}
+# Secure Mode: {secure_mode}
 import http.server
 import socketserver
 import os
@@ -64,11 +83,7 @@ PORT = {port}
 
 class VulnHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        # SIMULATED VULNERABILITY: Logging query params to disk (LFI/Info Leak)
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.query:
-            with open("access_log.txt", "a") as f:
-                f.write(f"Query: {{parsed.query}}\\n")
+{log_logic}
 
         self.send_response(200)
         self.end_headers()
@@ -126,7 +141,7 @@ if __name__ == "__main__":
                 except: pass
 
     def run(self):
-        build_delay = 0.0
+        secure_mode = False
         while self.running:
             try:
                 # Check for Coding Standards from Orange
@@ -135,15 +150,17 @@ if __name__ == "__main__":
                     try:
                         data = utils.access_memory(standards_path)
                         urgency = data.get("urgency", 1)
-                        # Higher urgency = Slower builds (more careful coding)
-                        build_delay = float(urgency) * 0.5
+                        # Higher urgency or strict standards = Better Code
+                        if urgency >= 3 or data.get("input_validation") == "STRICT":
+                            secure_mode = True
+                        else:
+                            secure_mode = False
                     except: pass
 
                 action = secrets.choice(["BUILD", "BUILD", "PATCH"])
 
                 if action == "BUILD":
-                    time.sleep(build_delay) # Simulate careful coding
-                    self.build_service()
+                    self.build_service(secure_mode=secure_mode)
                 elif action == "PATCH":
                     self.patch_vulnerability()
 
