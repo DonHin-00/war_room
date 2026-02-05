@@ -25,8 +25,8 @@ class VNic:
 
         # Identity
         self.id_mgr = utils.IdentityManager(config.SESSION_DB)
-        # Register/Login to get token
-        self.token = self.id_mgr.login(self.ip)
+        # Register/Login to get mTLS Certificate
+        self.cert = self.id_mgr.login(self.ip)
         self.rx_queue = queue.Queue()
         self.running = False
         self.connected = False
@@ -38,11 +38,11 @@ class VNic:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect(self.switch_addr)
 
-                # Handshake with Zero Trust Token
+                # Handshake with mTLS Certificate
                 role = 'TAP' if self.is_tap else 'CLIENT'
                 packet = pack_message(MSG_HELLO, self.ip, 'switch', {
                     'role': role,
-                    'token': self.token
+                    'cert': self.cert
                 })
                 self.sock.sendall(packet)
 

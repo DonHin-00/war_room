@@ -25,6 +25,7 @@ class VirtualSwitch:
         self.clients = {}  # IP -> conn
         self.taps = []     # List of connections monitoring traffic
         self.firewall = set() # Blocked IPs
+        self.port_security = {} # MAC (IP) -> Port binding
         self.lock = threading.Lock()
         self.running = True
 
@@ -70,14 +71,24 @@ class VirtualSwitch:
 
             ip_addr = msg['src']
 
-            # Zero Trust Verification
-            token = msg.get('payload', {}).get('token')
-            if not self.id_mgr.verify(ip_addr, token):
-                logger.critical(f"🛑 ZERO TRUST FAIL: {ip_addr} provided invalid token!")
+            # mTLS Verification
+            cert = msg.get('payload', {}).get('cert')
+            if not self.id_mgr.verify(ip_addr, cert):
+                logger.critical(f"🛑 mTLS FAIL: {ip_addr} provided invalid certificate!")
                 conn.close()
                 return
 
+            # Port Security (Sticky MAC)
             with self.lock:
+                # Simulate MAC as IP for this layer
+                if ip_addr in self.port_security:
+                    if self.port_security[ip_addr] != addr[0]: # Check Source IP
+                        logger.critical(f"🛑 PORT SECURITY: Spoofing attempt for {ip_addr} from {addr[0]}")
+                        conn.close()
+                        return
+                else:
+                    self.port_security[ip_addr] = addr[0]
+
                 # Handle TAP registration
                 if msg.get('payload', {}).get('role') == 'TAP':
                     self.taps.append(conn)

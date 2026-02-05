@@ -158,20 +158,72 @@ class IdentityManager:
             return secret
 
     def login(self, agent_id):
-        token = hmac.new(self.secret, agent_id.encode(), hashlib.sha256).hexdigest()
-        with atomic_json_update(self.db_path) as db:
-            db[agent_id] = {"token": token, "last_seen": time.time()}
-        return token
+        """Issue a simulated 'Certificate'."""
+        # Cert = Payload + Signature
+        payload = f"{agent_id}|{time.time()}"
+        signature = hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()
+        cert = f"{payload}|{signature}"
 
-    def verify(self, agent_id, token):
-        expected = hmac.new(self.secret, agent_id.encode(), hashlib.sha256).hexdigest()
-        return secrets.compare_digest(token, expected)
+        with atomic_json_update(self.db_path) as db:
+            db[agent_id] = {"cert": cert, "last_seen": time.time()}
+        return cert
+
+    def verify(self, agent_id, cert):
+        """Verify simulated mTLS certificate."""
+        try:
+            parts = cert.split('|')
+            if len(parts) != 3: return False
+
+            claimed_id, ts, signature = parts
+            if claimed_id != agent_id: return False
+
+            # Reconstruct payload
+            payload = f"{claimed_id}|{ts}"
+            expected = hmac.new(self.secret, payload.encode(), hashlib.sha256).hexdigest()
+
+            if not secrets.compare_digest(signature, expected):
+                return False
+
+            # Expiry check (Simulate 24h certs)
+            if time.time() - float(ts) > 86400:
+                return False
+
+            return True
+        except: return False
 
 def enforce_seccomp():
     """Simulate Seccomp Hardening."""
     # In real world, use 'prctl' or 'seccomp' lib.
     # Here we just log it.
     pass
+
+def memory_scramble(variable):
+    """Securely clear sensitive data from memory."""
+    try:
+        # Overwrite if mutable (simulated)
+        if isinstance(variable, bytearray):
+            for i in range(len(variable)):
+                variable[i] = 0
+        elif isinstance(variable, list):
+            variable.clear()
+
+        del variable
+        import gc
+        gc.collect()
+    except: pass
+
+def anti_debug():
+    """Detect if debugger is attached."""
+    # Check TracerPid in /proc/self/status
+    try:
+        with open("/proc/self/status", "r") as f:
+            for line in f:
+                if line.startswith("TracerPid"):
+                    pid = int(line.split(":")[1].strip())
+                    if pid != 0:
+                        return True # Debugger detected
+    except: pass
+    return False
 
 def calculate_checksum(data):
     if isinstance(data, str): data = data.encode()
