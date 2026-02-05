@@ -375,16 +375,41 @@ class BlueSwarmAgent:
                     logger.info(f"Detected Threat: {fake_hash}")
                     self.share_intel(fake_hash)
 
-            # 3. Hunt Persistence
+            # 3. Hunt Persistence (Enhanced)
             persistence = glob.glob(os.path.join(config.PERSISTENCE_DIR, "*.service"))
             for p in persistence:
-                logger.critical(f"PERSISTENCE FOUND: {os.path.basename(p)}")
+                threat = False
+                base = os.path.basename(p)
+
+                # Check 1: Masquerading (Known bad locations or suspicious content)
+                # Since we are in PERSISTENCE_DIR, everything is suspect unless whitelisted.
+                # But Red uses "legitimate" names now.
+
+                # Check 2: Timestomping Detection (Compare mtime vs ctime/creation)
+                # On Linux, we often can't get creation time easily, but ctime updates on metadata change.
+                # Timestomp updates mtime/atime but ctime usually reflects the change.
+                # If mtime < ctime by a large margin (and ctime is recent), it's suspicious.
                 try:
-                    os.remove(p)
-                    logger.info("Persistence mechanism purged.")
-                    # Share Intel so swarm knows Red is active here
-                    self.share_intel(f"PERSISTENCE_REMOVED_{os.path.basename(p)}")
-                except Exception: pass
+                    st = os.stat(p)
+                    # If mtime is significantly older than ctime (metadata change time)
+                    # It implies someone set mtime back in time.
+                    if (st.st_ctime - st.st_mtime) > 60:
+                        logger.critical(f"TIMESTOMP DETECTED: {base} (mtime {st.st_mtime} << ctime {st.st_ctime})")
+                        threat = True
+
+                    # Also content check
+                    with open(p, 'r') as f:
+                        if "red_mesh_node" in f.read():
+                            threat = True
+                except: pass
+
+                if threat:
+                    logger.critical(f"PERSISTENCE FOUND: {base}")
+                    try:
+                        os.remove(p)
+                        logger.info("Persistence mechanism purged.")
+                        self.share_intel(f"PERSISTENCE_REMOVED_{base}")
+                    except Exception: pass
 
             # Verify/Vouch logic (Simulation)
             # If this hash matches something recently shared by a peer, VOUCH for them

