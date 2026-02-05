@@ -27,6 +27,7 @@ from utils import (
 )
 from utils.trace_logger import trace_errors
 import config
+from ml_engine import DoubleQLearner, SafetyShield
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
@@ -66,14 +67,21 @@ def load_threat_feed() -> List[Dict[str, Any]]:
 
 @trace_errors
 def engage_defense(max_iterations: Optional[int] = None) -> None:
-    global EPSILON, ALPHA
 
     msg = f"[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61"
     print(f"{C_CYAN}{msg}{C_RESET}")
     logger.info(msg)
 
+    # Initialize ML Engine
     q_table_path = config.file_paths['blue_q_table']
-    q_table: Dict[str, float] = atomic_json_io(q_table_path)
+    learner = DoubleQLearner(
+        actions=ACTIONS,
+        alpha=ALPHA,
+        gamma=GAMMA,
+        epsilon=EPSILON,
+        filepath=q_table_path
+    )
+    shield = SafetyShield("blue")
 
     steps_since_save = 0
     save_interval = config.constraints['save_interval']
@@ -119,18 +127,18 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 threat_count = len(all_threats)
 
                 # Context-Aware State: Alert_Files_Campaign
-                # E.g. "5_2_EXFILTRATION"
                 state_key = f"{current_alert}_{threat_count}_{campaign_phase}"
 
                 # 3. DECISION
-                action: str = ""
-                if random.random() < EPSILON:
-                    action = random.choice(ACTIONS)
-                else:
-                    action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
+                action = learner.choose_action(state_key)
 
-                EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-                ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
+                # Safety Shield Check
+                if shield.is_unsafe(action, {'alert_level': current_alert}):
+                    # Override unsafe action
+                    action = "OBSERVE"
+
+                # Decay Epsilon
+                learner.decay_epsilon(EPSILON_DECAY, MIN_EPSILON)
 
                 # 4. EXECUTION
                 mitigated = 0
@@ -191,7 +199,6 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                         except: pass
 
                 elif action == "NETWORK_HUNT":
-                    # Scan network bus for C2 traffic
                     if os.path.exists(network_dir):
                         try:
                             with os.scandir(network_dir) as it:
@@ -213,11 +220,10 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if mitigated > 0: reward = config.blue_rewards['mitigation']
                 if hunted > 0: reward = config.blue_rewards['threat_hunt_success']
                 if trapped > 0: reward = 10
-                if blocked > 0: reward = 15 # Good job stopping C2
+                if blocked > 0: reward = 15
 
-                # Context-Aware Rewards
                 if campaign_phase == "EXFILTRATION" and action == "NETWORK_HUNT" and blocked > 0:
-                    reward += 50 # Huge bonus for stopping exfil
+                    reward += 50
                 if campaign_phase == "PERSISTENCE" and action == "HEURISTIC_SCAN" and mitigated > 0:
                     reward += 30
 
@@ -229,14 +235,25 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if action == "IGNORE" and threat_count > 0: reward = config.blue_rewards['negligence']
 
                 # 6. LEARN
-                old_val = q_table.get(f"{state_key}_{action}", 0.0)
-                next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
-                new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-                q_table[f"{state_key}_{action}"] = new_val
+                # Determine next state
+                # Note: This is an approximation since we don't know the exact next state yet
+                # We assume the state remains similar for the next Q-Learning step update
+                # Or we can just use the same state key since we are in a continuous loop
+                # Technically Q-Learning needs Next State.
+
+                # Let's peek at threats again? No that's expensive.
+                # We will assume state transitions are somewhat stable or just use the current state
+                # as "next state" for the sake of this simplified implementation loop,
+                # OR we defer learning until top of loop?
+                # Ideally: Store experience in buffer, learn later.
+                # For now, let's use the standard loop update with the *same* state as next state approximation
+                # or just pass current state_key as both (simplified SARSA-like behavior)
+
+                learner.learn(state_key, action, reward, state_key)
 
                 steps_since_save += 1
                 if steps_since_save >= save_interval:
-                    atomic_json_merge(q_table_path, q_table)
+                    learner.save()
                     steps_since_save = 0
 
                 # 7. UPDATE WAR STATE
@@ -267,7 +284,10 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
                 if action == "DEPLOY_TRAP": icon = "🕸️ "
                 elif action == "THREAT_HUNT": icon = "🔎"
 
-                log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {total_success} | Q: {new_val:.2f}"
+                # Get max Q for display
+                max_q = max([learner.get_q(state_key, a) for a in ACTIONS])
+
+                log_msg = f"{icon} State: {state_key} | Action: {action} | Kill: {total_success} | Q: {max_q:.2f}"
                 print(f"{C_BLUE}[BLUE AI]{C_RESET} {log_msg}")
                 logger.info(log_msg)
 
@@ -279,7 +299,7 @@ def engage_defense(max_iterations: Optional[int] = None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        atomic_json_merge(q_table_path, q_table)
+        learner.save()
         logger.info("Blue Team AI Shutting Down")
 
 if __name__ == "__main__":

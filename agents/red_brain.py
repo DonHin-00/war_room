@@ -26,6 +26,7 @@ from utils import (
 )
 from utils.trace_logger import trace_errors
 import config
+from ml_engine import DoubleQLearner, SafetyShield
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
@@ -79,14 +80,22 @@ class RedCampaignManager:
 
 @trace_errors
 def engage_offense(max_iterations: Optional[int] = None) -> None:
-    global EPSILON, ALPHA
 
     msg = f"[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE"
     print(f"{C_RED}{msg}{C_RESET}")
     logger.info(msg)
 
     q_table_path = config.file_paths['red_q_table']
-    q_table: Dict[str, float] = atomic_json_io(q_table_path)
+
+    # Initialize ML Engine
+    learner = DoubleQLearner(
+        actions=ACTIONS,
+        alpha=ALPHA,
+        gamma=GAMMA,
+        epsilon=EPSILON,
+        filepath=q_table_path
+    )
+    shield = SafetyShield("red")
 
     steps_since_save = 0
     save_interval = config.constraints['save_interval']
@@ -121,10 +130,6 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 war_state['red_campaign_index'] = campaign.current_index
                 war_state['red_campaign_total'] = len(campaign.chain)
 
-                # Push campaign state to war_state occasionally or if changed?
-                # Doing it every loop is heavy I/O. Let's do it via atomic update only if needed.
-                # Optimized: We read war_state anyway. We can update it if we successfully attacked.
-
                 state_key = f"{current_alert}_{campaign.get_phase_name()}"
 
                 # LOW AND SLOW
@@ -134,23 +139,18 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 # 2. STRATEGY SELECTION
                 action: str = ""
 
-                # Force Campaign Progression if low alert, otherwise rely on Q-Table/Epsilon
-                is_exploring = random.random() < EPSILON
+                # Force Campaign Progression if low alert, otherwise rely on Learner
+                # We blend campaign logic with Epsilon-Greedy from ML Engine
 
-                if is_exploring:
-                    # 50% chance to try the Next Campaign Step, 50% random
-                    if random.random() < 0.5:
+                if random.random() < learner.epsilon:
+                     if random.random() < 0.5:
                         action = campaign.get_current_objective()
-                    else:
+                     else:
                         action = random.choice(ACTIONS)
                 else:
-                    # Greedy
-                    # We can bias the Q-value lookups.
-                    # Or just standard Q-Learning.
-                    action = max(ACTIONS, key=lambda a: q_table.get(f"{state_key}_{a}", 0.0))
+                    action = learner.choose_action(state_key)
 
-                EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-                ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
+                learner.decay_epsilon(EPSILON_DECAY, MIN_EPSILON)
 
                 # 3. EXECUTION
                 impact = 0
@@ -159,7 +159,6 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
 
                 if action == "T1046_RECON":
                     try:
-                        found_target = False
                         with os.scandir(target_dir) as it:
                             for entry in it:
                                 if is_honeypot(entry.path):
@@ -169,7 +168,6 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                                 if is_tar_pit(entry.path):
                                     time.sleep(2.0)
                                     break
-                                found_target = True
                     except: pass
 
                     if not burned:
@@ -200,7 +198,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
 
                 elif action == "T1589_LURK":
                     impact = 0
-                    success = True # Lurking always succeeds in not dying
+                    success = True
 
                 elif action == "T1547_PERSISTENCE":
                     p_name = os.path.join(persist_dir, "update_service.sh")
@@ -231,13 +229,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     campaign.reset()
                 elif success and action == campaign.get_current_objective():
                     campaign.advance()
-                    if campaign.current_index == 0: # Wrapped around? No, wait.
-                        # If we finished the chain, advance() might stick at end or reset.
-                        # Let's say if we finish Exfil, we loop back to Recon?
-                        # The advance method implementation stops at end.
-                        pass
 
-                # Check if campaign finished
                 if action == "T1041_EXFILTRATION" and success:
                     campaign.reset()
                     logger.info("🏆 Red Team Completed Kill Chain!")
@@ -252,20 +244,15 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 if action == "T1041_EXFILTRATION" and impact > 0: reward = config.red_rewards['exfil']
                 if burned: reward = config.red_rewards['burned']
 
-                # Bonus for following campaign
                 if success and action == campaign.get_current_objective():
                     reward += 5
 
                 # 5. LEARN
-                old_val = q_table.get(f"{state_key}_{action}", 0.0)
-                next_max = max(q_table.get(f"{state_key}_{a}", 0.0) for a in ACTIONS)
-                new_val = old_val + ALPHA * (reward + GAMMA * next_max - old_val)
-                q_table[f"{state_key}_{action}"] = new_val
+                learner.learn(state_key, action, reward, state_key)
 
-                # Periodic Persistence
                 steps_since_save += 1
                 if steps_since_save >= save_interval:
-                    atomic_json_merge(q_table_path, q_table)
+                    learner.save()
                     steps_since_save = 0
 
                 # 6. TRIGGER ALERTS & UPDATE STATE
@@ -281,7 +268,8 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                     atomic_json_update(state_file, update_state)
 
                 if impact > 0:
-                    log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Burned: {burned} | Q: {new_val:.2f}"
+                    max_q = max([learner.get_q(state_key, a) for a in ACTIONS])
+                    log_msg = f"👹 State: {state_key} | Tech: {action} | Impact: {impact} | Burned: {burned} | Q: {max_q:.2f}"
                     print(f"{C_RED}[RED AI] {C_RESET} {log_msg}")
                     logger.info(log_msg)
 
@@ -293,7 +281,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        atomic_json_merge(q_table_path, q_table)
+        learner.save()
         logger.info("Red Team AI Shutting Down")
 
 if __name__ == "__main__":
