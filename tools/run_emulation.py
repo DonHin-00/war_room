@@ -39,13 +39,26 @@ def run_emulation(duration=60):
     # 3. Start Blue Team (Defense)
     print("[*] Deploying Blue Swarm (3 Nodes)...")
     for _ in range(3):
-        p = subprocess.Popen([sys.executable, "blue_swarm_agent.py"], cwd=ROOT_DIR, env=env)
+        p = subprocess.Popen([sys.executable, "agents/blue_swarm_agent.py"], cwd=ROOT_DIR, env=env)
         procs.append(p)
 
     # 4. Start Red Team (Offense)
     print("[*] Deploying Red Mesh (3 Nodes)...")
     for _ in range(3):
-        p = subprocess.Popen([sys.executable, "red_mesh_node.py"], cwd=ROOT_DIR, env=env)
+        p = subprocess.Popen([sys.executable, "agents/red_mesh_node.py"], cwd=ROOT_DIR, env=env)
+        procs.append(p)
+
+    # 5. Start Rainbow Teams (Support)
+    print("[*] Deploying Rainbow Support Teams (Yellow, Orange, Green, White)...")
+    teams = [
+        "agents/yellow_builder.py",
+        "agents/orange_user.py",
+        "agents/green_integrator.py",
+        "agents/white_control.py",
+        "purple_auditor.py"
+    ]
+    for script in teams:
+        p = subprocess.Popen([sys.executable, script], cwd=ROOT_DIR, env=env)
         procs.append(p)
 
     print(f"\n✅ EMULATION LIVE. Running for {duration} seconds...")
