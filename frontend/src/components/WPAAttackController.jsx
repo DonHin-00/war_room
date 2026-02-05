@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import { Wifi, Lock, Crosshair, Radio, Shield } from 'lucide-react';
 import CyberBattlefieldMap from './CyberBattlefieldMap';
 
+/**
+ * Controller for WiFi Attack Operations.
+ * Manages the workflow: Discovery -> Handshake Capture -> Offline Cracking.
+ * Implements the "Muzzle Control" pattern for authorized execution.
+ */
 const WPAAttackController = () => {
   const [phase, setPhase] = useState('DISCOVERY'); // DISCOVERY, CAPTURE, CRACK, SUCCESS
   const [targetNetwork, setTargetNetwork] = useState(null);
-  const [handshakeStatus, setHandshakeStatus] = useState('not_captured');
-  const [networks, setNetworks] = useState([
+  const [, setHandshakeStatus] = useState('not_captured');
+  const [networks] = useState([
     { id: 'net1', ssid: 'Target_WiFi_01', bssid: '00:11:22:33:44:55', signal: -45, encryption: 'WPA2', x: 200, y: 200 },
     { id: 'net2', ssid: 'Guest_WiFi', bssid: 'AA:BB:CC:DD:EE:FF', signal: -80, encryption: 'WPA2', x: 400, y: 150 }
   ]);

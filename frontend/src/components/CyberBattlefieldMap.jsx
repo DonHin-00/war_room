@@ -1,6 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PropTypes from 'prop-types';
 import { Wifi, Server, Smartphone, Lock, Unlock, ShieldAlert } from 'lucide-react';
 
+/**
+ * Visualizes the cyber battlespace including WiFi networks and connected hosts.
+ * Uses a Canvas overlay for dynamic signals and node rendering.
+ *
+ * @param {Object} props
+ * @param {Array} props.networks - List of detected WiFi networks
+ * @param {Array} props.hosts - List of detected hosts
+ * @param {Function} props.onSelectEntity - Callback when an entity is clicked
+ */
 const CyberBattlefieldMap = ({ networks = [], hosts = [], onSelectEntity }) => {
   const canvasRef = useRef(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -91,6 +101,26 @@ const CyberBattlefieldMap = ({ networks = [], hosts = [], onSelectEntity }) => {
       <canvas ref={canvasRef} className="w-full h-full block" />
     </div>
   );
+};
+
+CyberBattlefieldMap.propTypes = {
+  networks: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    ssid: PropTypes.string.isRequired,
+    x: PropTypes.number.isRequired,
+    y: PropTypes.number.isRequired,
+    range: PropTypes.number,
+    bssid: PropTypes.string,
+    signal: PropTypes.number,
+    encryption: PropTypes.string
+  })),
+  hosts: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    ip: PropTypes.string.isRequired,
+    x: PropTypes.number.isRequired,
+    y: PropTypes.number.isRequired
+  })),
+  onSelectEntity: PropTypes.func.isRequired
 };
 
 export default CyberBattlefieldMap;

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Globe, Shield, Bug, Play, AlertTriangle } from 'lucide-react';
 
-const WebAppAttackDashboard = () => {
-  const [targetUrl, setTargetUrl] = useState('http://target-site.com');
+const WebAppAttackDashboard = ({ initialUrl }) => {
+  const [targetUrl, setTargetUrl] = useState(initialUrl || 'http://target-site.com');
   const [scanResults, setScanResults] = useState(null);
   const [scanning, setScanning] = useState(false);
 
@@ -97,6 +98,10 @@ const WebAppAttackDashboard = () => {
         </div>
     </div>
   );
+};
+
+WebAppAttackDashboard.propTypes = {
+  initialUrl: PropTypes.string
 };
 
 export default WebAppAttackDashboard;

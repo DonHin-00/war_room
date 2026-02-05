@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Network, Terminal, Share2, ArrowRight } from 'lucide-react';
 
-const LateralMovementController = () => {
+/**
+ * Interface for configuring and executing lateral movement from a compromised host.
+ * Visualizes the pivot path and allows exploit selection.
+ *
+ * @param {Object} props
+ * @param {Object} props.compromisedHost - The starting point for pivoting
+ */
+const LateralMovementController = ({ compromisedHost }) => {
   const [pivotPath, setPivotPath] = useState([]);
   const [selectedExploit, setSelectedExploit] = useState(null);
-  const [compromisedHost, setCompromisedHost] = useState({
+  // Default prop fallback if not provided
+  const host = compromisedHost || {
       id: 'h1', ip: '192.168.1.105', os: 'Linux', role: 'Gateway'
-  });
+  };
 
   const targets = [
       { id: 't1', ip: '192.168.1.20', os: 'Windows Server 2019', services: ['SMB', 'RDP'], score: 85 },
@@ -35,8 +44,8 @@ const LateralMovementController = () => {
                 <div className="text-xs text-gray-500 mb-1">COMPROMISED NODE (PIVOT POINT)</div>
                 <div className="bg-red-900/30 border border-red-600 p-2 rounded flex justify-between items-center">
                     <div>
-                        <div className="font-bold text-red-400">{compromisedHost.ip}</div>
-                        <div className="text-xs">{compromisedHost.os}</div>
+                        <div className="font-bold text-red-400">{host.ip}</div>
+                        <div className="text-xs">{host.os}</div>
                     </div>
                     <Terminal className="text-red-500 w-4 h-4" />
                 </div>
@@ -101,7 +110,7 @@ const LateralMovementController = () => {
                              <div className="flex items-center justify-between mb-4">
                                  <div>
                                      <div className="text-xs text-gray-500">ACTION</div>
-                                     <div className="font-bold text-white">PIVOT: {compromisedHost.ip} → {pivotPath[0].ip}</div>
+                                     <div className="font-bold text-white">PIVOT: {host.ip} → {pivotPath[0].ip}</div>
                                  </div>
                                  <div>
                                      <div className="text-xs text-gray-500">METHOD</div>
@@ -126,6 +135,15 @@ const LateralMovementController = () => {
         </div>
     </div>
   );
+};
+
+LateralMovementController.propTypes = {
+  compromisedHost: PropTypes.shape({
+    id: PropTypes.string,
+    ip: PropTypes.string,
+    os: PropTypes.string,
+    role: PropTypes.string
+  })
 };
 
 export default LateralMovementController;
