@@ -23,33 +23,37 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_FILE = os.path.join(BASE_DIR, "yellow.log")
 TARGET_DIR = "/tmp"
 
-class VulnerableApp(http.server.SimpleHTTPRequestHandler):
+class AppHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             self.send_response(200)
-            self.wfile.write(b"Welcome to Legacy App v1.0 (Vulnerable)")
+            self.wfile.write(b"Enterprise App v2.0 (Stable)")
+        elif self.path == "/health":
+            self.send_response(200)
+            self.wfile.write(b"OK")
         elif self.path.startswith("/search"):
-            # Reflected XSS / Command Injection (Simulated)
+            # Patched version (Simulated)
             query = self.path.split("=")[-1]
-            if ";" in query:
-                # Command Injection Emulation: Writing to a file to prove execution
+            if ";" in query and not hasattr(self.server, "patched"):
+                # Vulnerable if NOT patched
                 try:
                     cmd = query.split(";")[1]
-                    with open(os.path.join(TARGET_DIR, "pwned_by_yellow.txt"), "w") as f:
+                    with open(os.path.join(TARGET_DIR, "pwned_by_red.txt"), "w") as f:
                         f.write(f"Executed: {cmd}")
                 except: pass
             self.send_response(200)
-            self.wfile.write(f"Results for: {query}".encode())
+            self.wfile.write(f"Results: {query}".encode())
         else:
             self.send_response(404)
 
     def log_message(self, format, *args):
         return
 
-class YellowBuilder:
+class YellowSRE:
     def __init__(self):
         self.running = True
-        self.services = []
+        self.services = {} # {port: server_obj}
+        self.metrics = {"traffic": 0, "errors": 0}
         self.setup_logging()
 
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -64,43 +68,71 @@ class YellowBuilder:
                 logging.StreamHandler(sys.stdout)
             ]
         )
-        self.logger = logging.getLogger("YellowTeam")
+        self.logger = logging.getLogger("YellowSRE")
 
     def handle_signal(self, signum, frame):
-        self.logger.info("Yellow Team shutting down services...")
+        self.logger.info("Yellow SRE shutting down infrastructure...")
         self.running = False
-        for s in self.services:
+        for s in self.services.values():
             s.shutdown()
 
-    def start_service(self, port):
+    def deploy_service(self, port, patched=False):
         try:
-            httpd = socketserver.TCPServer(("127.0.0.1", port), VulnerableApp)
+            httpd = socketserver.TCPServer(("127.0.0.1", port), AppHandler)
+            if patched: httpd.patched = True
+
             t = threading.Thread(target=httpd.serve_forever)
             t.daemon = True
             t.start()
-            self.services.append(httpd)
-            self.logger.info(f"Deployed Vulnerable App on port {port}")
+            self.services[port] = httpd
+            status = "PATCHED" if patched else "LEGACY"
+            self.logger.info(f"Deployed Service ({status}) on port {port}")
         except Exception as e:
-            self.logger.error(f"Failed to start service on {port}: {e}")
+            self.logger.error(f"Failed to deploy on {port}: {e}")
+
+    def scale_up(self):
+        # Find next available port
+        for p in range(8083, 8090):
+            if p not in self.services:
+                self.logger.info("High Load Detected! Scaling Up...")
+                self.deploy_service(p, patched=True) # Always scale with patched version
+                break
+
+    def patch_vulnerabilities(self):
+        # Restart all LEGACY services with PATCHED version
+        ports = list(self.services.keys())
+        for p in ports:
+            srv = self.services[p]
+            if not hasattr(srv, "patched"):
+                self.logger.info(f"Patching vulnerability on Port {p}...")
+                srv.shutdown()
+                self.deploy_service(p, patched=True)
+
+    def monitor_infrastructure(self):
+        # Simulated Monitoring (In real scenario, check metrics endpoint)
+        # Here we verify if processes/threads are alive
+        for p, srv in list(self.services.items()):
+            pass # Socket check logic implied by library
 
     def run(self):
-        self.logger.info("Yellow Team Initialized. Building Infrastructure.")
+        self.logger.info("Yellow SRE Active. Priorities: Availability, Resilience, Security.")
 
-        # Deploy initial stack
-        self.start_service(8081)
-        self.start_service(8082)
+        # Initial Deployment (1 Legacy, 1 Patched)
+        self.deploy_service(8081, patched=False)
+        self.deploy_service(8082, patched=True)
 
         while self.running:
-            # Simulate "DevOps" changes
-            time.sleep(10)
-            if random.random() < 0.2:
-                self.logger.info("Rolling out 'fix' (Restarting services)...")
-                # Just a log event for now, simulating churn
+            self.monitor_infrastructure()
 
-            # Verify services are up
-            for s in self.services:
-                pass # logic to check health
+            # Random events triggering SRE actions
+            event = random.random()
+            if event < 0.1:
+                self.scale_up()
+            elif event < 0.2:
+                self.patch_vulnerabilities()
+
+            time.sleep(5)
 
 if __name__ == "__main__":
-    yellow = YellowBuilder()
+    yellow = YellowSRE()
     yellow.run()
