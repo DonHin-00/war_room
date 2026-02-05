@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Wifi, Share2, Globe, Shield, Terminal } from 'lucide-react';
 
@@ -21,6 +22,12 @@ const NavLink = ({ to, icon: Icon, label }) => {
       <span className="font-bold tracking-wide">{label}</span>
     </Link>
   );
+};
+
+NavLink.propTypes = {
+  to: PropTypes.string.isRequired,
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired
 };
 
 const App = () => {

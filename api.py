@@ -16,7 +16,16 @@ logger = logging.getLogger("CyberMuzzleAPI")
 # --- UTILITIES ---
 
 def run_command(command_args, timeout=30):
-    """Executes a system command and returns output/error."""
+    """
+    Executes a system command safely and returns the output or error.
+
+    Args:
+        command_args (list): List of command arguments.
+        timeout (int): Timeout in seconds.
+
+    Returns:
+        dict: Result containing 'success' (bool), 'output' (str), and 'error' (str).
+    """
     try:
         logger.info(f"Executing: {' '.join(command_args)}")
         result = subprocess.run(
