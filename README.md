@@ -20,29 +20,33 @@ The project is modularized for scalability:
 -   `config.py`: Centralized configuration for rewards, file paths, and simulation constraints.
 -   `simulation_runner.py`: The main orchestrator that launches and manages the swarm.
 -   `tools/`: Analysis and visualization tools (`visualize_threats.py`).
+-   `docs/`: Detailed architectural documentation (`ARCHITECTURE.md`).
 
 ## 🛠️ Usage
 
-### Prerequisites
--   Python 3.8+
--   Linux/MacOS (uses `fcntl` for file locking)
-
-### Installation
+### Local Installation
 ```bash
 pip install -r requirements.txt
-```
-
-### Running the Simulation
-Start the orchestrator to launch all agents:
-```bash
 python3 simulation_runner.py
 ```
 
+### 🐳 Docker Deployment
+The recommended way to run the simulation is via Docker, which isolates the "battlefield" from your host system.
+
+1.  **Build and Run:**
+    ```bash
+    docker-compose up --build -d
+    ```
+2.  **View Logs:**
+    ```bash
+    docker-compose logs -f
+    ```
+3.  **Access Data:**
+    Runtime data is persisted in the local `simulation_data/` directory.
+
 ### Dashboard
-To view the real-time battle status, launch the runner with the dashboard flag (or run the tool separately):
+To view the real-time battle status (works with both Local and Docker if mapped):
 ```bash
-python3 simulation_runner.py --dashboard
-# OR
 python3 tools/visualize_threats.py
 ```
 
@@ -58,7 +62,7 @@ python3 tools/visualize_threats.py
 -   **Blue:** Signature Scanning, Heuristic Analysis, Threat Hunting (IOC matching), Deception (Honeypots), Active Defense (Tar Pits).
 
 ## 📊 Monitoring
-The system logs all critical events to `audit.jsonl`. You can analyze this log or view it live in the dashboard.
+The system logs all critical events to `simulation_data/audit.jsonl`. You can analyze this log or view it live in the dashboard.
 
 ## 🛡️ Safety
 This is a **simulation**. All malware actions (file creation, network traffic) are emulated safely within the `battlefield/` directory. No real malicious code is executed against the host system outside of this sandbox.

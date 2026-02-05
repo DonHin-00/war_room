@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  cyber-war-sim:
+    build: .
+    container_name: cyber_war_swarm
+    restart: unless-stopped
+    volumes:
+      - ./simulation_data:/app/simulation_data
+      - ./battlefield:/app/battlefield
+      - ./war_room.log:/app/war_room.log
+    environment:
+      - LOG_LEVEL=INFO
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
