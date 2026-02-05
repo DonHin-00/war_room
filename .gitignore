@@ -1,8 +1,18 @@
-__pycache__/
-*.pyc
+# Runtime Data
+simulation_data/
+battlefield/
+network_bus/
 *.log
 *.jsonl
-battlefield/
-agents/__pycache__/
-utils/__pycache__/
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
 .pytest_cache/
+venv/
+env/
+
+# OS
+.DS_Store
