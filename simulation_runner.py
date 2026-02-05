@@ -50,6 +50,15 @@ def run_simulation(duration=60, reset=False):
 
     clean_battlefield()
 
+    # Start C2 Server
+    print("💀 Starting C2 Server (Infrastructure)...")
+    c2_proc = subprocess.Popen([sys.executable, "tools/c2_server.py"],
+                                     cwd=config.PATHS["BASE_DIR"],
+                                     stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+
+    time.sleep(1) # Allow C2 to bind
+
     print("🐕 Deploying Daemon Watchdog (Manager)...")
     watchdog_proc = subprocess.Popen([sys.executable, "tools/watchdog.py"],
                                      cwd=config.PATHS["BASE_DIR"])
@@ -70,10 +79,14 @@ def run_simulation(duration=60, reset=False):
     finally:
         print("🛑 Terminating Simulation...")
         watchdog_proc.send_signal(signal.SIGINT)
+        c2_proc.terminate()
+
         try:
             watchdog_proc.wait(timeout=5)
+            c2_proc.wait(timeout=2)
         except:
             watchdog_proc.kill()
+            c2_proc.kill()
 
         # Cleanup child agents
         os.system("pkill -f red_brain.py")
