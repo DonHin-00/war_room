@@ -1,0 +1,9 @@
+{
+    "id": "87cbca841e1e3d92ff22707763f98370",
+    "timestamp": 1770251387.2630005,
+    "threat_type": "HIDDEN_ROOTKIT",
+    "filepath": "/app/war_zone/.sys_shadow_1770251371",
+    "file_hash": "a78b9fa7341e46f6ffe19048444f8c151775e71f20cefa26717f34ab3dcd1caa",
+    "action": "DELETE",
+    "status": "MITIGATED"
+}
