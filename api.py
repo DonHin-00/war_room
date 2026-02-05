@@ -65,19 +65,51 @@ def run_command(command_args, timeout=30):
 def status():
     return jsonify({"status": "active", "version": "1.0.0", "mode": "LIVE"})
 
+def get_q_stats(filename):
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    if not os.path.exists(filepath):
+        return {"learned_states": 0, "avg_score": 0}
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        if not data:
+            return {"learned_states": 0, "avg_score": 0}
+        values = list(data.values())
+        return {
+            "learned_states": len(data),
+            "avg_score": sum(values) / len(values),
+            "max_score": max(values)
+        }
+    except:
+        return {"learned_states": 0, "avg_score": 0}
+
 @app.route('/api/sentinel/status', methods=['GET'])
 def sentinel_status():
-    """Reads the shared state from Blue Brain (Sentinel)."""
+    """Reads the shared state and Blue Brain stats."""
     state_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "war_state.json")
+    stats = get_q_stats("blue_q_table.json")
     try:
+        war_data = {}
         if os.path.exists(state_file):
             with open(state_file, 'r') as f:
-                data = json.load(f)
-            return jsonify({"success": True, "data": data})
-        else:
-            return jsonify({"success": False, "error": "Sentinel state not found (war_state.json missing)"}), 404
+                war_data = json.load(f)
+
+        return jsonify({
+            "success": True,
+            "data": war_data,
+            "stats": stats
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/red/status', methods=['GET'])
+def red_status():
+    """Reads Red Brain stats."""
+    stats = get_q_stats("red_q_table.json")
+    return jsonify({
+        "success": True,
+        "stats": stats
+    })
 
 # 1. WiFi Operations
 @app.route('/api/wifi/scan', methods=['POST'])
