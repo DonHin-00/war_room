@@ -35,6 +35,7 @@ red_rewards = {
     'burned': -100,           # Penalty for touching a honeypot
     'persistence': 50,        # Reward for establishing persistence
     'exfil': 60,              # Reward for data exfiltration
+    'ransomware': 100,        # Reward for successful encryption
 }
 
 # Simulation Constraints
@@ -47,7 +48,7 @@ constraints = {
 
 # Actions
 blue_actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "DEPLOY_DECOY", "THREAT_HUNT", "NETWORK_HUNT", "DEPLOY_TRAP"]
-red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1547_PERSISTENCE", "T1041_EXFILTRATION"]
+red_actions = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1547_PERSISTENCE", "T1041_EXFILTRATION", "T1486_RANSOMWARE"]
 
 # Honeypot Configuration
 HONEYPOT_NAMES = ["passwords.txt", "config.yaml", "aws_keys.csv", "salary_report.xlsx"]

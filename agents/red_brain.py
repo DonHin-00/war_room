@@ -51,7 +51,7 @@ class RedCampaignManager:
     """
     Manages the Cyber Kill Chain state.
     Phases: RECON -> WEAPONIZE -> DELIVERY -> EXPLOIT -> INSTALL -> C2 -> ACTIONS
-    Simplified for this sim: RECON -> OBFUSCATE (Delivery) -> ROOTKIT (Exploit) -> PERSISTENCE -> EXFIL
+    Simplified for this sim: RECON -> OBFUSCATE (Delivery) -> ROOTKIT (Exploit) -> PERSISTENCE -> EXFIL -> RANSOMWARE
     """
     def __init__(self):
         self.chain = [
@@ -59,7 +59,8 @@ class RedCampaignManager:
             "T1027_OBFUSCATE",
             "T1003_ROOTKIT",
             "T1547_PERSISTENCE",
-            "T1041_EXFILTRATION"
+            "T1041_EXFILTRATION",
+            "T1486_RANSOMWARE"
         ]
         self.current_index = 0
 
@@ -224,15 +225,37 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                         audit.log("RED", "DATA_EXFILTRATION", {"size": 2048})
                     except: pass
 
+                elif action == "T1486_RANSOMWARE":
+                    # Encryption for Impact
+                    count = 0
+                    try:
+                        with os.scandir(target_dir) as it:
+                            for entry in it:
+                                if entry.is_file() and not entry.name.endswith(".enc") and not is_honeypot(entry.path):
+                                    try:
+                                        # Simulate encryption
+                                        os.rename(entry.path, entry.path + ".enc")
+                                        count += 1
+                                    except: pass
+                        if count > 0:
+                            # Drop Note
+                            with open(os.path.join(target_dir, "READ_ME.txt"), 'w') as f:
+                                f.write("ALL YOUR FILES ARE ENCRYPTED. PAY 10 BTC.")
+                            impact = 10
+                            success = True
+                            audit.log("RED", "RANSOMWARE_DEPLOYED", {"encrypted_count": count})
+                            logger.info(f"🔒 Red Team Encrypted {count} Files")
+                    except: pass
+
                 # Campaign Logic
                 if burned:
                     campaign.reset()
                 elif success and action == campaign.get_current_objective():
                     campaign.advance()
 
-                if action == "T1041_EXFILTRATION" and success:
+                if action == "T1486_RANSOMWARE" and success:
                     campaign.reset()
-                    logger.info("🏆 Red Team Completed Kill Chain!")
+                    logger.info("🏆 Red Team Completed Kill Chain (Ransomware)!")
 
                 # 4. REWARDS
                 reward = 0
@@ -242,6 +265,7 @@ def engage_offense(max_iterations: Optional[int] = None) -> None:
                 if current_alert == max_alert and impact > 0: reward = config.red_rewards['critical']
                 if action == "T1547_PERSISTENCE" and impact > 0: reward = config.red_rewards['persistence']
                 if action == "T1041_EXFILTRATION" and impact > 0: reward = config.red_rewards['exfil']
+                if action == "T1486_RANSOMWARE" and impact > 0: reward = config.red_rewards['ransomware']
                 if burned: reward = config.red_rewards['burned']
 
                 if success and action == campaign.get_current_objective():
