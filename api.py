@@ -86,17 +86,25 @@ def get_q_stats(filename):
 @app.route('/api/sentinel/status', methods=['GET'])
 def sentinel_status():
     """Reads the shared state and Blue Brain stats."""
-    state_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "war_state.json")
+    # Try Hive State first, fall back to war_state
+    hive_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hive_state.json")
+    war_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "war_state.json")
+
     stats = get_q_stats("blue_q_table.json")
     try:
-        war_data = {}
-        if os.path.exists(state_file):
-            with open(state_file, 'r') as f:
-                war_data = json.load(f)
+        data = {}
+        if os.path.exists(hive_file):
+             with open(hive_file, 'r') as f:
+                data = json.load(f)
+             # Map Hive fields to expected frontend fields if needed
+             if 'blue_level' in data: data['blue_alert_level'] = data['blue_level']
+        elif os.path.exists(war_file):
+            with open(war_file, 'r') as f:
+                data = json.load(f)
 
         return jsonify({
             "success": True,
-            "data": war_data,
+            "data": data,
             "stats": stats
         })
     except Exception as e:
