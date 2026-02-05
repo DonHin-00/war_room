@@ -24,6 +24,7 @@ C_RESET = "\033[0m"
 class GreenIntegrator:
     def __init__(self):
         self.running = True
+        self.tracer = utils.TraceLogger(config.TRACE_LOG)
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
         self.setup()
@@ -79,11 +80,11 @@ class GreenIntegrator:
                                             cwd=config.WAR_ZONE_DIR,
                                             stdout=subprocess.DEVNULL,
                                             stderr=subprocess.DEVNULL)
-                    except: pass
+                    except Exception as e:
+                        self.tracer.capture_exception(e, context="GREEN_RESTART")
 
             except Exception as e:
-                # print(e)
-                pass
+                self.tracer.capture_exception(e, context="GREEN_INSTRUMENT")
 
     def harden_infrastructure(self):
         """Enforce least privilege permissions."""
@@ -95,7 +96,8 @@ class GreenIntegrator:
                 # If it's a critical config, lock it down
                 if f.endswith(".conf") or f.endswith(".yaml"):
                     os.chmod(path, 0o600)
-            except: pass
+            except Exception as e:
+                self.tracer.capture_exception(e, context="GREEN_HARDEN")
 
     def run(self):
         while self.running:
@@ -108,7 +110,8 @@ class GreenIntegrator:
                     self.harden_infrastructure()
 
                 time.sleep(random.uniform(2.0, 4.0))
-            except Exception:
+            except Exception as e:
+                self.tracer.capture_exception(e, context="GREEN_LOOP")
                 time.sleep(1)
 
 if __name__ == "__main__":

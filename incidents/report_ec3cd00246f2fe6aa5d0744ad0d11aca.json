@@ -1,9 +1,0 @@
-{
-    "id": "ec3cd00246f2fe6aa5d0744ad0d11aca",
-    "timestamp": 1770251387.2647903,
-    "threat_type": "HIGH_ENTROPY",
-    "filepath": "/app/war_zone/usb/report_q3_1770251386.pdf",
-    "file_hash": "efef79516c013105efcb0c05b8ed1ba5898f2bc021caec201dc480dcaf8eff2e",
-    "action": "DELETE",
-    "status": "MITIGATED"
-}

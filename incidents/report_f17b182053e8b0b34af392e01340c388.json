@@ -1,9 +1,0 @@
-{
-    "id": "f17b182053e8b0b34af392e01340c388",
-    "timestamp": 1770251377.3601365,
-    "threat_type": "VISIBLE_THREAT",
-    "filepath": "/app/war_zone/malware_crypt_1770251376.bin",
-    "file_hash": "4bfca40a72ec1925911f3573ccca796d18b40f7d52a0d09591301f726e12f603",
-    "action": "DELETE",
-    "status": "MITIGATED"
-}

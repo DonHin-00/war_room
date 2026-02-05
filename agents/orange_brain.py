@@ -25,6 +25,7 @@ C_RESET = "\033[0m"
 class OrangeEducator:
     def __init__(self):
         self.running = True
+        self.tracer = utils.TraceLogger(config.TRACE_LOG)
         signal.signal(signal.SIGINT, self.shutdown)
         signal.signal(signal.SIGTERM, self.shutdown)
         self.setup()
@@ -47,7 +48,8 @@ class OrangeEducator:
                 for line in f:
                     if "EXFILTRATION" in line or "RANSOMWARE" in line:
                         attacks_detected += 1
-        except: pass
+        except Exception as e:
+            self.tracer.capture_exception(e, context="ORANGE_ANALYZE")
 
         if attacks_detected > 0:
             self.publish_standards(attacks_detected)
@@ -65,7 +67,8 @@ class OrangeEducator:
         try:
             utils.safe_file_write(path, json.dumps(standards, indent=4))
             # print(f"{C_ORANGE}[ORANGE] Updated Secure Coding Standards (Urgency: {urgency_level}){C_RESET}")
-        except: pass
+        except Exception as e:
+            self.tracer.capture_exception(e, context="ORANGE_PUBLISH")
 
     def run_workshop(self):
         """
@@ -115,8 +118,7 @@ class OrangeEducator:
             # print(f"{C_ORANGE}[ORANGE] Workshop Complete. Report generated.{C_RESET}")
 
         except Exception as e:
-            # print(f"Workshop Error: {e}")
-            pass
+            self.tracer.capture_exception(e, context="ORANGE_WORKSHOP")
 
     def run(self):
         while self.running:
@@ -128,7 +130,8 @@ class OrangeEducator:
                     self.run_workshop()
 
                 time.sleep(random.uniform(5.0, 10.0))
-            except Exception:
+            except Exception as e:
+                self.tracer.capture_exception(e, context="ORANGE_LOOP")
                 time.sleep(1)
 
 if __name__ == "__main__":
