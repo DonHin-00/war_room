@@ -12,6 +12,11 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 THREAT_FEED_CACHE = os.path.join(BASE_DIR, "threat_feed_cache.json")
 
+# Secure C2 Configuration
+C2_SHARED_SECRET = "eccd0a33-2892-4916-924b-008323498871"
+# In a real deployment, this key would be rotated and not hardcoded
+C2_ENCRYPTION_KEY = os.environ.get("ACE_C2_KEY", "00000000000000000000000000000000")
+
 # Threat Intelligence Sources (Free, No API Key, Live)
 # 15+ Feeds including Aggregators, Botnet Trackers, and Phishing Lists
 THREAT_FEEDS = {
@@ -26,7 +31,7 @@ THREAT_FEEDS = {
     "Tor_Exit_Nodes": "https://check.torproject.org/torbulkexitlist",
     "URLHaus": "https://urlhaus.abuse.ch/downloads/hostfile/",
     "ThreatFox": "https://threatfox.abuse.ch/export/json/recent/",
-    "MalwareBazaar": "https://bazaar.abuse.ch/export/txt/sha256/recent/", # Hashes, treated differently or just logged
+    "MalwareBazaar": "https://bazaar.abuse.ch/export/txt/sha256/recent/", # Hashes
     "Botvrij_IOC": "https://www.botvrij.eu/data/ioclist.ip-dst",
     "SANS_Top20": "https://isc.sans.edu/feeds/suspiciousdomains_High.txt", # Domains
     "OpenPhish": "https://openphish.com/feed.txt",
