@@ -21,10 +21,29 @@ class GreenIntegrator:
         if self.nic.connected:
             self.nic.send("10.10.10.10", {"method": "GET", "path": "/status"})
 
-            # We need to read response to know if it's up.
-            # But VNic recv is blocking or we need a thread.
-            # Simplified: Just log that we are monitoring.
-            pass
+    def instrument_code(self):
+        """Inject logging instrumentation into services."""
+        target = os.path.join(config.BASE_DIR, "services/mock_bank.py")
+        try:
+            with open(target, 'r') as f: content = f.read()
+
+            # Check if instrumented
+            if "logger.info(f\"[INSTRUMENTATION]" not in content:
+                # Inject logger at start of handle_request
+                if "def handle_request(self, msg):" in content:
+                    injection = """
+        # GREEN TEAM INSTRUMENTATION
+        try:
+            payload_meta = str(msg.get('payload', {}).get('path', 'unknown'))
+            logger.info(f"[INSTRUMENTATION] Request Path: {payload_meta}")
+        except: pass
+"""
+                    parts = content.split("def handle_request(self, msg):")
+                    new_content = parts[0] + "def handle_request(self, msg):" + injection + parts[1]
+
+                    with open(target, 'w') as f: f.write(new_content)
+                    logger.info("🟢 GREEN TEAM: Instrumented Mock Bank with logging.")
+        except: pass
 
     def run(self):
         logger.info("🟢 Green DevSecOps Online.")
@@ -42,7 +61,8 @@ class GreenIntegrator:
 
         while self.running:
             self.monitor()
-            time.sleep(5)
+            self.instrument_code()
+            time.sleep(10)
 
 if __name__ == "__main__":
     agent = GreenIntegrator()

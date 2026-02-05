@@ -51,10 +51,10 @@ def run_emulation(duration=60):
     # 5. Start Rainbow Teams (Support)
     print("[*] Deploying Rainbow Support Teams (Yellow, Orange, Green, White)...")
     teams = [
-        "agents/yellow_builder.py",
-        "agents/orange_user.py",
-        "agents/green_integrator.py",
-        "agents/white_control.py",
+        "agents/yellow_brain.py",
+        "agents/orange_brain.py",
+        "agents/green_brain.py",
+        "agents/white_brain.py",
         "purple_auditor.py"
     ]
     for script in teams:
