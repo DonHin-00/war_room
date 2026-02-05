@@ -148,13 +148,16 @@ class RedMeshNode:
 
     def broadcast(self, msg_type, payload):
         """Send message to mesh (Encrypted)."""
+        # Convert Q-table tuple keys to strings for JSON
+        serializable_brain = {str(k): v for k, v in self.brain.q_table.items()}
+
         inner_msg = {
             "ver": 1,
             "sender": NODE_ID,
             "type": msg_type,
             "payload": payload,
             "genes": self.genes,
-            "brain": self.brain.q_table,
+            "brain": serializable_brain,
             "ts": time.time()
         }
 

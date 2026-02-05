@@ -403,5 +403,121 @@
             "aggression": 0.5,
             "stealth": false
         }
+    },
+    "c625d392": {
+        "type": "RED",
+        "peers": [
+            "fe89ba78",
+            "308c9384"
+        ],
+        "last_seen": 1770249017.1299937,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "308c9384": {
+        "type": "RED",
+        "peers": [
+            "fe89ba78"
+        ],
+        "last_seen": 1770249017.129933,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "1a72f1ca": {
+        "type": "RED",
+        "peers": [
+            "a881db1b"
+        ],
+        "last_seen": 1770249086.4691715,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "a881db1b": {
+        "type": "RED",
+        "peers": [
+            "d8e8ba2d"
+        ],
+        "last_seen": 1770249086.4759834,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "3fc92d07": {
+        "type": "RED",
+        "peers": [
+            "d0e9a386",
+            "037c43c2"
+        ],
+        "last_seen": 1770249161.7541559,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "037c43c2": {
+        "type": "RED",
+        "peers": [
+            "d0e9a386"
+        ],
+        "last_seen": 1770249161.7540932,
+        "genes": {
+            "jitter": 5.0,
+            "aggression": 0.5,
+            "stealth": false
+        }
+    },
+    "aa1fae2c": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249256.915924
+    },
+    "85a999c4": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249256.929925
+    },
+    "aec22af0": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249256.9294243
+    },
+    "77b3eada": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249330.3311336
+    },
+    "d70e7408": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249330.3438184
+    },
+    "3a0f1322": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770249330.3488314
     }
 }

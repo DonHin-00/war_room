@@ -2,6 +2,13 @@ import socket
 import threading
 import logging
 import os
+import sys
+
+# Ensure root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import utils
+import config
+
 from .protocol import *
 from .pcap import PcapWriter
 
@@ -23,6 +30,9 @@ class VirtualSwitch:
 
         # PCAP logging
         self.pcap = PcapWriter("logs/capture.pcap")
+
+        # Identity
+        self.id_mgr = utils.IdentityManager(config.SESSION_DB)
 
     def start(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,6 +69,14 @@ class VirtualSwitch:
                 return
 
             ip_addr = msg['src']
+
+            # Zero Trust Verification
+            token = msg.get('payload', {}).get('token')
+            if not self.id_mgr.verify(ip_addr, token):
+                logger.critical(f"🛑 ZERO TRUST FAIL: {ip_addr} provided invalid token!")
+                conn.close()
+                return
+
             with self.lock:
                 # Handle TAP registration
                 if msg.get('payload', {}).get('role') == 'TAP':

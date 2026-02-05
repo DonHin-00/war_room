@@ -3,6 +3,14 @@ import threading
 import queue
 import time
 import logging
+import sys
+import os
+
+# Ensure root is in path to import utils
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import utils
+import config
+
 from .protocol import *
 
 logger = logging.getLogger(__name__)
@@ -14,6 +22,11 @@ class VNic:
         self.switch_addr = (switch_host, switch_port)
         self.is_tap = is_tap
         self.sock = None
+
+        # Identity
+        self.id_mgr = utils.IdentityManager(config.SESSION_DB)
+        # Register/Login to get token
+        self.token = self.id_mgr.login(self.ip)
         self.rx_queue = queue.Queue()
         self.running = False
         self.connected = False
@@ -25,9 +38,12 @@ class VNic:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect(self.switch_addr)
 
-                # Handshake
+                # Handshake with Zero Trust Token
                 role = 'TAP' if self.is_tap else 'CLIENT'
-                packet = pack_message(MSG_HELLO, self.ip, 'switch', {'role': role})
+                packet = pack_message(MSG_HELLO, self.ip, 'switch', {
+                    'role': role,
+                    'token': self.token
+                })
                 self.sock.sendall(packet)
 
                 self.connected = True
