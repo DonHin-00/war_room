@@ -68,13 +68,65 @@ class OrangeEducator:
         except: pass
 
     def run_workshop(self):
-        """Simulate a training session (No-op in code, but conceptually updates Yellow's behavior via file)."""
-        pass
+        """
+        Simulate a training session by analyzing audit logs and generating a report.
+        Updates coding standards based on the threat landscape.
+        """
+        if not os.path.exists(config.AUDIT_LOG):
+            return
+
+        report_path = os.path.join(config.BASE_DIR, "intelligence", "workshop_report.txt")
+        stats = {"RANSOMWARE": 0, "EXFILTRATION": 0, "C2_BEACON": 0, "TOTAL": 0}
+
+        try:
+            # Analyze logs for specific keywords
+            with open(config.AUDIT_LOG, 'r') as f:
+                for line in f:
+                    stats["TOTAL"] += 1
+                    if "RANSOMWARE" in line: stats["RANSOMWARE"] += 1
+                    if "EXFILTRATION" in line: stats["EXFILTRATION"] += 1
+                    if "C2_BEACON" in line: stats["C2_BEACON"] += 1
+
+            # Generate Report
+            with open(report_path, 'w') as f:
+                f.write("=== ORANGE TEAM WORKSHOP REPORT ===\n")
+                f.write(f"Generated: {time.ctime()}\n")
+                f.write(f"Total Incidents Analyzed: {stats['TOTAL']}\n")
+                f.write("-" * 30 + "\n")
+                for k, v in stats.items():
+                    if k != "TOTAL":
+                        f.write(f"{k}: {v}\n")
+                f.write("-" * 30 + "\n")
+
+                recommendation = "STANDARD_PROCEDURE"
+                if stats["RANSOMWARE"] > 5: recommendation = "ENABLE_OFFLINE_BACKUPS"
+                if stats["EXFILTRATION"] > 5: recommendation = "STRICT_EGRESS_FILTERING"
+
+                f.write(f"RECOMMENDATION: {recommendation}\n")
+
+            # Update Standards based on findings
+            urgency = 1
+            if stats["RANSOMWARE"] > 3 or stats["EXFILTRATION"] > 3:
+                urgency = 5
+            elif stats["TOTAL"] > 20:
+                urgency = 3
+
+            self.publish_standards(urgency)
+            # print(f"{C_ORANGE}[ORANGE] Workshop Complete. Report generated.{C_RESET}")
+
+        except Exception as e:
+            # print(f"Workshop Error: {e}")
+            pass
 
     def run(self):
         while self.running:
             try:
                 self.analyze_attacks()
+
+                # Run workshop periodically (10% chance per tick)
+                if secrets.choice([True] + [False]*9):
+                    self.run_workshop()
+
                 time.sleep(random.uniform(5.0, 10.0))
             except Exception:
                 time.sleep(1)

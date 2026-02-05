@@ -126,17 +126,23 @@ if __name__ == "__main__":
                 except: pass
 
     def run(self):
+        build_delay = 0.0
         while self.running:
             try:
                 # Check for Coding Standards from Orange
                 standards_path = os.path.join(config.BASE_DIR, "intelligence", "coding_standards.json")
                 if os.path.exists(standards_path):
-                    # In a real sim, we'd read this and adjust 'vulnerability rate'
-                    pass
+                    try:
+                        data = utils.access_memory(standards_path)
+                        urgency = data.get("urgency", 1)
+                        # Higher urgency = Slower builds (more careful coding)
+                        build_delay = float(urgency) * 0.5
+                    except: pass
 
                 action = secrets.choice(["BUILD", "BUILD", "PATCH"])
 
                 if action == "BUILD":
+                    time.sleep(build_delay) # Simulate careful coding
                     self.build_service()
                 elif action == "PATCH":
                     self.patch_vulnerability()
