@@ -18,6 +18,7 @@ def cleanup(signum, frame):
 def main():
     parser = argparse.ArgumentParser(description="AI Cyber War Simulation Runner")
     parser.add_argument("--proxy", action="store_true", help="Enable Proxy War Emulation")
+    parser.add_argument("--dashboard", action="store_true", help="Enable Web Dashboard (Port 8080)")
     parser.add_argument("--duration", type=int, default=300, help="Simulation duration in seconds")
     args = parser.parse_args()
 
@@ -60,6 +61,12 @@ def main():
         print("\033[95m[SIMULATION] Launching Proxy War Emulation...\033[0m")
         proxy = subprocess.Popen(["python3", "-u", "proxy_war.py", str(args.duration)], env=clean_env)
         processes.append(proxy)
+
+    # 6. Start Web Dashboard (Optional)
+    if args.dashboard:
+        print("\033[96m[SIMULATION] Launching Web Dashboard (0.0.0.0:8080)...\033[0m")
+        dash = subprocess.Popen(["python3", "-u", "web_dashboard.py"], env=clean_env)
+        processes.append(dash)
 
     try:
         # Keep running

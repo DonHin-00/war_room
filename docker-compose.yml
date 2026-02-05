@@ -1,0 +1,18 @@
+
+version: '3.8'
+
+services:
+  war_room:
+    build: .
+    ports:
+      - "5000:5000" # Smart Target
+      - "8080:8080" # Web Dashboard
+    volumes:
+      - ./logs:/app/logs
+      - ./war_zone:/app/war_zone
+      - ./simulation.db:/app/simulation.db
+      - ./simulation.db-shm:/app/simulation.db-shm
+      - ./simulation.db-wal:/app/simulation.db-wal
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python3", "simulation_runner.py", "--dashboard"]

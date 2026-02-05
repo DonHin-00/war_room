@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAR ROOM: Cyber Defense Dashboard</title>
+    <style>
+        body { background-color: #0d1117; color: #c9d1d9; font-family: 'Courier New', monospace; margin: 0; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 6px; }
+        h1 { color: #58a6ff; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        h2 { border-bottom: 1px solid #30363d; padding-bottom: 5px; color: #79c0ff; }
+        .alert-box { text-align: center; font-size: 2em; font-weight: bold; padding: 10px; margin-bottom: 20px; border: 2px solid; }
+        .alert-1 { color: #7ee787; border-color: #7ee787; } /* Green */
+        .alert-2 { color: #aff5b4; border-color: #aff5b4; }
+        .alert-3 { color: #d2a8ff; border-color: #d2a8ff; } /* Yellow/Orange-ish */
+        .alert-4 { color: #ffa657; border-color: #ffa657; } /* Orange */
+        .alert-5 { color: #ff7b72; border-color: #ff7b72; animation: blink 1s infinite; } /* Red */
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .log-entry { font-size: 0.8em; border-bottom: 1px solid #21262d; padding: 4px 0; }
+        .log-red { color: #ff7b72; }
+        .log-blue { color: #79c0ff; }
+        .log-sys { color: #8b949e; }
+
+        .stat { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .bar-container { background: #21262d; height: 10px; width: 100%; border-radius: 5px; margin-top: 5px; }
+        .bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s; }
+        .fill-red { background: #ff7b72; }
+        .fill-blue { background: #79c0ff; }
+
+        #refresh-timer { text-align: right; color: #8b949e; font-size: 0.8em; }
+    </style>
+    <script>
+        function refreshData() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    // Update Alert Level
+                    const alertBox = document.getElementById('alert-box');
+                    alertBox.className = `alert-box alert-${data.alert_level}`;
+                    alertBox.innerText = `DEFCON ${6 - data.alert_level} (Level ${data.alert_level})`;
+
+                    // Update Logs
+                    const logsDiv = document.getElementById('logs');
+                    logsDiv.innerHTML = data.logs.map(log => {
+                        let cls = 'log-sys';
+                        if (log.includes('RED')) cls = 'log-red';
+                        if (log.includes('BLUE')) cls = 'log-blue';
+                        return `<div class="log-entry ${cls}">${log}</div>`;
+                    }).join('');
+
+                    // Update Metrics
+                    document.getElementById('red-q').style.width = Math.min(100, data.red_q_avg) + '%';
+                    document.getElementById('red-q-val').innerText = data.red_q_avg.toFixed(2);
+
+                    document.getElementById('blue-q').style.width = Math.min(100, data.blue_q_avg) + '%';
+                    document.getElementById('blue-q-val').innerText = data.blue_q_avg.toFixed(2);
+                });
+        }
+        setInterval(refreshData, 2000);
+        window.onload = refreshData;
+    </script>
+</head>
+<body>
+    <h1>War Room Interface</h1>
+    <div id="refresh-timer">Live Feed: Active</div>
+
+    <div id="alert-box" class="alert-box alert-1">Loading...</div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Combat Metrics</h2>
+            <div class="stat"><span>Red Team Aggression (Avg Q)</span> <span id="red-q-val">0</span></div>
+            <div class="bar-container"><div id="red-q" class="bar-fill fill-red" style="width: 0%"></div></div>
+            <br>
+            <div class="stat"><span>Blue Team Resilience (Avg Q)</span> <span id="blue-q-val">0</span></div>
+            <div class="bar-container"><div id="blue-q" class="bar-fill fill-blue" style="width: 0%"></div></div>
+        </div>
+
+        <div class="card">
+            <h2>Audit Trail</h2>
+            <div id="logs" style="height: 300px; overflow-y: auto;">
+                <div class="log-entry log-sys">Waiting for data...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Threat Intelligence</h2>
+            <ul>
+                <li>Target: Smart HTTP Server (:5000)</li>
+                <li>Defense: AI + Regex WAF</li>
+                <li>Status: <span style="color: #7ee787">ONLINE</span></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
