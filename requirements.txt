@@ -1,3 +1,7 @@
 Flask
 Flask-SQLAlchemy
 requests
+Flask-Limiter
+Flask-Talisman
+Flask-WTF
+email-validator

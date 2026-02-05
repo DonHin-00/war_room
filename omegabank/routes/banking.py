@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, session, redirect, url_for, request, flash
 from ..core.db import db
 from ..core.models import User, Transaction
+from ..forms import TransferForm
 from irondome.analyzer import FraudDetector
+from ..core.extensions import limiter
 import logging
 
 banking_bp = Blueprint('banking', __name__)
@@ -19,18 +21,16 @@ def dashboard():
     return render_template('dashboard.html', user=user, transactions=transactions)
 
 @banking_bp.route('/transfer', methods=['GET', 'POST'])
+@limiter.limit("60 per minute")
 def transfer():
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
 
-    if request.method == 'POST':
+    form = TransferForm()
+    if form.validate_on_submit():
         sender = User.query.get(session['user_id'])
-        recipient_acc = request.form.get('recipient')
-        try:
-            amount = float(request.form.get('amount'))
-        except ValueError:
-            flash('Invalid amount')
-            return render_template('transfer.html')
+        recipient_acc = form.recipient.data
+        amount = form.amount.data
 
         recipient = User.query.filter_by(account_number=recipient_acc).first()
 
@@ -38,8 +38,6 @@ def transfer():
             flash('Recipient not found')
         elif amount > sender.balance:
             flash('Insufficient funds')
-        elif amount <= 0:
-            flash('Invalid amount')
         else:
             # SOC Check
             if not fraud_detector.check_transaction(sender.id, amount):
@@ -58,4 +56,9 @@ def transfer():
             flash('Transfer successful')
             return redirect(url_for('banking.dashboard'))
 
-    return render_template('transfer.html')
+    if form.errors:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}")
+
+    return render_template('transfer.html', form=form)

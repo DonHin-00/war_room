@@ -3,6 +3,7 @@
 <div class="transfer-container">
     <h2>Fund Transfer</h2>
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="recipient">Recipient Account Number:</label>
         <input type="text" id="recipient" name="recipient" required>
         <label for="amount">Amount ($):</label>

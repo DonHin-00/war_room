@@ -1,4 +1,5 @@
 from .siem import siem_logger
+from .firewall import block_ip
 import random
 
 class FraudDetector:
@@ -19,5 +20,15 @@ class IdentityDefense:
         suspicious_ips = ["192.168.1.100", "10.0.0.55"] # Mock bad IPs
         if ip_address in suspicious_ips:
             siem_logger.log_event("IdentityDefense", "SUSPICIOUS_IP", f"Login attempt for {username} from {ip_address}", "HIGH")
+            block_ip(ip_address)
             return False
+
+        # Check for obvious attack patterns in username
+        attack_signatures = ["<script>", "' OR", "UNION SELECT"]
+        for sig in attack_signatures:
+            if sig in username:
+                siem_logger.log_event("IdentityDefense", "ATTACK_SIGNATURE", f"Attack payload in username: {username}", "CRITICAL")
+                block_ip(ip_address)
+                return False
+
         return True

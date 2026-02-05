@@ -1,7 +1,9 @@
 from flask import Blueprint, request, session, redirect, url_for, render_template, flash
 from ..core.db import db
 from ..core.models import User
+from ..forms import LoginForm
 from irondome.analyzer import IdentityDefense
+from ..core.extensions import limiter
 import logging
 
 auth_bp = Blueprint('auth', __name__)
@@ -9,16 +11,18 @@ logger = logging.getLogger('auth')
 identity_defense = IdentityDefense()
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("60 per minute")
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
+    form = LoginForm()
+    if form.validate_on_submit():
+        username = form.username.data
+        password = form.password.data
 
         # SOC Check
         if not identity_defense.check_login(username, request.remote_addr):
             flash('Login blocked by security policy.')
-            return render_template('login.html')
+            return render_template('login.html', form=form)
 
-        password = request.form.get('password')
         user = User.query.filter_by(username=username).first()
 
         if user and user.check_password(password):
@@ -30,7 +34,12 @@ def login():
             logger.warning(f"Failed login attempt for {username} from {request.remote_addr}")
             flash('Invalid credentials')
 
-    return render_template('login.html')
+    if form.errors:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}")
+
+    return render_template('login.html', form=form)
 
 @auth_bp.route('/logout')
 def logout():

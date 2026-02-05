@@ -4,8 +4,11 @@ from .core.db import db
 from .routes.auth import auth_bp
 from .routes.banking import banking_bp
 from .routes.admin import admin_bp
+from .core.extensions import limiter, csrf
+from flask_talisman import Talisman
 from irondome.dlp import DLPScanner
-from flask import request
+from irondome.firewall import is_blocked
+from flask import request, abort
 import logging
 import os
 
@@ -13,7 +16,25 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Security Extensions
+    csrf.init_app(app)
+    limiter.init_app(app)
+
+    # CSP Policy
+    csp = {
+        'default-src': '\'self\'',
+        'script-src': '\'self\'',
+        'style-src': '\'self\'',
+        'img-src': '\'self\''
+    }
+    Talisman(app, content_security_policy=csp, force_https=False) # force_https=False for localhost simulation
+
     dlp = DLPScanner()
+
+    @app.before_request
+    def check_firewall():
+        if is_blocked(request.remote_addr):
+            abort(403, description="Your IP has been flagged by IronDome Security.")
 
     @app.after_request
     def scan_response(response):
