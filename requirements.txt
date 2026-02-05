@@ -1,1 +1,4 @@
-python==3.9.0
+# Core dependencies (Standard Library is mostly used, but listing for completeness)
+# psutil # We replaced this with procps/pgrep for "No Sim Only" behavior
+colorama
+tabulate

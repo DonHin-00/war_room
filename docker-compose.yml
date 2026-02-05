@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  war-room:
+    build: .
+    container_name: cyber-war-simulation
+    volumes:
+      - ./war_zone_logs:/app/war_zone_logs # Mount for persistence if we change orchestrator to write here
+    environment:
+      - PYTHONUNBUFFERED=1
+    # We mount the whole dir for dev, but in prod we rely on COPY
+    # volumes:
+    #   - .:/app
