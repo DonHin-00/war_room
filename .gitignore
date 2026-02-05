@@ -1,12 +1,16 @@
-# Exclude generated files
-*.o
-*.out
-
-# Exclude logs
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+*.db
+*.sqlite
+logs/
+*.pid
 *.log
-
-# Exclude cache
-.cache/
-
-# Exclude temporary files
-temp/
+stix_*.json
+feed_export.json
+simulation_data/
+war_zone/
+venv/
+.env
