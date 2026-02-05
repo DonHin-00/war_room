@@ -4,30 +4,42 @@
 
 ## 🌟 Key Features
 
-### 🔴 Red Team (Adversarial Agents)
+### 🔴 Red Team (Adversary)
 *   **Adaptive Evolution:** Agents evolve strategies using Genetic Algorithms and Reinforcement Learning (`RLBrain`).
-*   **Hyper-Mutation:** Automatically rotates IP addresses and mutates obfuscation genes upon detection.
 *   **Advanced Tradecraft:**
-    *   **Polyglot Persistence:** Hides payloads in fake PNG files (`magic_bytes`) executed by innocent-looking loaders.
-    *   **Deep Obfuscation:** Layers Zlib -> XOR -> Base64 to bypass IDS.
-    *   **Timestomping:** Modifies file timestamps to blend in with system files.
-    *   **Encrypted C2:** Uses XOR encryption with "Stealth Padding" (English text) to lower entropy.
+    *   **Lateral Movement:** Pivots from compromised frontend nodes to restricted internal backends (`192.168.1.10`) via RCE.
+    *   **Polyglot Persistence:** Hides payloads in fake PNG files executed by innocent-looking loaders ("Lazarus" mechanism).
+    *   **Deep Obfuscation:** Layers Zlib -> XOR -> Base64 -> Fake Headers to bypass IDS.
+    *   **Structural Polymorphism:** Injects random JSON noise to defeat hash-based signatures.
+    *   **Fast Flux:** Rotates IP addresses and mutation genes upon detection.
 
-### 🔵 Blue Team (Defensive Swarm)
-*   **Swarm Intelligence:** Agents share Threat Intelligence (IOCs) and Reinforcement Learning models ("Brain State") via Gossip Protocol.
+### 🔵 Blue Team (Defender)
+*   **Swarm Intelligence:** Agents share Threat Intelligence (IOCs) and "Brain State" (Q-Tables) via Gossip Protocol.
 *   **Deep Defense:**
-    *   **Zero Trust:** Enforces HMAC-signed certificate authentication for all network connections.
-    *   **Deep Content Inspection:** Recursively decodes files (Base64->XOR->Zlib) to find hidden payloads.
-    *   **Heuristic Hunting:** Detects Timestomping (mtime vs ctime) and Masquerading.
-    *   **Entropy Detection:** Flags high-entropy network packets as potential encrypted C2.
-*   **Active SOAR:**
-    *   **Dynamic Firewall:** Blocks attacker IPs via the Virtual Switch.
-    *   **Content Blocking:** Blacklists specific payload signatures (DPI) to counter IP rotation.
+    *   **UEBA:** User & Entity Behavior Analytics tracks request baselines to flag anomalies (e.g., Impossible Travel).
+    *   **Deep Content Inspection:** Recursively decodes files to neutralize polyglot threats.
+    *   **Heuristic Correlation:** Detects "Wolf Pack" attacks and triggers DEFCON 2 Lockdowns.
+    *   **Active SOAR:** Enforces dynamic firewalling and content blocking at the Virtual Switch.
+
+### 🟡 Yellow Team (Builder)
+*   **DevOps Simulation:** Deploys simulated code updates (Features/Bugfixes) to targets.
+*   **Dynamic Security:** Adjusts code quality (Secure vs Vulnerable) based on real-time feedback from Orange Team standards.
+
+### 🟢 Green Team (DevSecOps)
+*   **Pipeline Gatekeeper:** Performs SAST (Static Analysis) on deployments, blocking insecure code (`eval`, secrets).
+*   **Instrumentation:** Automatically injects logging and monitoring hooks into target services.
+
+### 🍊 Orange Team (Threat Intel)
+*   **Attack Analysis:** Maps audit logs to MITRE ATT&CK and CWE identifiers.
+*   **Feedback Loop:** Generates `coding_standards.json` to guide Builders based on prevalent threats.
+
+### 🏳️ White Team (Governance)
+*   **Rules of Engagement:** Monitors simulation health and enforces boundaries (e.g., resetting runaway events).
 
 ### 🌐 Virtual Network (VNet)
 *   **User-Space TCP/IP Switch:** Simulates a Layer 2/3 switch on `127.0.0.1:10000`.
+*   **Security:** Implements Port Security (Sticky MAC), Zero Trust (mTLS), and DPI Firewall.
 *   **Forensics:** Logs all traffic to binary PCAP files (`logs/capture.pcap`).
-*   **Security:** Implements Port Security (Sticky MAC) and Zero Trust verification.
 
 ## 🚀 Quick Start (Docker)
 
@@ -46,10 +58,10 @@
 
 ## 🛠️ Architecture
 
-*   **Agents:** `red_mesh_node.py`, `blue_swarm_agent.py`
+*   **Agents:** Located in `agents/` (`red_brain.py`, `blue_brain.py`, etc.)
 *   **Network:** `vnet/switch.py`, `vnet/nic.py`, `vnet/pcap.py`
-*   **Services:** `services/mock_bank.py` (Vulnerable Target)
-*   **Tools:** `tools/run_emulation.py`, `tools/adversary.py`, `tools/supply_chain_injector.py`
+*   **Services:** `services/mock_bank.py` (Dual-interface Target)
+*   **Tools:** `tools/run_emulation.py`, `tools/supply_chain_injector.py`
 
 ## 🔒 Security Notice
 This repository contains **simulated malware** and **vulnerable services**. It is intended for educational and research purposes only. Run only in isolated environments (Docker/VM).
