@@ -8,12 +8,13 @@ from ant_swarm.core.hive import SignalBus
 
 logger = logging.getLogger("BlueDefender")
 WATCH_DIR = "/tmp"
+Q_TABLE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../", "blue_q_table.json")
 
 class BlueDefender(OODALoop):
     def __init__(self):
         super().__init__("BlueDefender", cycle_time=1.0)
         self.actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "WIFI_DEFENSE", "WEB_WAF", "NET_IDS"]
-        self.q_table = {} # Simplification: In-memory Q-table for now, could load from file
+        self.q_table = self._load_memory()
         self.alpha = 0.4
         self.epsilon = 0.3
 
@@ -104,6 +105,22 @@ class BlueDefender(OODALoop):
     def _learn(self, state, action, reward):
         old = self.q_table.get(f"{state}_{action}", 0)
         self.q_table[f"{state}_{action}"] = old + self.alpha * (reward - old)
+
+        # Periodic Save
+        if random.random() < 0.1:
+            self._save_memory()
+
+    def _load_memory(self):
+        if os.path.exists(Q_TABLE_FILE):
+            try:
+                with open(Q_TABLE_FILE, 'r') as f: return json.load(f)
+            except: return {}
+        return {}
+
+    def _save_memory(self):
+        try:
+            with open(Q_TABLE_FILE, 'w') as f: json.dump(self.q_table, f, indent=4)
+        except: pass
 
     def _calculate_entropy(self, filepath):
         try:

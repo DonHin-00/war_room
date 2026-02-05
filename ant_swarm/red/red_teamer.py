@@ -1,11 +1,13 @@
 import os
 import time
+import json
 import random
 import logging
 from ant_swarm.core.ooda import OODALoop
 
 logger = logging.getLogger("RedTeamer")
 TARGET_DIR = "/tmp"
+Q_TABLE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../", "red_q_table.json")
 
 class RedTeamer(OODALoop):
     def __init__(self):
@@ -14,30 +16,47 @@ class RedTeamer(OODALoop):
             "T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK",
             "T1046_WIFI_SCAN", "T1046_NET_SCAN", "T1190_WEB_EXPLOIT"
         ]
-        self.q_table = {}
+        self.q_table = self._load_memory()
         self.epsilon = 0.3
         self.alpha = 0.4
+        self.gamma = 0.9
+        self.last_state = None
+        self.last_action = None
+
+        # Reward Config
+        self.R_IMPACT = 10
+        self.R_STEALTH = 15
+        self.R_CRITICAL = 30
+        self.MAX_ALERT = 5
 
     def observe(self):
-        # Red team observes the defensive posture (via Hive or direct recon)
-        # For simulation, it just acts based on its own state/randomness mostly
         return self.hive.get_state()
 
     def orient(self, obs):
-        return {"defcon": obs["defcon"]}
+        # Map DEFCON to Alert Level (1-5)
+        # DEFCON 5 = Alert 1, DEFCON 1 = Alert 5
+        alert_level = 6 - obs["defcon"]
+        return {"alert_level": alert_level}
 
     def decide(self, orientation):
+        state = str(orientation["alert_level"])
+        self.last_state = state
+
         if random.random() < self.epsilon:
             action = random.choice(self.actions)
         else:
-            # Simple choice logic
-            action = random.choice(self.actions)
+            known = {a: self.q_table.get(f"{state}_{a}", 0) for a in self.actions}
+            action = max(known, key=known.get) if known else random.choice(self.actions)
+
+        self.last_action = action
         return action
 
     def act(self, action):
         impact = 0
         fname = None
+        content = None
 
+        # Execute Attack
         if action == "T1046_RECON":
             fname = f"malware_bait_{int(time.time())}.sh"
             content = "echo 'scan'"
@@ -59,10 +78,15 @@ class RedTeamer(OODALoop):
             impact = 7
 
         elif action == "T1046_WIFI_SCAN":
-             # Drop handshake file
              fname = f"handshake_{int(time.time())}.cap"
              content = b"handshake_data"
              impact = 2
+
+        elif action == "T1046_NET_SCAN":
+            impact = 3
+
+        elif action == "T1589_LURK":
+            impact = 0
 
         if fname:
             try:
@@ -74,5 +98,40 @@ class RedTeamer(OODALoop):
             except Exception as e:
                 logger.error(f"Failed to execute {action}: {e}")
 
-        # Reduce epsilon
-        self.epsilon *= 0.995
+        # Calculate Reward
+        current_alert = int(self.last_state)
+        reward = 0
+        if impact > 0: reward = self.R_IMPACT
+        if current_alert >= 4 and action == "T1589_LURK": reward = self.R_STEALTH
+        if current_alert == 5 and impact > 0: reward = self.R_CRITICAL
+        if action == "T1190_WEB_EXPLOIT": reward += 5
+
+        # Learn
+        self._learn(self.last_state, action, reward, self.last_state) # Simplification: Next state assumed same for step
+
+        # Decay Epsilon
+        self.epsilon = max(0.01, self.epsilon * 0.995)
+
+        # Periodic Save
+        if random.random() < 0.1:
+            self._save_memory()
+
+    def _learn(self, state, action, reward, next_state):
+        old_val = self.q_table.get(f"{state}_{action}", 0)
+        # Max Q for next state
+        next_max = max([self.q_table.get(f"{next_state}_{a}", 0) for a in self.actions])
+
+        new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
+        self.q_table[f"{state}_{action}"] = new_val
+
+    def _load_memory(self):
+        if os.path.exists(Q_TABLE_FILE):
+            try:
+                with open(Q_TABLE_FILE, 'r') as f: return json.load(f)
+            except: return {}
+        return {}
+
+    def _save_memory(self):
+        try:
+            with open(Q_TABLE_FILE, 'w') as f: json.dump(self.q_table, f, indent=4)
+        except: pass
