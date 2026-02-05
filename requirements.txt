@@ -1,0 +1,2 @@
+# Core dependencies provided by standard library in Python 3.9+
+# (urllib, http.server, json, logging, threading, subprocess)

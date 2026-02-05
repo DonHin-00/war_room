@@ -33,6 +33,7 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 LOG_FILE = os.path.join(BASE_DIR, "blue.log")
 WAF_LOG = os.path.join(BASE_DIR, "bot.log")
 WATCH_DIR = "/tmp"
+LOCKDOWN_FILE = os.path.join(WATCH_DIR, "lockdown.lock")
 BACKUP_DIR = os.path.join(WATCH_DIR, ".blue_backups")
 
 # Ensure Directories
@@ -41,7 +42,7 @@ if not os.path.exists(BACKUP_DIR):
     except OSError: pass
 
 # --- HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "PROCESS_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "INTEGRITY_CHECK", "OBSERVE", "IGNORE"]
+ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "DLP_SCAN", "PROCESS_SCAN", "NETWORK_SCAN", "DEPLOY_HONEY_CC", "BACKUP_RESTORE", "INTEGRITY_CHECK", "OBSERVE", "IGNORE"]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -436,6 +437,40 @@ class BlueDefender:
                             except: pass
                     except: pass
 
+                elif action == "NETWORK_SCAN":
+                    # Counter Red C2 Beaconing
+                    try:
+                        # Linux /proc/net/tcp parsing to find connections to 8888 (C2)
+                        # 8888 in hex is 22B8
+                        with open("/proc/net/tcp", "r") as f:
+                            for line in f.readlines()[1:]: # Skip header
+                                try:
+                                    parts = line.split()
+                                    local_addr = parts[1]
+                                    rem_addr = parts[2]
+                                    state = parts[3]
+                                    inode = parts[9]
+
+                                    # Check for connection to C2 (Port 8888)
+                                    if ":22B8" in rem_addr and state == "01": # 01 = ESTABLISHED
+                                        # Map inode to PID (Expensive, but effective)
+                                        for pid in os.listdir('/proc'):
+                                            if pid.isdigit():
+                                                try:
+                                                    fds = os.listdir(f'/proc/{pid}/fd')
+                                                    for fd in fds:
+                                                        try:
+                                                            link = os.readlink(f'/proc/{pid}/fd/{fd}')
+                                                            if f"socket:[{inode}]" in link:
+                                                                self.logger.warning(f"C2 Connection Detected! PID: {pid}. TERMINATING.")
+                                                                os.kill(int(pid), signal.SIGKILL)
+                                                                mitigated += 5
+                                                        except: pass
+                                                except: pass
+                                except: pass
+                    except FileNotFoundError: pass # Not on Linux/ProcFS
+                    except Exception: pass
+
                 elif action == "INTEGRITY_CHECK":
                     # Self-Healing: Check if signatures.json is valid/empty
                     try:
@@ -470,6 +505,15 @@ class BlueDefender:
                 elif mitigated == 0 and current_alert > MIN_ALERT and action == "OBSERVE":
                     self.war_state['blue_alert_level'] = max(MIN_ALERT, current_alert - 1)
                 self._access_memory(STATE_FILE, self.war_state)
+
+                # Lockdown Protocol (DEFCON 1)
+                if self.war_state['blue_alert_level'] >= MAX_ALERT:
+                    if not os.path.exists(LOCKDOWN_FILE):
+                        safe_file_write(LOCKDOWN_FILE, "LOCKDOWN_INITIATED")
+                        self.logger.warning("MAX ALERT: Initiating Infrastructure Lockdown!")
+                else:
+                    if os.path.exists(LOCKDOWN_FILE):
+                        os.remove(LOCKDOWN_FILE)
 
                 # LOG
                 icon = "🛡️" if mitigated == 0 else "⚔️"

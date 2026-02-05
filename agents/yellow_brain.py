@@ -23,9 +23,16 @@ from utils import safe_file_write
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_FILE = os.path.join(BASE_DIR, "yellow.log")
 TARGET_DIR = "/tmp"
+LOCKDOWN_FILE = os.path.join(TARGET_DIR, "lockdown.lock")
 
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
+        # Lockdown Check
+        if os.path.exists(LOCKDOWN_FILE):
+            self.send_response(503)
+            self.wfile.write(b"SERVICE LOCKED DOWN BY DEFENSE PROTOCOL")
+            return
+
         if self.path == "/":
             self.send_response(200)
             self.wfile.write(b"Enterprise App v2.0 (Stable)")
