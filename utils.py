@@ -68,33 +68,36 @@ def safe_file_write(file_path: str, data: str) -> None:
         raise e
 
 
-def safe_file_read(file_path: str, timeout: float = 1.0) -> str:
+def safe_file_read(file_path: str, timeout: float = 1.0, binary: bool = False) -> Union[str, bytes]:
     """
     Read data from a file safely.
     """
     if not validate_path(file_path):
         # logging.warning(f"Path traversal blocked: {file_path}")
-        return ""
+        return b"" if binary else ""
 
     if not os.path.exists(file_path):
-        return ""
+        return b"" if binary else ""
 
     if is_tar_pit(file_path):
         if is_friendly():
-            return ""
+            return b"" if binary else ""
         pass
 
     try:
         fd = os.open(file_path, os.O_RDONLY | os.O_NONBLOCK)
-        with os.fdopen(fd, 'r') as file:
+        mode = 'rb' if binary else 'r'
+        with os.fdopen(fd, mode) as file:
             data = file.read(4096)
-            return data if data is not None else ""
+            if data is None:
+                return b"" if binary else ""
+            return data
     except OSError as e:
         if e.errno == errno.EAGAIN:
-             return ""
-        return ""
+             return b"" if binary else ""
+        return b"" if binary else ""
     except Exception:
-        return ""
+        return b"" if binary else ""
 
 def safe_json_read(file_path: str, default: Any = None) -> Any:
     """Read JSON data safely."""
@@ -192,12 +195,12 @@ def scan_threats(file_path: str) -> bool:
     """Mock YARA scanner."""
     try:
         if is_tar_pit(file_path): return False
-        content = safe_file_read(file_path, timeout=0.1)
+        content = safe_file_read(file_path, timeout=0.1, binary=True)
         if not content: return False
 
-        if "echo 'malware_payload'" in content: return True
-        if "ENCRYPTED_HEADER_V1" in content: return True
-        if ":HEARTBEAT" in content: return True
+        if b"echo 'malware_payload'" in content: return True
+        if b"ENCRYPTED_HEADER_V1" in content: return True
+        if b":HEARTBEAT" in content: return True
         return False
     except:
         return False

@@ -131,7 +131,8 @@ class RedTeamer:
             if not targets: return {"impact": 0, "status": "no_targets"}
 
             target = random.choice(targets)
-            utils.safe_file_read(target)
+            # Simulate reading file for encryption (binary mode)
+            utils.safe_file_read(target, binary=True)
 
             encrypted_path = target + ".enc"
             with open(encrypted_path, 'wb') as f:

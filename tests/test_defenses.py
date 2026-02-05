@@ -24,9 +24,14 @@ class TestDefenseMechanisms(unittest.TestCase):
         os.makedirs(self.watch_dir)
 
         self.orig_paths = config.PATHS.copy()
+        config.PATHS["BASE_DIR"] = self.test_dir # FIX: Allow access to temp dir
         config.PATHS["Q_TABLE_BLUE"] = self.q_table_file
         config.PATHS["WAR_STATE"] = self.state_file
         config.PATHS["WAR_ZONE"] = self.watch_dir
+        # Fix missing paths causing validation errors
+        config.PATHS["AUDIT_LOG"] = os.path.join(self.test_dir, "audit.jsonl")
+        config.PATHS["SIGNATURES"] = os.path.join(self.test_dir, "sigs.json")
+        config.PATHS["Q_TABLE_RED"] = os.path.join(self.test_dir, "red.json")
 
         self.blue_bot = blue_brain.BlueDefender()
         self.red_bot = red_brain.RedTeamer()
@@ -55,9 +60,13 @@ class TestDefenseMechanisms(unittest.TestCase):
         pit_path = os.path.join(self.watch_dir, "trap.pipe")
         utils.create_tar_pit(pit_path)
 
-        # Red recon returns traps found count
-        traps_found = self.red_bot.perform_recon()
-        self.assertGreaterEqual(traps_found, 1)
+        # Red recon returns dict
+        # Force Red to target the watch dir (usually targets ZONES[access_level])
+        # We patch _get_target_dir
+        self.red_bot._get_target_dir = lambda: self.watch_dir
+
+        result = self.red_bot.t1046_recon()
+        self.assertGreaterEqual(result.get("traps_found", 0), 1)
 
 if __name__ == '__main__':
     unittest.main()

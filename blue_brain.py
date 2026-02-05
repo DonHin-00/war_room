@@ -108,7 +108,8 @@ class BlueDefender:
                     if entry.is_file() and not utils.is_tar_pit(entry.path) and not utils.is_honeypot(entry.path):
                         try:
                             if entry.name.endswith(".enc"): continue
-                            entropy = utils.calculate_entropy(utils.safe_file_read(entry.path, 0.1))
+                            # Use binary read for entropy calculation to handle non-text files correctly
+                            entropy = utils.calculate_entropy(utils.safe_file_read(entry.path, 0.1, binary=True))
                             if entropy > 3.5:
                                 os.remove(entry.path)
                                 mitigated += 1
@@ -124,7 +125,8 @@ class BlueDefender:
                     if entry.is_file() and not entry.name.endswith(".enc"):
                         if not utils.is_tar_pit(entry.path) and not "malware" in entry.name:
                             try:
-                                self.backups[entry.name] = utils.safe_file_read(entry.path)
+                                # Backup as binary to preserve integrity
+                                self.backups[entry.name] = utils.safe_file_read(entry.path, binary=True)
                                 count += 1
                             except: pass
         except: pass
@@ -139,7 +141,8 @@ class BlueDefender:
                         original_name = entry.name[:-4]
                         if original_name in self.backups:
                             os.remove(entry.path)
-                            with open(os.path.join(config.PATHS["WAR_ZONE"], original_name), 'w') as f:
+                            # Restore as binary
+                            with open(os.path.join(config.PATHS["WAR_ZONE"], original_name), 'wb') as f:
                                 f.write(self.backups[original_name])
                             restored += 1
         except: pass
