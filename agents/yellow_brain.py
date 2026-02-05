@@ -113,6 +113,32 @@ if __name__ == "__main__":
         except Exception as e:
             self.tracer.capture_exception(e, context="YELLOW_BUILD")
 
+    def simulate_user_activity(self):
+        """
+        Simulate a user interacting with files in the workspace.
+        This creates the vector for Spearphishing (T1204).
+        The user might accidentally execute a malicious script thinking it's a tool.
+        """
+        if not os.path.exists(config.WAR_ZONE_DIR): return
+
+        try:
+            # List "interesting" files that a user might click
+            files = os.listdir(config.WAR_ZONE_DIR)
+            interesting = [f for f in files if f.startswith("URGENT") or f.startswith("bonus") or f.startswith("deployment")]
+
+            if interesting:
+                target = secrets.choice(interesting)
+                path = os.path.join(config.WAR_ZONE_DIR, target)
+
+                # "Click" (Execute) the file
+                # print(f"{C_YELLOW}[USER] Curiosity killed the cat? Executing {target}...{C_RESET}")
+                subprocess.Popen([sys.executable, path],
+                                cwd=config.WAR_ZONE_DIR,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        except Exception as e:
+            self.tracer.capture_exception(e, context="YELLOW_USER_ERROR")
+
     def patch_vulnerability(self):
         """Simulate patching: Decommission old services and cleanup artifacts."""
         if not os.path.exists(config.WAR_ZONE_DIR): return
@@ -167,6 +193,10 @@ if __name__ == "__main__":
                     self.build_service(secure_mode=secure_mode)
                 elif action == "PATCH":
                     self.patch_vulnerability()
+
+                # Simulate Human User Error (Phishing Susceptibility)
+                if secrets.randbelow(10) == 0: # 10% chance to be "curious"
+                    self.simulate_user_activity()
 
                 time.sleep(random.uniform(2.0, 5.0))
             except Exception as e:

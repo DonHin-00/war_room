@@ -246,15 +246,26 @@ class RedTeamer:
                         except: pass
 
                 elif action == "T1204_USER_EXECUTION":
-                    # Spearphishing Attachment / Link
+                    # Spearphishing: Deploy Bait Files for Yellow Team to "Click"
                     try:
-                        # Find potential Yellow team artifacts to "click"
-                        if os.path.exists(config.WAR_ZONE_DIR):
-                            potential_users = [f for f in os.listdir(config.WAR_ZONE_DIR) if "user" in f or "log" in f]
-                            if potential_users:
-                                target = secrets.choice(potential_users)
-                                impact = 4
-                                self.audit_logger.log_event("RED", "PHISHING", f"User clicked payload in {target}")
+                        # Create deceptive filenames that look like valid admin tools
+                        bait_names = ["URGENT_patch.py", "salary_matrix_2024.py", "deployment_fix.py"]
+                        fname = os.path.join(config.WAR_ZONE_DIR, secrets.choice(bait_names))
+
+                        # Payload: A simple script that reports "Infected" to C2 or logs execution
+                        # In a real sim, this would be the actual malware.py content
+                        payload = f"""
+#!/usr/bin/env python3
+import os
+import sys
+# Simulating Malicious Payload Execution
+with open("phishing_success.log", "a") as f:
+    f.write(f"USER EXECUTED PAYLOAD: {{sys.argv[0]}}\\n")
+"""
+                        utils.secure_create(fname, payload.strip())
+                        os.chmod(fname, 0o755)
+                        impact = 0 # No impact yet, requires User interaction
+                        self.audit_logger.log_event("RED", "PHISHING_DROP", f"Deployed bait file: {os.path.basename(fname)}")
                     except: pass
 
                 elif action == "T1048_EXFIL_ALT":
