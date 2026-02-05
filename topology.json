@@ -729,5 +729,26 @@
             "SWARM"
         ],
         "last_seen": 1770258808.327578
+    },
+    "ab16464c": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770263030.7247238
+    },
+    "b4a5728f": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770263030.7476969
+    },
+    "2e34cce3": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770263030.753484
     }
 }

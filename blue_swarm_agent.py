@@ -153,6 +153,27 @@ class BlueSwarmAgent:
         self.honeypots = {} # path -> last_mtime
         self.deploy_honeypots()
 
+        # Heuristic Correlation
+        self.recent_threats = [] # (ts, ip)
+
+    def correlate_threats(self, ip):
+        """Correlate threats across time and space."""
+        now = time.time()
+        self.recent_threats.append((now, ip))
+
+        # Prune old events (> 10s)
+        self.recent_threats = [x for x in self.recent_threats if now - x[0] < 10]
+
+        # Count unique IPs in window
+        unique_ips = set(x[1] for x in self.recent_threats)
+
+        if len(unique_ips) >= 3:
+            logger.critical("🚀 DEFCON 2: Distributed Attack Detected (Wolf Pack)")
+            self.soar.activate_lockdown()
+            # Block all involved IPs
+            for bad_ip in unique_ips:
+                self.soar.block_ip(bad_ip)
+
     def deploy_honeypots(self):
         """Deploy decoy files to catch Red Team."""
         for name in config.HONEYPOT_NAMES:
@@ -271,6 +292,9 @@ class BlueSwarmAgent:
                     logger.critical(f"IDS ALERT: Attack detected from {src}")
                     self.network_threats_detected += 1
                     self.share_intel(f"NET_ATTACK_{src}")
+
+                    # Correlation
+                    self.correlate_threats(src)
 
                     # Active Response 1: Block IP
                     self.soar.block_ip(src)

@@ -84,9 +84,11 @@ class CyberWarDashboard:
             self.stdscr.addstr(2, 80, f"📡 Traffic Captured: {pcap_size/1024:.2f} KB", curses.color_pair(4))
         except: pass
 
-        # Blocked IPs (fake for now, or read from switch log if we parsed it)
-        # Real integration would read switch state.
-        pass
+        # DEFCON Status Check
+        if os.path.exists(os.path.join(config.SIMULATION_DATA_DIR, ".lockdown")):
+            self.stdscr.addstr(2, 50, "☣️  DEFCON 2: LOCKDOWN ACTIVE", curses.color_pair(2) | curses.A_BLINK)
+        else:
+            self.stdscr.addstr(2, 50, "✅ DEFCON 5: NORMAL OPS", curses.color_pair(1))
 
     def run(self):
         while True:

