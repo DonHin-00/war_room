@@ -1,0 +1,9 @@
+{
+    "id": "0bd9f41d792182823089b60091ec6c71",
+    "timestamp": 1770252436.7000933,
+    "threat_type": "KNOWN_SIGNATURE",
+    "filepath": "/app/war_zone/.sys_shadow_1770252436",
+    "file_hash": "a78b9fa7341e46f6ffe19048444f8c151775e71f20cefa26717f34ab3dcd1caa",
+    "action": "DELETE",
+    "status": "MITIGATED"
+}
