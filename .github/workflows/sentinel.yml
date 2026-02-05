@@ -1,0 +1,36 @@
+name: Sentinel Emulation Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Emulation Smoke Test
+      run: |
+        python tools/run_emulation.py > emulation.log 2>&1 &
+        EMU_PID=$!
+        sleep 15
+        kill $EMU_PID
+
+    - name: Verify Logs
+      run: |
+        if grep -q "Bank Service Online" emulation.log; then
+          echo "✅ Bank Service Started"
+        else
+          echo "❌ Bank Service Failed"
+          exit 1
+        fi

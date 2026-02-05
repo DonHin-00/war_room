@@ -25,6 +25,7 @@ class VirtualSwitch:
         self.clients = {}  # IP -> conn
         self.taps = []     # List of connections monitoring traffic
         self.firewall = set() # Blocked IPs
+        self.blacklisted_signatures = set() # Blocked Content Hashes
         self.port_security = {} # MAC (IP) -> Port binding
         self.lock = threading.Lock()
         self.running = True
@@ -134,7 +135,7 @@ class VirtualSwitch:
             target = payload.get('target')
             with self.lock:
                 self.firewall.add(target)
-                logger.warning(f"🔥 FIREWALL: Blocked {target} (Requested by {src_ip})")
+                logger.warning(f"🔥 FIREWALL: Blocked IP {target} (Requested by {src_ip})")
 
                 # Close existing connection if active
                 if target in self.clients:
@@ -142,6 +143,12 @@ class VirtualSwitch:
                         self.clients[target].close()
                         del self.clients[target]
                     except: pass
+
+        elif cmd == 'BLOCK_SIG':
+            sig = payload.get('target')
+            with self.lock:
+                self.blacklisted_signatures.add(sig)
+                logger.warning(f"🚫 DPI FIREWALL: Blacklisted Signature {sig[:8]}... (Requested by {src_ip})")
 
         elif cmd == 'UNBLOCK':
             target = payload.get('target')
@@ -153,9 +160,25 @@ class VirtualSwitch:
     def route_packet(self, msg):
         dst = msg['dst']
 
-        # Check Firewall for Destination too (Prevent ingress)
+        # Check Firewall for Destination (Prevent ingress)
         if dst in self.firewall:
             return
+
+        # DPI: Check Content Signatures
+        # We need a consistent way to check payload content.
+        # Since msg['payload'] is a dict, we dump it to str for hash check logic
+        # But efficiently, we just check if any blacklisted sig matches a known hash key?
+        # Ideally Blue sends us the EXACT hash of the payload string.
+        # Here we perform a quick check.
+        try:
+            payload_str = json.dumps(msg.get('payload', {}), sort_keys=True)
+            import hashlib
+            payload_hash = hashlib.sha256(payload_str.encode()).hexdigest()
+
+            if payload_hash in self.blacklisted_signatures:
+                logger.warning(f"🛡️ DPI BLOCK: Dropped packet matching signature {payload_hash[:8]}...")
+                return
+        except: pass
 
         # 1. Send to TAPs (IDS Mirroring)
         dead_taps = []

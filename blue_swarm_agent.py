@@ -87,13 +87,22 @@ class SoarEngine:
         if ip in self.blocked_ips: return
 
         logger.warning(f"SOAR: 🚫 BLOCKING IP {ip}")
-        # Send CONTROL message to Switch
-        # Type 'CONTROL' is not in MSG_DATA enum usually, but protocol handles strings.
-        # We need to ensure we use the right type.
-
         payload = {"cmd": "BLOCK", "target": ip}
         self.nic.send("switch", payload, msg_type="CONTROL")
         self.blocked_ips.add(ip)
+
+    def block_content(self, payload_dict):
+        """Block specific content signature to counter IP rotation."""
+        try:
+            # Generate consistent hash
+            import hashlib
+            payload_str = json.dumps(payload_dict, sort_keys=True)
+            sig = hashlib.sha256(payload_str.encode()).hexdigest()
+
+            logger.warning(f"SOAR: 🚫 BLOCKING SIGNATURE {sig[:8]}")
+            cmd = {"cmd": "BLOCK_SIG", "target": sig}
+            self.nic.send("switch", cmd, msg_type="CONTROL")
+        except: pass
 
     def activate_lockdown(self):
         self.lockdown_active = True
@@ -263,8 +272,12 @@ class BlueSwarmAgent:
                     self.network_threats_detected += 1
                     self.share_intel(f"NET_ATTACK_{src}")
 
-                    # Active Response (Block IP)
+                    # Active Response 1: Block IP
                     self.soar.block_ip(src)
+
+                    # Active Response 2: Block Content (Counter IP Rotation)
+                    # We block the raw payload structure
+                    self.soar.block_content(msg.get('payload', {}))
 
     def share_intel(self, ioc):
         """Gossip Protocol: Share IOC and Knowledge with Swarm."""
