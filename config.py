@@ -49,16 +49,17 @@ RED_REWARDS = {
 }
 
 # --- COMMON AI CONFIG ---
+# Tune these parameters to adjust how "Smart" the bots are.
 AI_PARAMS = {
-    'ALPHA': 0.1,           # Lower learning rate for Double Q
-    'ALPHA_DECAY': 0.9999,
-    'GAMMA': 0.95,
-    'EPSILON_START': 0.5,   # Higher exploration for new actions
-    'EPSILON_DECAY': 0.995,
-    'MIN_EPSILON': 0.02,
-    'SYNC_INTERVAL': 10,
-    'MEMORY_SIZE': 1000,    # Experience Replay Buffer Size
-    'BATCH_SIZE': 32        # Batch size for learning
+    'ALPHA': 0.1,           # Learning Rate: How fast they adapt to new info (0.0 = never learn, 1.0 = forget old).
+    'ALPHA_DECAY': 0.9999,  # Decay rate for learning (stabilizes over time).
+    'GAMMA': 0.95,          # Discount Factor: Importance of future rewards (0.0 = short-sighted, 1.0 = long-term planner).
+    'EPSILON_START': 0.5,   # Exploration Rate: Chance to try random actions vs known best strategies.
+    'EPSILON_DECAY': 0.995, # How quickly they shift from Exploration to Exploitation.
+    'MIN_EPSILON': 0.02,    # Minimum randomness to keep them creative.
+    'SYNC_INTERVAL': 10,    # How often to persist learned knowledge (Q-Tables) to disk.
+    'MEMORY_SIZE': 1000,    # Experience Replay Buffer Size (not currently used in tabular Q-learning but reserved).
+    'BATCH_SIZE': 32        # Batch size for learning optimization.
 }
 
 # --- ALERT LEVELS ---
