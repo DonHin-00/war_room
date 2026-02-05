@@ -81,5 +81,4 @@ class ArtifactScanner:
         return artifacts
 
 if __name__ == "__main__":
-    pa = ProcessAuditor()
-    print(pa.scan_proc())
+    pass

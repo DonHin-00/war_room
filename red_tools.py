@@ -139,5 +139,4 @@ class DGA:
     def resolve_domain(self, d): return False
 
 if __name__ == "__main__":
-    p = PersistenceManager()
-    p.install_viral_persistence()
+    pass
