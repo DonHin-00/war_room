@@ -24,6 +24,16 @@ logger = utils.setup_logging("RED", os.path.join(config.LOG_DIR, "red.log"))
 
 # --- AI HYPERPARAMETERS ---
 ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK", "T1036_MASQUERADE", "T1486_ENCRYPT", "T1070_CLEANUP", "T1190_WEB_EXPLOIT", "T1003_CREDENTIAL_DUMPING"]
+
+# User-Agent Spoofing
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15",
+    "Mozilla/5.0 (Linux; Android 10; SM-G960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Mobile Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+    "sqlmap/1.5.2#stable", # Obvious for noise
+]
+
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -192,8 +202,11 @@ def engage_offense():
                 encoded = urllib.parse.quote(payload)
                 url = f"http://127.0.0.1:5000/?q={encoded}"
 
+                # Rotate User-Agents to evade simple blocks
+                ua = _choice(USER_AGENTS)
+
                 try:
-                    req = urllib.request.Request(url)
+                    req = urllib.request.Request(url, headers={'User-Agent': ua})
                     with urllib.request.urlopen(req, timeout=1) as response:
                         if response.status == 200:
                             reward += 10
@@ -201,9 +214,10 @@ def engage_offense():
                             impact = 8
                 except urllib.error.HTTPError as e:
                     if e.code == 403:
-                        reward -= 5
-                        logger.warning("ATTACK BLOCKED: WAF/SOC intercepted request (403 Forbidden)")
-                        utils.adaptive_sleep(2.0, 0.0) # Evasion
+                        reward -= 10 # Higher penalty for getting burned
+                        logger.warning("ATTACK BLOCKED: Target Adapted. Initiating 'Low and Slow' Evasion.")
+                        # Low and Slow: Sleep longer to let bucket/alert level decay
+                        time.sleep(5)
                 except Exception as e:
                     pass
 

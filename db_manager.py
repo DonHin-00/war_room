@@ -9,7 +9,12 @@ class DatabaseManager:
     def __init__(self, db_path="simulation.db"):
         self.db_path = db_path
         self.conn = None
-        self._init_db()
+        # self._init_db() # Lazy initialization
+
+    def _ensure_connection(self):
+        """Ensure DB is connected."""
+        if self.conn is None:
+            self._init_db()
 
     def _init_db(self):
         """Initialize the database schema."""
@@ -72,6 +77,7 @@ class DatabaseManager:
 
     def _execute_with_retry(self, query, params=(), commit=False):
         """Execute a query with retry logic for locking errors."""
+        self._ensure_connection()
         for i in range(5):
             try:
                 self.cursor.execute(query, params)

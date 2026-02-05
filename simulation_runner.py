@@ -45,9 +45,9 @@ def main():
     red = subprocess.Popen(["python3", "-u", "red_brain.py"], env=clean_env)
     processes.append(red)
 
-    # 3. Start Live Target Server (Real HTTP)
-    print("\033[93m[SIMULATION] Booting Live Vulnerable Target (Port 5000)...\033[0m")
-    target = subprocess.Popen(["python3", "-u", "live_target.py"], env=clean_env)
+    # 3. Start Smart Live Target (Adaptive HTTP)
+    print("\033[93m[SIMULATION] Booting Smart Live Target (Port 5000)...\033[0m")
+    target = subprocess.Popen(["python3", "-u", "smart_target.py"], env=clean_env)
     processes.append(target)
 
     # 4. Start SOC (The "Overwatch")

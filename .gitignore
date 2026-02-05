@@ -1,12 +1,24 @@
-# Exclude generated files
+# Generated files
 *.o
 *.out
+*.pyc
+__pycache__/
 
-# Exclude logs
+# Logs
+logs/
 *.log
 
-# Exclude cache
-.cache/
+# Database
+*.db
+*.db-shm
+*.db-wal
 
-# Exclude temporary files
+# Simulation artifacts
+war_zone/
+target_data/
 temp/
+legacy/
+
+# Virtual Env
+venv/
+env/
