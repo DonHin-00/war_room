@@ -7,8 +7,9 @@ from .routes.admin import admin_bp
 from .core.extensions import limiter, csrf
 from flask_talisman import Talisman
 from irondome.dlp import DLPScanner
-from irondome.firewall import is_blocked
-from flask import request, abort
+from irondome.firewall import is_blocked, block_ip
+from flask import request, abort, jsonify
+from irondome.siem import siem_logger
 import logging
 import os
 
@@ -35,6 +36,21 @@ def create_app():
     def check_firewall():
         if is_blocked(request.remote_addr):
             abort(403, description="Your IP has been flagged by IronDome Security.")
+
+    @app.route('/admin/backup.sql')
+    def honeypot_backup():
+        # Immediate Ban
+        ip = request.remote_addr
+        block_ip(ip)
+        siem_logger.log_event("HONEYPOT", "TRAP_TRIGGERED", f"IP {ip} accessed trap /admin/backup.sql", "CRITICAL")
+        return "Access Denied", 403
+
+    @app.route('/api/v1/debug')
+    def honeypot_debug():
+        ip = request.remote_addr
+        block_ip(ip)
+        siem_logger.log_event("HONEYPOT", "TRAP_TRIGGERED", f"IP {ip} accessed trap /api/v1/debug", "CRITICAL")
+        return jsonify({"error": "Unauthorized"}), 401
 
     @app.after_request
     def scan_response(response):
