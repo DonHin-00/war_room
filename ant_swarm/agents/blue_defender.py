@@ -3,8 +3,11 @@ import glob
 import random
 import math
 import logging
+import json
 from ant_swarm.core.ooda import OODALoop
 from ant_swarm.core.hive import SignalBus
+from ant_swarm.tools.blue_tools import ProcessAuditor, BeaconHunter, ArtifactScanner
+from ant_swarm.tools.threat_intel import ThreatIntel
 
 logger = logging.getLogger("BlueDefender")
 WATCH_DIR = "/tmp"
@@ -13,17 +16,25 @@ Q_TABLE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../"
 class BlueDefender(OODALoop):
     def __init__(self):
         super().__init__("BlueDefender", cycle_time=1.0)
-        self.actions = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE", "WIFI_DEFENSE", "WEB_WAF", "NET_IDS"]
+        self.actions = [
+            "SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE",
+            "WIFI_DEFENSE", "WEB_WAF", "NET_IDS", "NETWORK_HUNT"
+        ]
         self.q_table = self._load_memory()
         self.alpha = 0.4
         self.epsilon = 0.3
+
+        # Tools
+        self.auditor = ProcessAuditor()
+        self.hunter = BeaconHunter()
+        self.scanner = ArtifactScanner()
+        self.ti = ThreatIntel() # For validating IPs
 
         # Subscribe to relevant events
         self.bus.subscribe("THREAT_DETECTED", self.handle_threat_alert)
 
     def handle_threat_alert(self, data):
         logger.info(f"Received Threat Alert: {data}")
-        # Could trigger immediate reaction
 
     def observe(self):
         visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
@@ -37,7 +48,6 @@ class BlueDefender(OODALoop):
 
     def orient(self, obs):
         threat_count = len(obs["threats"])
-        # Classify threats
         web_threats = [t for t in obs["threats"] if t.endswith('.php')]
         wifi_threats = [t for t in obs["threats"] if 'handshake' in t]
 
@@ -52,7 +62,6 @@ class BlueDefender(OODALoop):
     def decide(self, orientation):
         state_key = orientation["state_key"]
 
-        # Epsilon-Greedy
         if random.random() < self.epsilon:
             action = random.choice(self.actions)
         else:
@@ -66,6 +75,12 @@ class BlueDefender(OODALoop):
         mitigated = 0
 
         if action == "SIGNATURE_SCAN":
+            # Use ArtifactScanner as well
+            artifacts = self.scanner.scan_persistence()
+            for art in artifacts:
+                try: os.remove(art); mitigated += 1; logger.info(f"Removed persistence: {art}")
+                except: pass
+
             for t in orientation["all_threats"]:
                 if not t.endswith('.php'):
                     try: os.remove(t); mitigated += 1
@@ -81,23 +96,36 @@ class BlueDefender(OODALoop):
                  try: os.remove(t); mitigated += 1
                  except: pass
 
-        elif action == "NET_IDS":
-            if orientation["threat_count"] > 0:
-                self.hive.update_defcon(max(1, self.hive.get_state()["defcon"] - 1)) # Lower DEFCON = Higher Alert
+        elif action == "NETWORK_HUNT":
+            # Use BeaconHunter
+            hits = self.hunter.analyze_network(self.ti)
+            if hits:
+                logger.info(f"BeaconHunter found threats: {hits}")
+                mitigated += len(hits)
+                # In sim, we might kill PID (not implemented fully in tools)
 
         elif action == "HEURISTIC_SCAN":
+             # Use ProcessAuditor
+             suspicious = self.auditor.scan_proc()
+             if suspicious:
+                 logger.info(f"ProcessAuditor found suspicious procs: {suspicious}")
+                 mitigated += len(suspicious)
+
              for t in orientation["all_threats"]:
                 if ".sys" in t or self._calculate_entropy(t) > 3.5:
                     try: os.remove(t); mitigated += 1
                     except: pass
 
-        # Reward and Learn (Simplified)
+        elif action == "NET_IDS":
+            if orientation["threat_count"] > 0:
+                self.hive.update_defcon(max(1, self.hive.get_state()["defcon"] - 1))
+
+        # Reward and Learn
         reward = mitigated * 10
         if action == "IGNORE" and orientation["threat_count"] > 0: reward -= 10
 
         self._learn(orientation["state_key"], action, reward)
 
-        # Publish update
         if mitigated > 0:
             self.bus.publish("THREAT_MITIGATED", {"count": mitigated, "action": action})
             logger.info(f"Action: {action} | Mitigated: {mitigated}")
@@ -106,7 +134,6 @@ class BlueDefender(OODALoop):
         old = self.q_table.get(f"{state}_{action}", 0)
         self.q_table[f"{state}_{action}"] = old + self.alpha * (reward - old)
 
-        # Periodic Save
         if random.random() < 0.1:
             self._save_memory()
 

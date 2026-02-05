@@ -1,0 +1,12 @@
+{
+    "1_0_WEB_WAF": 0.0,
+    "1_0_SIGNATURE_SCAN": 0.0,
+    "1_0_IGNORE": 0.0,
+    "1_0_WIFI_DEFENSE": 0.0,
+    "1_1_SIGNATURE_SCAN": 6.6594095104,
+    "1_1_WEB_WAF": 4.0,
+    "1_2_SIGNATURE_SCAN": 6.4,
+    "1_1_OBSERVE": 0.0,
+    "1_0_HEURISTIC_SCAN": 0.0,
+    "1_0_OBSERVE": 0.0
+}

@@ -4,6 +4,11 @@ import json
 import random
 import logging
 from ant_swarm.core.ooda import OODALoop
+from ant_swarm.tools.red_tools import (
+    SystemSurveyor, NetworkSniffer, TrafficGenerator,
+    LateralMover, PrivEsc, ExfiltrationEngine, DGA, PersistenceManager
+)
+from ant_swarm.tools.threat_intel import ThreatIntel
 
 logger = logging.getLogger("RedTeamer")
 TARGET_DIR = "/tmp"
@@ -14,7 +19,8 @@ class RedTeamer(OODALoop):
         super().__init__("RedTeamer", cycle_time=1.5)
         self.actions = [
             "T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK",
-            "T1046_WIFI_SCAN", "T1046_NET_SCAN", "T1190_WEB_EXPLOIT"
+            "T1046_WIFI_SCAN", "T1046_NET_SCAN", "T1190_WEB_EXPLOIT",
+            "T1071_C2_BEACON", "T1547_PERSIST"
         ]
         self.q_table = self._load_memory()
         self.epsilon = 0.3
@@ -22,6 +28,14 @@ class RedTeamer(OODALoop):
         self.gamma = 0.9
         self.last_state = None
         self.last_action = None
+
+        # Initialize Advanced Tools
+        self.surveyor = SystemSurveyor()
+        self.sniffer = NetworkSniffer()
+        self.traffic = TrafficGenerator()
+        self.lateral = LateralMover()
+        self.persist = PersistenceManager()
+        self.ti = ThreatIntel() # Can be used to fetch IPs
 
         # Reward Config
         self.R_IMPACT = 10
@@ -33,8 +47,6 @@ class RedTeamer(OODALoop):
         return self.hive.get_state()
 
     def orient(self, obs):
-        # Map DEFCON to Alert Level (1-5)
-        # DEFCON 5 = Alert 1, DEFCON 1 = Alert 5
         alert_level = 6 - obs["defcon"]
         return {"alert_level": alert_level}
 
@@ -56,49 +68,69 @@ class RedTeamer(OODALoop):
         fname = None
         content = None
 
-        # Execute Attack
-        if action == "T1046_RECON":
-            fname = f"malware_bait_{int(time.time())}.sh"
-            content = "echo 'scan'"
-            impact = 1
+        try:
+            if action == "T1046_RECON":
+                # Use SystemSurveyor
+                info = self.surveyor.collect_system_info()
+                logger.info(f"Recon Data: {info}")
+                # Still drop bait for Blue to find
+                fname = f"malware_bait_{int(time.time())}.sh"
+                content = f"echo 'Target: {info.get('hostname')}'"
+                impact = 1
 
-        elif action == "T1027_OBFUSCATE":
-            fname = f"malware_crypt_{int(time.time())}.bin"
-            content = os.urandom(1024)
-            impact = 3
+            elif action == "T1046_NET_SCAN":
+                # Use NetworkSniffer
+                services = self.sniffer.scan_active_services()
+                logger.info(f"Active Services: {services}")
+                impact = 3
 
-        elif action == "T1003_ROOTKIT":
-            fname = f".sys_shadow_{int(time.time())}"
-            content = "uid=0(root)"
-            impact = 5
+            elif action == "T1071_C2_BEACON":
+                # Use TrafficGenerator
+                # Get a target IP from ThreatIntel or random
+                target = self.ti.get_c2_ip() or "192.168.1.100"
+                status = self.traffic.send_http_beacon(target)
+                logger.info(f"Beacon sent to {target}, Status: {status}")
+                impact = 2
 
-        elif action == "T1190_WEB_EXPLOIT":
-            fname = f"malware_webshell_{int(time.time())}.php"
-            content = "<?php system($_GET['cmd']); ?>"
-            impact = 7
+            elif action == "T1547_PERSIST":
+                if self.persist.install_cron():
+                    logger.info("Persistence installed (Cron)")
+                    impact = 5
 
-        elif action == "T1046_WIFI_SCAN":
-             fname = f"handshake_{int(time.time())}.cap"
-             content = b"handshake_data"
-             impact = 2
+            elif action == "T1027_OBFUSCATE":
+                fname = f"malware_crypt_{int(time.time())}.bin"
+                content = os.urandom(1024)
+                impact = 3
 
-        elif action == "T1046_NET_SCAN":
-            impact = 3
+            elif action == "T1003_ROOTKIT":
+                fname = f".sys_shadow_{int(time.time())}"
+                content = "uid=0(root)"
+                impact = 5
 
-        elif action == "T1589_LURK":
-            impact = 0
+            elif action == "T1190_WEB_EXPLOIT":
+                fname = f"malware_webshell_{int(time.time())}.php"
+                content = "<?php system($_GET['cmd']); ?>"
+                impact = 7
 
-        if fname:
-            try:
+            elif action == "T1046_WIFI_SCAN":
+                 fname = f"handshake_{int(time.time())}.cap"
+                 content = b"handshake_data"
+                 impact = 2
+
+            elif action == "T1589_LURK":
+                impact = 0
+
+            if fname:
                 path = os.path.join(TARGET_DIR, fname)
                 mode = 'wb' if isinstance(content, bytes) else 'w'
                 with open(path, mode) as f: f.write(content)
                 logger.info(f"Executed {action}: Dropped {fname}")
                 self.bus.publish("ATTACK_LAUNCHED", {"action": action, "impact": impact})
-            except Exception as e:
-                logger.error(f"Failed to execute {action}: {e}")
 
-        # Calculate Reward
+        except Exception as e:
+            logger.error(f"Failed to execute {action}: {e}")
+
+        # Calculate Reward & Learn
         current_alert = int(self.last_state)
         reward = 0
         if impact > 0: reward = self.R_IMPACT
@@ -106,21 +138,16 @@ class RedTeamer(OODALoop):
         if current_alert == 5 and impact > 0: reward = self.R_CRITICAL
         if action == "T1190_WEB_EXPLOIT": reward += 5
 
-        # Learn
-        self._learn(self.last_state, action, reward, self.last_state) # Simplification: Next state assumed same for step
+        self._learn(self.last_state, action, reward, self.last_state)
 
-        # Decay Epsilon
         self.epsilon = max(0.01, self.epsilon * 0.995)
 
-        # Periodic Save
         if random.random() < 0.1:
             self._save_memory()
 
     def _learn(self, state, action, reward, next_state):
         old_val = self.q_table.get(f"{state}_{action}", 0)
-        # Max Q for next state
         next_max = max([self.q_table.get(f"{next_state}_{a}", 0) for a in self.actions])
-
         new_val = old_val + self.alpha * (reward + self.gamma * next_max - old_val)
         self.q_table[f"{state}_{action}"] = new_val
 
