@@ -1,4 +1,18 @@
-*.json
-war_zone/
+# Ignore Python artifacts
 __pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore simulation logs
 *.log
+*.json
+
+# Ignore dynamic war zones
+war_zone/
+war_zone_*/
+
+# Ignore runtime artifacts
+.sys_*
+swarm_noise_*
+malware_*
+recon_log.txt

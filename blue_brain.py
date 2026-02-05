@@ -63,16 +63,10 @@ def experience_replay(memory, batch_size, q_table, alpha, gamma, actions):
 
 def get_suspicious_pids(war_zone_dir):
     """Find PIDs running scripts inside the war zone."""
-    # Since we can't trust 'ps' output parsing easily across all envs, and we want to emulate detection.
-    # We will use 'pgrep -f war_zone_dir' to find processes running from our sandbox.
-    # This is a realistic 'Heuristic' for process detection in a constrained environment.
     suspicious_pids = []
     try:
         # Check for python scripts running in the war zone
         cmd = ["pgrep", "-f", war_zone_dir]
-        # Note: pgrep -f matches the full command line.
-        # Red Team launches: python3 /path/to/war_zone_X/malware.py
-
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         if result.returncode == 0:
             pids = result.stdout.strip().split('\n')
@@ -119,6 +113,7 @@ def engage_defense():
             # File Detection
             visible_threats = []
             hidden_threats = []
+            swarm_noise = []
 
             with os.scandir(config.PATHS['WATCH_DIR']) as entries:
                 for entry in entries:
@@ -127,6 +122,8 @@ def engage_defense():
                             visible_threats.append(entry.path)
                         elif entry.name.startswith(".sys_"):
                             hidden_threats.append(entry.path)
+                        elif entry.name.startswith("swarm_noise_"):
+                            swarm_noise.append(entry.path)
 
             # Process Detection
             suspicious_pids = get_suspicious_pids(config.PATHS['WATCH_DIR'])
@@ -134,12 +131,12 @@ def engage_defense():
             has_visible = 1 if visible_threats else 0
             has_hidden = 1 if hidden_threats else 0
             has_process = 1 if suspicious_pids else 0
+            has_swarm = 1 if swarm_noise else 0
 
-            threat_count = len(visible_threats) + len(hidden_threats) + len(suspicious_pids)
+            threat_count = len(visible_threats) + len(hidden_threats) + len(suspicious_pids) + len(swarm_noise)
 
-            # Smart State: Alert + Visible + Hidden + Process
-            # We append Process status to state key
-            state_key = f"{current_alert}_{has_visible}_{has_hidden}_{has_process}"
+            # Smart State: Alert + Visible + Hidden + Process + Swarm
+            state_key = f"{current_alert}_{has_visible}_{has_hidden}_{has_process}_{has_swarm}"
             
             # 3. DECISION
             if random.random() < epsilon:
@@ -160,8 +157,8 @@ def engage_defense():
                     except: pass
                     
             elif action == "HEURISTIC_SCAN":
-                # Heuristic scan deletes hidden files AND kills suspicious processes
-                all_files = visible_threats + hidden_threats
+                # Heuristic scan cleans up EVERYTHING: hidden files, processes, and swarm noise
+                all_files = visible_threats + hidden_threats + swarm_noise
                 for t in all_files:
                     try:
                         os.remove(t)

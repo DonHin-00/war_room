@@ -16,6 +16,7 @@ import logging
 import subprocess
 import socket
 import sys
+import glob
 
 # --- SYSTEM CONFIGURATION ---
 utils.ensure_directories(config.PATHS['TARGET_DIR'])
@@ -43,6 +44,30 @@ def experience_replay(memory, batch_size, q_table, alpha, gamma, actions):
 
     return q_table
 
+def assimilate_swarm_intel(target_dir, memory, state_key):
+    """Read feedback from dead mini-agents and learn from them."""
+    pattern = os.path.join(target_dir, "swarm_feedback_*.json")
+    feedback_files = glob.glob(pattern)
+
+    assimilated_count = 0
+    for fpath in feedback_files:
+        try:
+            data = utils.safe_json_read(fpath)
+            if data:
+                # Assimilate: "My children taught me this"
+                # We map swarm action "SWARM_NOISE" to "T1588_SWARM_SPAWN" for learning purposes
+                # Or we treat it as generic success/fail for the current state.
+                reward = data.get('reward', 0)
+
+                # Add to memory: (current_state, SPAWN_ACTION, reward, current_state)
+                # It's a bit self-referential but reinforcing "Spawning is good if children succeed"
+                memory.append((state_key, "T1588_SWARM_SPAWN", reward, state_key))
+                assimilated_count += 1
+
+            os.remove(fpath) # Cleanup the dead
+        except: pass
+    return assimilated_count
+
 # --- MAIN LOOP ---
 
 def engage_offense():
@@ -59,10 +84,11 @@ def engage_offense():
 
     last_state_key = None
     last_action = None
+    last_dropped_file = None
 
-    # Track the last payload: (filename, pid)
-    # If PID is still alive or File exists, it survived.
-    last_payload = None
+    # Path to the mini-agent script (assumed to be in same dir as this script)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    mini_agent_script = os.path.join(base_dir, "mini_red.py")
     
     while True:
         try:
@@ -75,24 +101,15 @@ def engage_offense():
 
             # Check if last attack survived
             attack_survived = 0
-            if last_payload:
-                fname, pid = last_payload
-                file_exists = os.path.exists(fname)
-                process_alive = False
+            if last_dropped_file and os.path.exists(last_dropped_file):
+                attack_survived = 1
 
-                if pid:
-                    # Check if process is still running
-                    try:
-                        os.kill(pid, 0)
-                        process_alive = True
-                    except OSError:
-                        process_alive = False
-
-                if file_exists or process_alive:
-                    attack_survived = 1
-
-            # Smart State: Alert + Survival Status
             state_key = f"{current_alert}_{attack_survived}"
+
+            # 1.5 ASSIMILATE SWARM INTEL
+            swarm_reward_count = assimilate_swarm_intel(config.PATHS['TARGET_DIR'], memory, state_key)
+            if swarm_reward_count > 0:
+                print(f"\033[91m[RED AI] \033[0m 🕷️ Assimilated {swarm_reward_count} swarm reports.")
             
             # 2. STRATEGY
             if random.random() < epsilon:
@@ -101,88 +118,61 @@ def engage_offense():
                 known = {a: q_table.get(f"{state_key}_{a}", 0) for a in ACTIONS}
                 action = max(known, key=known.get)
 
-            # 3. EXECUTION (REAL EMULATION)
+            # 3. EXECUTION
             impact = 0
             target_dir = config.PATHS['TARGET_DIR']
             current_drop = None
-            spawned_pid = None
             
             if action == "T1046_RECON":
-                # Real Recon: Script that lists files recursively (Disk Recon)
-                fname = os.path.join(target_dir, f"malware_recon_{int(time.time())}.py")
+                fname = os.path.join(target_dir, f"malware_nmap_{int(time.time())}.sh")
                 try: 
                     with open(fname, 'w') as f:
-                        f.write("import os, time\n")
-                        f.write("while True:\n")
-                        f.write(f"    with open('{os.path.join(target_dir, 'recon_log.txt')}', 'w') as log:\n")
-                        f.write("        for root, dirs, files in os.walk('.'):\n")
-                        f.write("            for name in files: log.write(os.path.join(root, name) + '\\n')\n")
-                        f.write("    time.sleep(5)\n")
-
-                    # Execute it
-                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    spawned_pid = proc.pid
-                    impact = 2
+                        f.write("#!/bin/bash\nfor ip in $(seq 1 10); do echo 'Scanning 192.168.1.$ip'; done\n")
+                    subprocess.Popen(["/bin/bash", fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    impact = 1
                     current_drop = fname
                 except: pass
                 
             elif action == "T1027_OBFUSCATE":
-                # Real Obfuscation: Self-modifying / High Entropy script
                 fname = os.path.join(target_dir, f"malware_crypt_{int(time.time())}.py")
                 try:
-                    # Write a script that just sleeps but has junk data appended to increase entropy
                     with open(fname, 'w') as f:
-                        f.write("import time\n")
-                        f.write("time.sleep(60)\n")
-                        f.write("#" + "A" * 1024 + "\n") # High entropy junk
-
-                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    spawned_pid = proc.pid
+                        f.write("import time\ntime.sleep(60)\n#" + "A" * 512 + "\n")
+                    subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     impact = 3
                     current_drop = fname
                 except: pass
                 
             elif action == "T1003_ROOTKIT":
-                # Persistence: create a hidden file that monitors its own deletion and recreates itself
-                fname = os.path.join(target_dir, f".sys_persist_{int(time.time())}.py")
+                fname = os.path.join(target_dir, f".sys_ld_preload_{int(time.time())}")
                 try:
-                    with open(fname, 'w') as f:
-                        f.write("import time, os\n")
-                        f.write(f"me = '{fname}'\n")
-                        f.write("while True:\n")
-                        f.write("    if not os.path.exists(me):\n")
-                        f.write("        with open(me, 'w') as f: f.write('I am immortal')\n")
-                        f.write("    time.sleep(1)\n")
-
-                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    spawned_pid = proc.pid
+                    with open(fname, 'w') as f: f.write("/usr/local/lib/librootkit.so\n")
                     impact = 5
                     current_drop = fname
                 except: pass
 
             elif action == "T1059_COMMAND_SCRIPTING":
-                # Network Listener: Opens a real port on localhost (high port)
                 fname = os.path.join(target_dir, f"malware_c2_{int(time.time())}.py")
-                port = random.randint(10000, 60000)
                 try:
                     with open(fname, 'w') as f:
-                        f.write("import socket, time\n")
-                        f.write(f"s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n")
-                        f.write(f"s.bind(('127.0.0.1', {port}))\n")
-                        f.write("s.listen(1)\n")
-                        f.write("while True: time.sleep(1)\n")
-
-                    proc = subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    spawned_pid = proc.pid
+                        f.write("import time; time.sleep(100)") # Simple placeholder for now
+                    subprocess.Popen([sys.executable, fname], cwd=target_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     impact = 4
                     current_drop = fname
                 except: pass
+
+            elif action == "T1588_SWARM_SPAWN":
+                # Spawn 3 mini-agents
+                for i in range(3):
+                    feedback_file = os.path.join(target_dir, f"swarm_feedback_{int(time.time())}_{i}.json")
+                    subprocess.Popen([sys.executable, mini_agent_script, target_dir, feedback_file],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                impact = 2 # Initial impact of spawning
+                current_drop = None # Swarm agents are fire-and-forget
                 
             elif action == "T1589_LURK":
                 impact = 0
-                if last_payload:
-                    current_drop = last_payload[0]
-                    spawned_pid = last_payload[1]
+                current_drop = last_dropped_file
 
             # 4. REWARDS
             reward = 0
@@ -190,13 +180,8 @@ def engage_offense():
             if current_alert >= 4 and action == "T1589_LURK": reward = config.RED['REWARDS']['STEALTH']
             if current_alert == config.SIMULATION['MAX_ALERT'] and impact > 0: reward = config.RED['REWARDS']['CRITICAL']
 
-            # Bonus: If previous attack survived
-            if attack_survived and action != "T1589_LURK":
-                reward += 10
-
-            # Penalty: If dead
-            if not attack_survived and last_payload is not None and action != "T1589_LURK":
-                reward -= 10
+            if attack_survived and action != "T1589_LURK": reward += 5
+            if not attack_survived and last_dropped_file is not None and action != "T1589_LURK": reward -= 5
 
             # 5. LEARN & MEMORIZE
             if last_state_key is not None and last_action is not None:
@@ -213,15 +198,11 @@ def engage_offense():
 
             last_state_key = state_key
             last_action = action
-
-            if current_drop:
-                last_payload = (current_drop, spawned_pid)
+            last_dropped_file = current_drop
             
-            # Decay Hyperparameters
             epsilon = max(HP['MIN_EPSILON'], epsilon * HP['EPSILON_DECAY'])
             alpha = max(0.1, alpha * HP['ALPHA_DECAY'])
             
-            # 6. TRIGGER ALERTS
             if impact > 0 and random.random() > 0.5:
                 war_state['blue_alert_level'] = min(config.SIMULATION['MAX_ALERT'], current_alert + 1)
                 access_memory(config.PATHS['STATE_FILE'], war_state)
