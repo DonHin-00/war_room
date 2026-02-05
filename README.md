@@ -1,60 +1,62 @@
-# AI Cyber War Simulation (Live Ops)
+# Cognitive Cyber War Simulation (v1.0)
 
-A realistic adversarial simulation ("Live Ops") between autonomous Red (Attacker) and Blue (Defender) agents.
+A next-generation adversarial simulation platform featuring autonomous AI agents (Red/Blue) operating in a 4-Layer Segregated SOC environment. The system utilizes Hierarchical Reinforcement Learning (HRL), Real Emulation (Process/Network), and rigorous security primitives.
+
+## 🧠 Intelligence Engine
+
+The core utilizes a **Hierarchical Q-Learning (HRL)** architecture (`ml_engine.py`):
+*   **Strategic Layer:** Manages high-level Campaign Goals (e.g., `RECON` -> `ACCESS` -> `PERSISTENCE` -> `IMPACT`).
+*   **Tactical Layer:** Executes specific MITRE ATT&CK techniques based on the active goal.
+*   **Guaranteed Kill Chain:** Red Team adheres to a strict state machine, preventing out-of-sequence actions (e.g., Exfil before Access).
 
 ## 🏗️ Architecture
 
-*   **Orchestrator:** `simulation_runner.py` manages the lifecycle of the war.
-*   **Watchdog:** `tools/watchdog.py` ensures agents remain active (Self-Healing).
-*   **Configuration:** `config.py` defines all tactics, paths, and limits.
-*   **Core:** `utils.py` provides hardened primitives (Atomic I/O, Resource Limits, Audit Logging).
+*   **Environment:** 4 Segregated Zones (`DMZ`, `USER`, `SERVER`, `CORE`) modeled on NIST standards.
+*   **Agents:**
+    *   **🔴 Red Team (APT):** Polymorphic malware, Process Injection (Real PID), C2 Exfiltration, Lateral Movement.
+    *   **🔵 Blue Team (Zero-Trust):** Behavioral Analytics, HoneyTokens (Deception), Active Hunting, Immutable Backups.
+*   **Infrastructure:**
+    *   **Orchestrator:** `simulation_runner.py` manages the lifecycle and C2 servers.
+    *   **C2 Server:** `tools/c2_server.py` handles real HTTP beacons and data exfiltration.
+    *   **Watchdog:** `tools/watchdog.py` provides self-healing capabilities.
 
-## ⚔️ Tactics
+## ⚔️ Capabilities (Emulation)
 
-### 🔴 Red Team (Predator) - Emulation Mode
-*   **Ransomware:** Encrypts files (`T1486`).
-*   **Exfiltration:** Steals sensitive data via C2 channel (`T1041`).
-*   **Process Injection:** Creates real ghost processes (`T1055`).
-*   **Anti-Forensics:** Wipes audit logs (`T1070`).
-*   **C2:** Beacons to local HTTP C2 server (`T1071`).
-*   **Evasion:** Uses Polymorphism and Masquerading (`T1036`, `T1027`).
+### Red Team (Predator)
+*   **T1041 Exfiltration:** Steals sensitive files (`passwords.txt`) and POSTs to C2.
+*   **T1055 Process Injection:** Spawns actual ghost processes (`sleep`) to hide presence.
+*   **T1000 Polymorphism:** Mutates payload signatures to evade static detection.
+*   **T1486 Ransomware:** Encrypts high-value targets.
 
-### 🔵 Blue Team (Sentinel) - Detection Mode
-*   **Hunting:** Scans for ghost processes and beacons.
-*   **Active Defense:** Deploys Tar Pits (FIFOs) and Logic Bombs.
-*   **Resilience:** Backups critical data and restores if Ransomware is detected.
-*   **Integrity:** Verifies file checksums.
+### Blue Team (Sentinel)
+*   **Deception:** Deploys HoneyTokens (`aws_keys.json`) to lure attackers.
+*   **Threat Hunting:** Scans process tables for anomalies (`real_pid`) and terminates threats.
+*   **Resilience:** Atomic backups and automated recovery.
 
 ## 🚀 Usage
 
-1.  **Check Environment:**
+1.  **Start Simulation:**
     ```bash
-    python3 tools/check_env.py
+    python3 simulation_runner.py --duration 60 --reset
+    ```
+    *This launches the C2 server, Watchdog, and Agents automatically.*
+
+2.  **Monitor Operations:**
+    *   **Red Logs:** `tail -f red.log`
+    *   **Blue Logs:** `tail -f blue.log`
+    *   **C2 Logs:** `tail -f c2_server.log`
+
+3.  **Run Tests:**
+    ```bash
+    python3 tests/test_ops.py
+    python3 benchmark.py
     ```
 
-2.  **Start Simulation:**
-    ```bash
-    python3 simulation_runner.py --duration 60
-    ```
+## 🛡️ Security
 
-3.  **View Dashboard (Live):**
-    ```bash
-    python3 tools/visualize_threats.py
-    ```
+*   **Hardened I/O:** Atomic file writes with `fcntl` locking (`utils.safe_file_write`).
+*   **Resource Limits:** strict `RLIMIT_AS` (RAM) and `RLIMIT_CPU` enforcement.
+*   **Audit Logging:** Tamper-evident JSONL logging with hash chaining.
 
-4.  **Inject Chaos:**
-    ```bash
-    python3 tools/fuzz_simulation.py
-    ```
-
-5.  **Clean Up:**
-    ```bash
-    python3 tools/clean.py
-    ```
-
-## 📂 Structure
-
-*   `battlefield/`: The isolated sandbox where the war happens.
-*   `simulation_data/`: Stores state, logs, and incident reports.
-*   `incidents/`: JSON reports of mitigated threats.
-*   `audit.jsonl`: Tamper-evident operation log.
+---
+*Built for High-Fidelity Cyber Range Emulation.*
