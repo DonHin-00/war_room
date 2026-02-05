@@ -2,6 +2,10 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "simulation_data")
+
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
 # Hyperparameters
 hyperparameters = {
@@ -55,14 +59,14 @@ if not os.path.exists(BATTLEFIELD_DIR):
     os.makedirs(BATTLEFIELD_DIR)
 
 file_paths = {
-    'blue_q_table': os.path.join(BASE_DIR, "blue_q_table.json"),
-    'red_q_table': os.path.join(BASE_DIR, "red_q_table.json"),
-    'state_file': os.path.join(BASE_DIR, "war_state.json"),
+    'blue_q_table': os.path.join(DATA_DIR, "blue_q_table.json"),
+    'red_q_table': os.path.join(DATA_DIR, "red_q_table.json"),
+    'state_file': os.path.join(DATA_DIR, "war_state.json"),
     'watch_dir': BATTLEFIELD_DIR,
     'network_dir': os.path.join(BASE_DIR, "network_bus"),
     'log_file': os.path.join(BASE_DIR, "war_room.log"),
     'agents_dir': os.path.join(BASE_DIR, "agents"),
-    'audit_log': os.path.join(BASE_DIR, "audit.jsonl"),
+    'audit_log': os.path.join(DATA_DIR, "audit.jsonl"),
     'threat_feed': os.path.join(BASE_DIR, "intelligence/threat_feed.json"),
     'persistence_dir': os.path.join(BATTLEFIELD_DIR, "startup"),
     'exfil_dir': os.path.join(BATTLEFIELD_DIR, "staging"),
