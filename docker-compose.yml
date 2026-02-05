@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  sentinel:
+    build: .
+    image: sentinel-emulation:latest
+    container_name: sentinel_war_room
+    user: sentinel
+    volumes:
+      - ./logs:/app/logs
+      - ./simulation_data:/app/simulation_data
+    ports:
+      - "10000:10000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    # Interactive mode for Dashboard (TUI) support if run attached
+    stdin_open: true
+    tty: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
