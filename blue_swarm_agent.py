@@ -267,29 +267,31 @@ class BlueSwarmAgent:
                     self.soar.block_ip(src)
 
     def share_intel(self, ioc):
-        """Gossip Protocol: Share IOC with Swarm."""
+        """Gossip Protocol: Share IOC and Knowledge with Swarm."""
         if ioc in self.immunity_db: return
 
         payload_ioc = ioc
 
         # ROGUE AGENT: Poison the well
         if self.is_rogue and random.random() > 0.5:
-            # Broadcast a FALSE FLAG (whitelist a known bad, or blacklist a good)
-            # Here we just broadcast junk to spam
             payload_ioc = "FALSE_FLAG_" + uuid.uuid4().hex
             logger.info(f"😈 ROGUE ACTION: Broadcasting False Flag {payload_ioc}")
+
+        # Serialize Brain for Sharing (Federated Learning)
+        brain_state = {k:v for k,v in self.brain.q_table.items()}
 
         msg = {
             "sender": AGENT_ID,
             "type": "IOC_Found",
             "ioc": payload_ioc,
+            "brain": brain_state, # Shared Knowledge
             "ts": time.time()
         }
         data = json.dumps(msg).encode('utf-8')
         try:
             self.sender.sendto(data, (SWARM_GRP, SWARM_PORT))
             if not self.is_rogue:
-                logger.info(f"Broadcasted IOC: {ioc}")
+                logger.info(f"Broadcasted IOC & Knowledge: {ioc}")
         except Exception: pass
 
     def update_topology(self):

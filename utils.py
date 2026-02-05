@@ -231,50 +231,62 @@ def calculate_checksum(data):
 
 # --- AI & ML ---
 class RLBrain:
-    def __init__(self, name, actions):
+    def __init__(self, name, actions, learning_rate=0.1, discount=0.9, epsilon=0.1):
         self.name = name
         self.actions = actions
-        self.q_table = {}
-        self.file = f"models/{name}_q.pkl"
+        self.lr = learning_rate
+        self.gamma = discount
+        self.epsilon = epsilon
+        self.q_table = {} # Key: "state|action", Value: float
+        self.file = f"models/{name}_q.json"
         self.load()
 
     def get_q(self, state, action):
-        return self.q_table.get((state, action), 0.0)
+        return self.q_table.get(f"{state}|{action}", 0.0)
 
     def choose_action(self, state):
-        if random.random() < 0.1: # Explore
+        # Epsilon-Greedy Strategy
+        if random.random() < self.epsilon:
             return random.choice(self.actions)
 
         q_values = [self.get_q(state, a) for a in self.actions]
         max_q = max(q_values)
 
-        # Handle ties randomly
+        # Handle ties randomly to avoid getting stuck
         best_actions = [self.actions[i] for i, q in enumerate(q_values) if q == max_q]
         return random.choice(best_actions)
 
     def learn(self, state, action, reward, next_state):
+        """Update Q-Value using Bellman Equation."""
         current_q = self.get_q(state, action)
         max_next_q = max([self.get_q(next_state, a) for a in self.actions])
 
-        new_q = current_q + 0.1 * (reward + 0.9 * max_next_q - current_q)
-        self.q_table[(state, action)] = new_q
+        # Q(s,a) = Q(s,a) + lr * (R + gamma * max(Q(s',a')) - Q(s,a))
+        new_q = current_q + self.lr * (reward + self.gamma * max_next_q - current_q)
+        self.q_table[f"{state}|{action}"] = new_q
 
     def save(self):
+        """Persist Q-Table to disk securely."""
         try:
-            os.makedirs("models", exist_ok=True)
-            # Simplified save (pickle not ideal for security but ok for sim)
-            # using json for safety
-            readable_q = {str(k): v for k, v in self.q_table.items()}
-            # Skipping actual file save for performance in sim, or use json
-            pass
-        except: pass
+            with atomic_json_update(self.file, {}) as db:
+                db.update(self.q_table)
+        except Exception: pass
 
     def load(self):
-        pass
+        """Load Q-Table from disk."""
+        data = safe_json_read(self.file)
+        if data:
+            self.q_table = data
 
     def merge(self, other_q):
-        # Federated averaging (simulated)
-        pass
+        """Federated Learning: Average Q-Values with peer."""
+        if not other_q: return
+        for sa, value in other_q.items():
+            if sa in self.q_table:
+                # Weighted average (trust local slightly more)
+                self.q_table[sa] = (self.q_table[sa] * 0.7) + (value * 0.3)
+            else:
+                self.q_table[sa] = value
 
 class AnomalyDetector:
     def __init__(self):

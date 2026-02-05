@@ -50,6 +50,7 @@ class RedMeshNode:
         # Virtual Network
         self.nic = VNic(f"10.0.{random.randint(20,200)}.{random.randint(2,254)}")
         self.known_targets = set()
+        self.block_count = 0
 
         # C2 Encryption Key (Shared Static for Sim)
         self.c2_key = b"DEADBEEF"
@@ -118,8 +119,31 @@ class RedMeshNode:
                     if payload.get('status') == 200:
                         self.known_targets.add(src)
 
+    def hyper_mutate(self):
+        """Adaptive Response: Change signature immediately."""
+        logger.warning("🧬 HYPER-MUTATION TRIGGERED: Adapting to Blockade")
+
+        # 1. Change Genes
+        self.genes['stealth'] = min(1.0, self.genes['stealth'] + 0.2)
+        self.genes['aggression'] = max(0.1, self.genes['aggression'] - 0.2)
+
+        # 2. Change IP (Simulated Re-connect)
+        self.nic.close()
+        new_ip = f"10.0.{random.randint(20,200)}.{random.randint(2,254)}"
+        self.nic = VNic(new_ip)
+        self.nic.connect()
+        logger.info(f"🔄 Re-connected with new Identity: {new_ip}")
+        self.block_count = 0
+
     def net_exploit(self):
         """Launch attacks via VNet."""
+        if not self.nic.connected:
+            if self.block_count > 2:
+                self.hyper_mutate()
+            else:
+                self.nic.connect()
+            return
+
         target = "10.10.10.10" # Static for now, or use discovered targets
 
         attacks = [
@@ -147,7 +171,11 @@ class RedMeshNode:
                     attack['desc'] += " (Obfuscated)"
 
         logger.info(f"🚀 LAUNCHING NET EXPLOIT: {attack['desc']} -> {target}")
-        self.nic.send(target, payload)
+        if not self.nic.send(target, payload):
+            logger.warning("💥 Attack Blocked/Failed")
+            self.block_count += 1
+        else:
+            self.block_count = max(0, self.block_count - 1)
 
     def broadcast(self, msg_type, payload):
         """Send message to mesh (Encrypted)."""
