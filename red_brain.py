@@ -113,6 +113,21 @@ class RedTeamer(CyberAgent):
         with open(target_file, 'w') as f: f.write("uid=0(root)")
         return {"impact": 5, "file": fname}
 
+    def t1000_polymorphism(self):
+        # Advanced Capability: Mutate signatures of existing payloads
+        mutated = 0
+        target_dir = self._get_target_dir()
+        try:
+            with os.scandir(target_dir) as it:
+                for entry in it:
+                    if entry.is_file() and not entry.name.endswith(".enc"):
+                        # Append random junk bytes to change hash
+                        with open(entry.path, 'ab') as f:
+                            f.write(utils.generate_high_entropy_data(16))
+                        mutated += 1
+        except: pass
+        return {"impact": 3, "mutated_count": mutated, "status": "mutated"}
+
     def t1036_masquerade(self):
         target_dir = self._get_target_dir()
         names = ["readme.txt", "notes.txt", "todo.list"]

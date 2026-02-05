@@ -27,8 +27,8 @@ class CyberAgent(ABC):
         self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
         self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
 
-        # Brain
-        self.ai = ml_engine.DoubleQLearner(actions, agent_name)
+        # Brain (Next-Gen HRL)
+        self.ai = ml_engine.HierarchicalQLearner(actions, agent_name)
 
         # Limits
         utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])

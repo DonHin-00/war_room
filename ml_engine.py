@@ -100,9 +100,10 @@ class SafetyShield:
 
         return True
 
-class DoubleQLearner:
+class HierarchicalQLearner:
     """
-    Double Q-Learning Agent.
+    Hierarchical Q-Learning Agent (Next Gen).
+    Manages High-Level Strategy (Campaign) and Low-Level Tactics (Actions).
     """
     def __init__(self, actions: List[str], name: str):
         self.actions = actions
@@ -117,27 +118,70 @@ class DoubleQLearner:
         self.memory = PrioritizedReplayBuffer(config.RL["MEMORY_CAPACITY"])
         self.shield = SafetyShield(name)
 
+        # HRL Components
+        self.goals = ["RECON", "ACCESS", "PERSISTENCE", "IMPACT"]
+        self.current_goal = "RECON"
+        self.goal_progress = 0
+
     def load(self, data: Dict[str, Any]):
         self.q_a = data.get("A", {})
         self.q_b = data.get("B", {})
+        self.current_goal = data.get("Goal", "RECON")
 
     def export(self) -> Dict[str, Any]:
-        return {"A": self.q_a, "B": self.q_b}
+        return {"A": self.q_a, "B": self.q_b, "Goal": self.current_goal}
 
     def get_q(self, state, action):
         return (self.q_a.get(f"{state}_{action}", 0.0) + self.q_b.get(f"{state}_{action}", 0.0)) / 2.0
 
-    def choose_action(self, state: str, context: Dict[str, Any]) -> str:
-        # Safety Shield Check
-        safe_actions = [a for a in self.actions if self.shield.is_safe(a, context)]
-        if not safe_actions:
-            safe_actions = ["T1589_LURK" if self.name == "RED" else "OBSERVE"]
-            if safe_actions[0] not in self.actions: safe_actions = [self.actions[0]] # Fallback
+    def update_goal(self, context: Dict[str, Any]):
+        """Dynamic Goal Switching based on Campaign Progress."""
+        if self.name == "RED":
+            # APT Kill Chain Logic
+            if context.get("access_level") == "CORE":
+                self.current_goal = "IMPACT"
+            elif context.get("traps_found", 0) > 0:
+                self.current_goal = "RECON" # Fallback to caution
+            elif context.get("actions_taken", 0) > 20:
+                self.current_goal = "PERSISTENCE"
+            else:
+                self.current_goal = "ACCESS"
 
+        elif self.name == "BLUE":
+            # Adaptive Defense Logic
+            alert = context.get("alert_level", 1)
+            if alert >= 4:
+                self.current_goal = "IMPACT" # Hunt/Isolate
+            elif context.get("threat_count", 0) > 0:
+                self.current_goal = "ACCESS" # Restore/Backup
+            else:
+                self.current_goal = "RECON" # Scan/Monitor
+
+    def choose_action(self, state: str, context: Dict[str, Any]) -> str:
+        self.update_goal(context)
+
+        # Filter actions relevant to current goal (Heuristic Masking)
+        # This makes the AI "Focus" on the objective rather than random flailing
+        relevant_actions = self.actions
+        if self.name == "RED":
+            if self.current_goal == "RECON": relevant_actions = ["T1046_RECON", "T1071_C2_BEACON", "T1589_LURK"]
+            elif self.current_goal == "ACCESS": relevant_actions = ["T1021_LATERAL_MOVE", "T1055_INJECTION", "T1003_ROOTKIT"]
+            elif self.current_goal == "PERSISTENCE": relevant_actions = ["T1071_C2_BEACON", "T1036_MASQUERADE", "T1027_OBFUSCATE"]
+            elif self.current_goal == "IMPACT": relevant_actions = ["T1486_ENCRYPT", "T1041_EXFILTRATION", "T1070_WIPE_LOGS"]
+
+        # Intersect with Safe Actions
+        safe_actions = [a for a in relevant_actions if self.shield.is_safe(a, context)]
+        if not safe_actions:
+            # Fallback to general pool if goal-specific are unsafe
+            safe_actions = [a for a in self.actions if self.shield.is_safe(a, context)]
+            if not safe_actions:
+                safe_actions = ["T1589_LURK" if self.name == "RED" else "OBSERVE"]
+
+        # Epsilon-Greedy
         if random.random() < self.epsilon:
             return random.choice(safe_actions)
 
-        # Greedy Selection among SAFE actions
+        # Greedy
         max_q = -float('inf')
         best_actions = []
         for a in safe_actions:

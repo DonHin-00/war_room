@@ -73,7 +73,8 @@ RED = {
         "T1055_INJECTION",
         "T1070_WIPE_LOGS",
         "T1021_LATERAL_MOVE",
-        "T1041_EXFILTRATION"
+        "T1041_EXFILTRATION",
+        "T1000_POLYMORPHISM"
     ],
     "REWARDS": {
         "IMPACT": 10,
@@ -100,7 +101,8 @@ BLUE = {
         "RESTORE_DATA",
         "HUNT_PROCESSES",
         "VERIFY_INTEGRITY",
-        "ISOLATE_ZONE"
+        "ISOLATE_ZONE",
+        "DECEPTION_ENGINE"
     ],
     "REWARDS": {
         "MITIGATION": 25,

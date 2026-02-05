@@ -201,6 +201,18 @@ class BlueDefender(CyberAgent):
     def verify_integrity(self):
         return {"status": "verifying"}
 
+    def deception_engine(self):
+        # Advanced: Deploy HoneyTokens (fake credentials)
+        count = 0
+        if not os.path.exists(config.PATHS["WAR_ZONE"]): return {}
+        try:
+            # Create a fake user/pass file that looks tasty
+            trap_file = os.path.join(config.PATHS["WAR_ZONE"], "aws_keys.json")
+            utils.create_tar_pit(trap_file) # Actually a trap
+            count += 1
+        except: pass
+        return {"deployed": count, "type": "HoneyToken"}
+
     def isolate_zone(self):
         return {"status": "isolated"}
 
