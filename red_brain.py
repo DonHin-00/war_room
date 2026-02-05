@@ -144,20 +144,43 @@ class RedTeamer:
         except: return {"impact": 0, "status": "failed"}
 
     def t1071_c2_beacon(self):
-        target_dir = self._get_target_dir()
-        fname = "c2_beacon.dat"
-        target_file = os.path.join(target_dir, fname)
-        with open(target_file, 'a') as f:
-            f.write(f"{int(time.time())}:HEARTBEAT\n")
-        return {"impact": 2, "file": fname}
+        # Emulation: Send real HTTP POST to C2
+        try:
+            import urllib.request
+            data = f"id={secrets.token_hex(4)}&status=active&zone={self.access_level}".encode('utf-8')
+            req = urllib.request.Request("http://localhost:8080", data=data, method='POST')
+            with urllib.request.urlopen(req, timeout=1) as f:
+                resp = f.read().decode('utf-8')
+            return {"impact": 2, "status": "connected", "response": resp}
+        except Exception as e:
+            # Fallback for offline mode or if server isn't up
+            target_dir = self._get_target_dir()
+            fname = "c2_beacon.dat"
+            target_file = os.path.join(target_dir, fname)
+            with open(target_file, 'a') as f:
+                f.write(f"{int(time.time())}:HEARTBEAT_FALLBACK\n")
+            return {"impact": 1, "status": "fallback_file"}
 
     def t1055_injection(self):
-        if not os.path.exists(config.PATHS["PROC"]): return {"impact": 0}
-        pid = random.randint(1000, 65535)
-        path = os.path.join(config.PATHS["PROC"], str(pid))
-        with open(path, 'w') as f:
-            f.write(f"cmd: malicious_daemon\nstart: {time.time()}")
-        return {"impact": 5, "pid": pid}
+        # Emulation: Spawn a real background process (Ghost)
+        try:
+            import subprocess
+            # Spawn a benign process that looks like a daemon
+            # We use 'sleep' as a placeholder for a malware stub
+            proc = subprocess.Popen(['sleep', '300'], start_new_session=True)
+
+            # Record it in our persistence tracking (optional, but good for rewards)
+            # We still touch the .proc dir for Blue to find it if Blue is using file scanning,
+            # BUT we also want Blue to find the REAL PID.
+            # Let's support both: Write metadata to .proc, but include Real PID.
+            if os.path.exists(config.PATHS["PROC"]):
+                 path = os.path.join(config.PATHS["PROC"], str(proc.pid))
+                 with open(path, 'w') as f:
+                     f.write(f"cmd: malicious_daemon\nstart: {time.time()}\nreal_pid: {proc.pid}")
+
+            return {"impact": 5, "pid": proc.pid, "status": "injected"}
+        except Exception as e:
+            return {"impact": 0, "status": "failed", "error": str(e)}
 
     def t1070_wipe_logs(self):
         if os.path.exists(config.PATHS["AUDIT_LOG"]):

@@ -169,6 +169,22 @@ class BlueDefender:
              try:
                 with os.scandir(config.PATHS["PROC"]) as it:
                     for entry in it:
+                        # Emulation: Read the Real PID from the meta-file and kill it
+                        try:
+                            content = utils.safe_file_read(entry.path)
+                            if "real_pid" in content:
+                                for line in content.splitlines():
+                                    if line.startswith("real_pid:"):
+                                        pid = int(line.split(":")[1].strip())
+                                        # Kill the actual process
+                                        try:
+                                            os.kill(pid, signal.SIGTERM)
+                                            logger.info(f"Killed Real Ghost Process: {pid}")
+                                        except ProcessLookupError: pass # Already dead
+                                        except PermissionError: pass
+                        except: pass
+
+                        # Remove the marker file
                         os.remove(entry.path)
                         killed += 1
              except: pass
