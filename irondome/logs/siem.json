@@ -1,0 +1,193 @@
+{"timestamp": 1770252660.4641657, "source": "FIM", "type": "STARTUP", "severity": "INFO", "details": "Building baseline for omegabank"}
+{"timestamp": 1770252660.4915748, "source": "FIM", "type": "BASELINE_BUILT", "severity": "INFO", "details": "Monitored 13 files"}
+{"timestamp": 1770252666.4706633, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:05,870 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252666.4707947, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:06,463 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252667.4713466, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:07,157 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252670.4929285, "source": "FIM", "type": "FILE_CREATED", "severity": "WARNING", "details": "New file detected: omegabank/logs/app.log"}
+{"timestamp": 1770252712.2053292, "source": "FIM", "type": "STARTUP", "severity": "INFO", "details": "Building baseline for omegabank"}
+{"timestamp": 1770252712.2070942, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:05,870 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252712.2123241, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:06,463 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252712.2167056, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:07,157 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252712.2445538, "source": "FIM", "type": "BASELINE_BUILT", "severity": "INFO", "details": "Monitored 14 files"}
+{"timestamp": 1770252718.2231548, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:57,223 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252722.2466912, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252749.8715687, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:05,870 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252749.8706946, "source": "FIM", "type": "STARTUP", "severity": "INFO", "details": "Building baseline for omegabank"}
+{"timestamp": 1770252749.8736572, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:06,463 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252749.8757362, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:07,157 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252749.876679, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:57,223 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252749.8966641, "source": "FIM", "type": "BASELINE_BUILT", "severity": "INFO", "details": "Monitored 14 files"}
+{"timestamp": 1770252755.8849196, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:35,032 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252755.8851242, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:35,389 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252756.885658, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:36,076 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252759.8979452, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252762.8882036, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:42,173 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252762.8883295, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:42,680 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252763.8888652, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:43,187 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252769.8995852, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252770.8918688, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:50,010 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252779.9008877, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252784.8973427, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:04,740 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252789.9020257, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252791.8998604, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:11,208 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252798.9037273, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:18,110 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252798.9038525, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:18,502 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252799.9043658, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252799.9045296, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:19,265 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252809.9060426, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252811.9101381, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:31,030 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252811.9103262, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:31,384 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252812.9108229, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:32,092 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252818.914183, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:38,599 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252819.9074667, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252819.9149199, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:38,942 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252819.9150612, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:39,641 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252825.9177077, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:45,693 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252829.9088604, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252838.9250753, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:58,660 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252839.9119368, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252848.930718, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:08,366 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252848.930945, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:08,708 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252849.913271, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252849.9313467, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:09,401 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252855.934193, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:15,652 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252856.9348223, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:16,159 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252856.9349623, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:16,665 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252859.9147043, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252866.9394295, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:26,033 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252866.939643, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:26,540 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252867.9401402, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:27,046 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252869.9160767, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252874.9435475, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:34,287 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252874.9437246, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:34,795 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252875.9442775, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:35,302 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252879.91739, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252884.9483547, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:44,910 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252885.9488184, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:45,416 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252885.9489372, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:45,923 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252889.9189394, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252891.9514918, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:51,605 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252891.9516053, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:51,947 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252892.9521186, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:52,634 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252899.920348, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252901.9565468, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:01,724 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252902.9572117, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:02,067 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252902.9573703, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:02,765 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252909.9217577, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/app.py"}
+{"timestamp": 1770252909.9219575, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252909.922029, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/routes/banking.py"}
+{"timestamp": 1770252909.9220898, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/routes/auth.py"}
+{"timestamp": 1770252914.9627254, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:14,801 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252915.963295, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:15,145 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252915.9634333, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:15,839 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252919.924405, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252921.9661198, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:21,317 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252929.9257298, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252932.9713044, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:32,656 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252933.9718714, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:33,164 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252933.9720812, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:33,669 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252939.927395, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252944.9779882, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:44,760 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252945.9786015, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:45,104 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252945.9787354, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:45,795 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252949.9290648, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252959.9303534, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252959.9846237, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:59,941 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252969.931802, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252974.991928, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:14,669 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252975.9925077, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:15,175 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252975.9926438, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:15,681 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252979.9331412, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252982.9960608, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:22,224 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4553769, "source": "FIM", "type": "STARTUP", "severity": "INFO", "details": "Building baseline for omegabank"}
+{"timestamp": 1770252986.4608076, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:05,870 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4622884, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:06,463 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4646084, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:07,157 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4649203, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:51:57,223 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4666903, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:35,032 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4676042, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:35,389 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.47369, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:36,076 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.47497, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:42,173 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.4753938, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:42,680 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.476047, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:43,187 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.4765973, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:52:50,010 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.478081, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:04,740 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4800394, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:11,208 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.482869, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:18,110 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4837492, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:18,502 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4840472, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:19,265 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4846423, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:31,030 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4853046, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:31,384 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.485905, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:32,092 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4924495, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:38,599 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.493538, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:38,942 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.494804, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:39,641 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4962807, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:45,693 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4966133, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:53:58,660 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4967904, "source": "FIM", "type": "BASELINE_BUILT", "severity": "INFO", "details": "Monitored 13 files"}
+{"timestamp": 1770252986.4969702, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:08,366 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4972634, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:08,708 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4973228, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:09,401 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4973733, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:15,652 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.497531, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:16,159 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.497622, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:16,665 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.497825, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:26,033 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.4978828, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:26,540 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.4979324, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:27,046 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.4979808, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:34,287 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.4980283, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:34,795 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.4980757, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:35,302 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.4981291, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:44,910 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.498176, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:45,416 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.4982224, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:45,923 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.4982758, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:51,605 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4983227, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:51,947 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4983695, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:54:52,634 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.498417, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:01,724 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4986124, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:02,067 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4986823, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:02,765 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4987636, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:14,801 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4988134, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:15,145 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4988601, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:15,839 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4989097, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:21,317 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.4989626, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:32,656 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.4990091, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:33,164 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.4990535, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:33,669 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.499103, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:44,760 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4991481, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:45,104 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4993227, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:45,795 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770252986.4995048, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:55:59,941 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252986.5002108, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:14,669 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252986.5002716, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:15,175 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252986.500321, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:15,681 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252986.5003684, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:22,224 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770252988.9990954, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:28,533 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252989.5016181, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:28,533 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252989.5017524, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:29,039 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252989.9346554, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770252989.9997342, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:29,039 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252989.999866, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:29,546 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252990.5023663, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:29,546 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252991.5029888, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:31,467 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252992.0007339, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:31,467 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252992.0008554, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:31,974 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252992.5035422, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:31,974 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252992.5036657, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:32,481 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252993.001437, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:32,481 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252998.506171, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:38,478 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252999.0040517, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:38,478 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770252999.0041769, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:38,984 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252999.5067585, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:38,984 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770252999.5068874, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:39,490 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770252999.9360332, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770253000.004658, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:39,490 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}
+{"timestamp": 1770253004.006389, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:43,694 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770253004.5091312, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:43,694 - auth - WARNING - Failed login attempt for <script>alert(1)</script> from 127.0.0.1"}
+{"timestamp": 1770253009.9396324, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770253013.157499, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:52,250 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770253013.1581848, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:52,881 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770253014.1616836, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:56:53,589 - auth - WARNING - Failed login attempt for admin from 127.0.0.1"}
+{"timestamp": 1770253019.941651, "source": "FIM", "type": "FILE_MODIFIED", "severity": "CRITICAL", "details": "File modified: omegabank/logs/app.log"}
+{"timestamp": 1770253023.165782, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:57:02,909 - auth - WARNING - Failed login attempt for ' OR '1'='1 from 127.0.0.1"}
+{"timestamp": 1770253024.1663644, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:57:03,418 - auth - WARNING - Failed login attempt for admin' -- from 127.0.0.1"}
+{"timestamp": 1770253024.1666842, "source": "LogAgent", "type": "APP_WARNING", "severity": "WARNING", "details": "2026-02-05 00:57:03,927 - auth - WARNING - Failed login attempt for UNION SELECT 1,2,3-- from 127.0.0.1"}

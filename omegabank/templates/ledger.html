@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ledger-container">
+    <h2>General Ledger (Admin Restricted)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Time</th>
+                <th>Sender</th>
+                <th>Receiver</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in transactions %}
+            <tr>
+                <td>{{ tx.id }}</td>
+                <td>{{ tx.timestamp }}</td>
+                <td>{{ tx.sender.username if tx.sender else 'System' }}</td>
+                <td>{{ tx.receiver.username }}</td>
+                <td>{{ tx.amount }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

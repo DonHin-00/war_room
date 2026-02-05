@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IronDome CISO Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/soc.css') }}">
+    <script>
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-events').innerText = data.total;
+                    document.getElementById('critical-events').innerText = data.critical;
+                    document.getElementById('warning-events').innerText = data.warning;
+
+                    const list = document.getElementById('recent-logs');
+                    list.innerHTML = '';
+                    data.recent.forEach(log => {
+                        const li = document.createElement('li');
+                        li.className = 'log-entry ' + log.severity;
+                        const date = new Date(log.timestamp * 1000).toLocaleTimeString();
+                        li.innerText = `[${date}] [${log.severity}] ${log.source}: ${log.details}`;
+                        list.appendChild(li);
+                    });
+                });
+        }
+        setInterval(updateStats, 2000);
+        window.onload = updateStats;
+    </script>
+</head>
+<body>
+    <div class="header">
+        <h1>IronDome SOC <span class="blink">LIVE</span></h1>
+        <div class="status">SYSTEM STATUS: <span style="color:#0f0">SECURE</span></div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="card">
+            <h3>Total Events</h3>
+            <div id="total-events" class="number">0</div>
+        </div>
+        <div class="card critical">
+            <h3>CRITICAL THREATS</h3>
+            <div id="critical-events" class="number">0</div>
+        </div>
+        <div class="card warning">
+            <h3>Warnings</h3>
+            <div id="warning-events" class="number">0</div>
+        </div>
+    </div>
+
+    <div class="main-panel">
+        <h3>Live Incident Feed</h3>
+        <ul id="recent-logs"></ul>
+    </div>
+</body>
+</html>

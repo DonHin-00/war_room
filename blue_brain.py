@@ -1,4 +1,3 @@
-cat > /root/war_room/blue_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Blue Team)
@@ -156,4 +155,3 @@ def engage_defense():
 
 if __name__ == "__main__":
     engage_defense()
-EOF
