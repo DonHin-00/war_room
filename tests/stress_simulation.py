@@ -65,10 +65,14 @@ class StressTest:
     def run(self):
         self.clean_environment()
 
-        # Launch Agents
+        # Launch Agents (Full Spectrum)
+        self.start_agent("Yellow", "yellow_brain.py")
+        time.sleep(2) # Let infra start
         self.start_agent("Blue", "blue_brain.py")
         self.start_agent("Red", "red_brain.py")
         self.start_agent("Bot", "bot_brain.py")
+        self.start_agent("Green", "green_brain.py")
+        self.start_agent("APT", "apt_brain.py")
 
         # Start Chaos
         chaos_thread = threading.Thread(target=self.chaos_monkey)
@@ -101,10 +105,12 @@ class StressTest:
             "Blue Mitigations": 0,
             "Red Impacts": 0,
             "WAF Bans": 0,
+            "Yellow Services": 0,
+            "Green Traffic": 0,
             "Errors": 0
         }
 
-        for name in ["blue.log", "red.log", "bot.log"]:
+        for name in ["blue.log", "red.log", "bot.log", "yellow.log", "green.log", "apt.log"]:
             log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), name)
             if os.path.exists(log_path):
                 with open(log_path, "r") as f:
