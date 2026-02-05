@@ -38,7 +38,7 @@ def engage_daemon(max_iterations: Optional[int] = None) -> None:
     logger.info(msg)
 
     watch_dir = config.file_paths['watch_dir']
-    network_dir = os.path.join(config.BASE_DIR, "network_bus")
+    network_dir = config.file_paths['network_dir']
     if not os.path.exists(network_dir):
         os.makedirs(network_dir)
 

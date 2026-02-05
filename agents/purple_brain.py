@@ -68,8 +68,12 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
 
                 # 2. SCENARIO INJECTION
                 # Inject a Ransomware Scenario?
+                # NOTE: Red Team now handles this natively via "T1486_RANSOMWARE" in the Kill Chain.
+                # Purple can trigger it by ensuring Red isn't stuck or by manually creating the note if needed.
+                # Let's keep this as a "Game Day" injection that forces Red's hand or simulates a separate group.
+
                 if random.random() < 0.02: # 2% chance per loop
-                    scenario_file = os.path.join(watch_dir, "RANSOMWARE_NOTE.txt")
+                    scenario_file = os.path.join(watch_dir, "READ_ME.txt") # Updated filename
                     if not os.path.exists(scenario_file):
                         try:
                             with open(scenario_file, 'w') as f:
@@ -118,6 +122,7 @@ def engage_balance(max_iterations: Optional[int] = None) -> None:
                 current_time = time.time()
                 current_file_count = 0
                 try:
+                    # Monitor the battlefield directory correctly
                     current_file_count = len(os.listdir(watch_dir))
                 except: pass
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Project: AI Cyber War Simulation (Orange Team - Interaction/Facilitators)
+Project: AI Cyber War Simulation (Orange Team - Facilitators)
 Repository: https://github.com/DonHin-00/war_room.git
 Frameworks: Simulation
 """
@@ -10,14 +10,13 @@ import sys
 import time
 import random
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 # Adjust path to import from parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import (
     atomic_json_io,
-    atomic_json_update,
     setup_logging,
     AuditLogger
 )
@@ -30,7 +29,7 @@ logger = logging.getLogger("OrangeBrain")
 audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- VISUALS ---
-C_ORANGE = "\033[38;5;208m" # ANSI 256 for Orange
+C_ORANGE = "\033[38;5;208m"
 C_RESET = "\033[0m"
 
 # --- MAIN LOOP ---
@@ -52,34 +51,25 @@ def engage_facilitation(max_iterations: Optional[int] = None) -> None:
             iteration += 1
 
             try:
-                # 1. TABLETOP EXERCISE (Communication)
-                # Orange ensures that insights are shared. In this sim, it boosts learning rates.
-                if random.random() < 0.1: # 10% chance
-                    logger.info("🗣️  Orange Team conducting Tabletop Exercise")
-                    # We can't easily modify the running agents' memory directly without complex IPC.
-                    # Instead, we'll log a "Game Day" event which Purple could pick up, or we assume
-                    # the agents read a shared "learning_boost" flag.
-                    # For now, let's just log it as a simulation event.
-                    audit.log("ORANGE", "TABLETOP_EXERCISE", {"topic": "Incident Response"})
+                # 1. READ WAR STATE
+                war_state = atomic_json_io(state_file)
+                alert_level = war_state.get('blue_alert_level', 1)
 
-                # 2. FORCE GAME DAY (Chaos Injection / Stress Test Coordination)
-                # Orange coordinates with Daemon/Red to test Blue.
-                if random.random() < 0.05:
-                    logger.info("🔥 Orange Team initiating GAME DAY scenario")
-                    def set_game_day(state):
-                        state['game_day_active'] = True
-                        return state
-                    atomic_json_update(state_file, set_game_day)
+                # 2. TABLETOP EXERCISE SIMULATION
+                # Every now and then, announce a "Test Scenario" to the logs
+                if random.random() < 0.01: # 1% chance
+                    scenarios = ["Phishing Campaign", "DDoS Attack", "Insider Threat", "Supply Chain Compromise"]
+                    topic = random.choice(scenarios)
+                    logger.info(f"📢 Orange Team initiating Tabletop Exercise: {topic}")
+                    audit.log("ORANGE", "TABLETOP_EXERCISE", {"topic": topic})
 
-                    # Wait for a bit then disable
-                    time.sleep(5)
-                    def end_game_day(state):
-                        state['game_day_active'] = False
-                        return state
-                    atomic_json_update(state_file, end_game_day)
-                    logger.info("🏁 Game Day concluded")
+                # 3. OBSERVATION & METRICS
+                # In a real tool, this would generate reports. Here we just log.
+                if alert_level >= 4:
+                    # High alert? Orange team observes "Crisis Management"
+                    pass
 
-                time.sleep(3.0)
+                time.sleep(5.0)
 
             except Exception as e:
                 logger.error(f"Error in Orange loop: {e}")

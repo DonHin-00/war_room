@@ -15,17 +15,13 @@ from typing import Optional
 # Adjust path to import from parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import (
-    setup_logging,
-    AuditLogger
-)
+from utils import setup_logging
 from utils.trace_logger import trace_errors
 import config
 
 # --- SYSTEM CONFIGURATION ---
 setup_logging(config.file_paths['log_file'])
 logger = logging.getLogger("YellowBrain")
-audit = AuditLogger(config.file_paths['audit_log'])
 
 # --- VISUALS ---
 C_YELLOW = "\033[93m"
@@ -34,7 +30,7 @@ C_RESET = "\033[0m"
 # --- MAIN LOOP ---
 
 @trace_errors
-def engage_build(max_iterations: Optional[int] = None) -> None:
+def engage_construction(max_iterations: Optional[int] = None) -> None:
 
     msg = f"[SYSTEM] Yellow Team AI Initialized. Role: Builders & Admins"
     print(f"{C_YELLOW}{msg}{C_RESET}")
@@ -50,54 +46,36 @@ def engage_build(max_iterations: Optional[int] = None) -> None:
             iteration += 1
 
             try:
-                # 1. DEVELOPMENT (Create Infrastructure)
+                # 1. DEPLOY NEW "SERVICES" (Files)
+                # Simulates normal IT activity which might look like threats or just add noise
+
+                # Create a "System Log" (Benign)
+                log_name = f"system_log_{int(time.time())}.log"
+                path = os.path.join(watch_dir, log_name)
+                try:
+                    with open(path, 'w') as f:
+                        f.write(f"System Check OK: {time.time()}")
+                except: pass
+
+                # Create a "Config Update" (Benign but High Entropy?)
                 if random.random() < 0.2:
-                    app_name = f"app_v{random.randint(1,10)}_{int(time.time())}.py"
-                    filepath = os.path.join(watch_dir, app_name)
+                    conf_name = f"app_config_{random.randint(1000,9999)}.xml"
+                    path = os.path.join(watch_dir, conf_name)
                     try:
-                        with open(filepath, 'w') as f:
-                            f.write("print('Hello World')\n# TODO: Add security")
-                        logger.info(f"🏗️  Yellow Team Deployed: {app_name}")
+                        with open(path, 'w') as f:
+                            f.write("<xml><key>" + os.urandom(32).hex() + "</key></xml>")
                     except: pass
 
-                # 2. PATCH MANAGEMENT (Hardening)
-                # "Patch" an app by updating its timestamp/content
-                if random.random() < 0.1:
-                    try:
-                        with os.scandir(watch_dir) as it:
-                            for entry in it:
-                                if entry.is_file() and entry.name.startswith("app_v"):
-                                    # Simulate patching
-                                    os.utime(entry.path, None)
-                                    logger.info(f"🛡️  Yellow Team Patched: {entry.name}")
-                                    break
-                    except: pass
-
-                # 3. MISCONFIGURATION (The "Insider Mistake")
+                # 2. MISCONFIGURATION SIMULATION
+                # 5% chance to create a file with weak permissions (simulated via name)
                 if random.random() < 0.05:
+                    path = os.path.join(watch_dir, "world_writable_secrets.txt")
                     try:
-                        with os.scandir(watch_dir) as it:
-                            for entry in it:
-                                if entry.is_file() and entry.name.startswith("malware_"):
-                                    new_name = f"authorized_tool_{int(time.time())}.exe"
-                                    new_path = os.path.join(watch_dir, new_name)
-                                    os.rename(entry.path, new_path)
-                                    logger.warning(f"⚠️  Yellow Team Misconfiguration! Renamed {entry.name} -> {new_name}")
-                                    audit.log("YELLOW", "MISCONFIGURATION", {"original": entry.name, "new": new_name})
-                                    break
+                        with open(path, 'w') as f: f.write("password=guest")
+                        logger.warning("⚠️  Yellow Team pushed a Misconfiguration")
                     except: pass
 
-                # 4. SHADOW IT (Unsanctioned Tools)
-                if random.random() < 0.05:
-                    tool_name = f"debug_tool_{random.randint(100,999)}.exe"
-                    filepath = os.path.join(watch_dir, tool_name)
-                    try:
-                        with open(filepath, 'wb') as f:
-                            f.write(os.urandom(512))
-                        logger.info(f"💾 Yellow Team Installed Tool: {tool_name}")
-                    except: pass
-
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(random.uniform(3.0, 6.0)) # Builders work slower
 
             except Exception as e:
                 logger.error(f"Error in Yellow loop: {e}")
@@ -109,4 +87,4 @@ def engage_build(max_iterations: Optional[int] = None) -> None:
         logger.info("Yellow Team AI Shutting Down")
 
 if __name__ == "__main__":
-    engage_build()
+    engage_construction()

@@ -66,7 +66,7 @@ def engage_force(max_iterations: Optional[int] = None) -> None:
                             for entry in it:
                                 if entry.is_file():
                                     # Smarter cleanup: Delete ransom notes instantly
-                                    if entry.name == "RANSOMWARE_NOTE.txt":
+                                    if entry.name == "READ_ME.txt":
                                         os.remove(entry.path)
                                         cleaned += 1
                                         logger.info("🧹 Purged Ransomware Note")

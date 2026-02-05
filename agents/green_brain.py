@@ -57,7 +57,8 @@ def engage_automation(max_iterations: Optional[int] = None) -> None:
                 remediated = 0
 
                 # Check for Ransom Notes and auto-restore (simulated)
-                ransom_note = os.path.join(watch_dir, "RANSOMWARE_NOTE.txt")
+                # Red Team now uses "READ_ME.txt"
+                ransom_note = os.path.join(watch_dir, "READ_ME.txt")
                 if os.path.exists(ransom_note):
                     logger.info("♻️  Green Team executing Playbook: RANSOMWARE_RECOVERY")
                     try:
