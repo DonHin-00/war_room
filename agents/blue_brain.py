@@ -144,6 +144,9 @@ class BlueSwarmAgent:
                                    ["TIGHTEN_TRUST", "LOOSEN_TRUST", "SOAR_LOCKDOWN", "HUNT_AGGRESSIVE"])
         self.anomaly_engine = utils.AnomalyDetector()
 
+        # UEBA (User & Entity Behavior Analytics)
+        self.ueba_db = {} # IP -> [timestamp]
+
         # Insider Threat Logic
         self.is_rogue = random.random() < 0.1 # 10% chance
         if self.is_rogue:
@@ -231,6 +234,25 @@ class BlueSwarmAgent:
         else:
             logger.warning("VNet connection failed.")
 
+    def ueba_scan(self, src_ip):
+        """Analyze behavior for Impossible Travel or Brute Force."""
+        now = time.time()
+        if src_ip not in self.ueba_db:
+            self.ueba_db[src_ip] = []
+
+        history = self.ueba_db[src_ip]
+        history.append(now)
+
+        # Prune old
+        self.ueba_db[src_ip] = [t for t in history if now - t < 60] # 1 minute window
+
+        count = len(self.ueba_db[src_ip])
+        if count > 20: # High Frequency
+            logger.warning(f"UEBA ALERT: Abnormal Request Rate from {src_ip} ({count} req/min)")
+            if count > 50:
+                # Automate block
+                self.soar.block_ip(src_ip)
+
     def calculate_entropy(self, data):
         if not data: return 0
         counts = collections.Counter(data)
@@ -262,6 +284,9 @@ class BlueSwarmAgent:
                 # IDS Analysis
                 raw_payload = str(msg.get('payload', ''))
                 src = msg.get('src')
+
+                # UEBA Check
+                self.ueba_scan(src)
 
                 # 1. Entropy Check (Encrypted C2 Detection)
                 entropy = self.calculate_entropy(raw_payload)

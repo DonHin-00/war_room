@@ -4,6 +4,7 @@ import os
 import time
 import json
 import logging
+import uuid
 from collections import Counter
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,19 +36,30 @@ class OrangeEducator:
                             attack_counts["SQL_INJECTION"] += 1
                         if "XSS" in str(entry):
                             attack_counts["XSS"] += 1
+                        if "RCE" in str(entry) or "exec" in str(entry):
+                            attack_counts["RCE"] += 1
                     except: pass
         except: pass
+
+        # Map to MITRE / CWE
+        cwe_map = {
+            "SQL_INJECTION": "CWE-89",
+            "XSS": "CWE-79",
+            "RCE": "CWE-78",
+            "NETWORK": "T1046 (Network Service Scanning)"
+        }
 
         # Generate Standards
         standards = {
             "timestamp": time.time(),
-            "priorities": {}
+            "priorities": {},
+            "cwe_map": cwe_map
         }
 
         for attack, count in attack_counts.items():
             urgency = "LOW"
-            if count > 10: urgency = "MEDIUM"
-            if count > 50: urgency = "HIGH"
+            if count > 5: urgency = "MEDIUM"
+            if count > 20: urgency = "HIGH"
             standards["priorities"][attack] = urgency
 
         logger.info(f"🎓 WORKSHOP: Identified priorities: {standards['priorities']}")
@@ -55,10 +67,15 @@ class OrangeEducator:
 
         # Generate Human-Readable Report
         with open("workshop_report.txt", "w") as f:
-            f.write(f"ORANGE TEAM WORKSHOP REPORT - {time.ctime()}\n")
-            f.write("========================================\n")
+            f.write(f"ORANGE TEAM THREAT INTELLIGENCE REPORT - {time.ctime()}\n")
+            f.write("===================================================\n")
             for attack, count in attack_counts.items():
-                f.write(f"- {attack}: {count} incidents\n")
+                cwe = cwe_map.get(attack, "Unknown")
+                f.write(f"- {attack} ({cwe}): {count} incidents\n")
+
+            # Export STIX-like JSON (Simplified)
+            with open("threat_report.json", "w") as tr:
+                json.dump({"report_id": str(uuid.uuid4()), "incidents": dict(attack_counts)}, tr)
 
     def run(self):
         logger.info("🍊 Orange Educator Team Online.")

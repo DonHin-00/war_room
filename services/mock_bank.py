@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class MockBankService:
     def __init__(self, ip="10.10.10.10"):
         self.nic = VNic(ip)
+        self.backend_nic = VNic("192.168.1.10") # Internal Interface
         self.db = {
             "admin": {"password": "secure_password_123", "balance": 1000000},
             "user": {"password": "user123", "balance": 100}
@@ -18,6 +19,8 @@ class MockBankService:
         self.running = True
 
     def start(self):
+        # Connect both interfaces
+        self.backend_nic.connect()
         if not self.nic.connect():
             logger.error("Failed to connect to VNet Switch")
             return
@@ -54,6 +57,10 @@ class MockBankService:
             elif path == '/search_user':
                 response = self.handle_search(data)
 
+            # VULNERABILITY: RCE (Debug Console)
+            elif path == '/debug/exec':
+                response = self.handle_rce(data, src)
+
             self.reply(src, response)
 
         except Exception as e:
@@ -84,6 +91,19 @@ class MockBankService:
         query = data.get('q', '')
         # VULNERABILITY: Reflected XSS
         return {"status": 200, "body": f"Results for: {query}"}
+
+    def handle_rce(self, data, src):
+        # VULNERABILITY: Command Injection / RCE
+        cmd = data.get('cmd', '')
+        # Simulation: If they ping the internal backend, we proxy it
+        if "ping internal" in cmd:
+            return {"status": 200, "body": "PONG from 192.168.1.10 (Core Banking)"}
+
+        if "curl" in cmd and "192.168.1.10" in cmd:
+            # LATERAL MOVEMENT: Proxy request to backend
+            return {"status": 200, "body": "CORE_ACCESS_GRANTED: [SECRET_CORE_DATA]"}
+
+        return {"status": 200, "body": f"Executed: {cmd}"}
 
     def reply(self, dst, response):
         self.nic.send(dst, response)
