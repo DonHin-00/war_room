@@ -56,6 +56,20 @@ def run_command(command_args, timeout=30):
 def status():
     return jsonify({"status": "active", "version": "1.0.0", "mode": "LIVE"})
 
+@app.route('/api/sentinel/status', methods=['GET'])
+def sentinel_status():
+    """Reads the shared state from Blue Brain (Sentinel)."""
+    state_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "war_state.json")
+    try:
+        if os.path.exists(state_file):
+            with open(state_file, 'r') as f:
+                data = json.load(f)
+            return jsonify({"success": True, "data": data})
+        else:
+            return jsonify({"success": False, "error": "Sentinel state not found (war_state.json missing)"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # 1. WiFi Operations
 @app.route('/api/wifi/scan', methods=['POST'])
 def wifi_scan():

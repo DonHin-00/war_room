@@ -1,4 +1,3 @@
-cat > /root/war_room/red_brain.py << 'EOF'
 #!/usr/bin/env python3
 """
 Project: AI Cyber War Simulation (Red Team)
@@ -134,4 +133,3 @@ def engage_offense():
 
 if __name__ == "__main__":
     engage_offense()
-EOF
