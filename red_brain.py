@@ -28,18 +28,26 @@ class RedTeamer(CyberAgent):
         self.access_level = "DMZ"
         self.zones = ["DMZ", "USER", "SERVER", "CORE"]
         self.traps_found = 0
+        self.loot_found = 0
+        self.has_root = False
+        self.persistence = False
+        self.c2_active = False
 
     def perceive(self) -> str:
         war_state = self.state_manager.get_war_state()
         current_alert = war_state.get('blue_alert_level', 1)
         access_idx = self.zones.index(self.access_level)
-        return f"{current_alert}_{access_idx}_{1 if self.traps_found > 0 else 0}"
+        return f"{current_alert}_{access_idx}_{1 if self.traps_found > 0 else 0}_{1 if self.loot_found > 0 else 0}"
 
     def get_context(self) -> Dict[str, Any]:
         return {
             "alert_level": self.state_manager.get_war_state().get('blue_alert_level', 1),
             "access_level": self.access_level,
             "traps_found": self.traps_found,
+            "loot_found": self.loot_found,
+            "has_root": self.has_root,
+            "persistence_established": self.persistence,
+            "c2_active": self.c2_active,
             "actions_taken": self.iteration_count
         }
 
@@ -52,8 +60,19 @@ class RedTeamer(CyberAgent):
 
         if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
             reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
+
         if action_name == "T1041_EXFILTRATION" and result.get("status") == "exfiltrated":
              reward += config.RED["REWARDS"]["EXFIL_SUCCESS"]
+             self.loot_found += 1 # Confirm loot secured
+
+        if action_name == "T1046_RECON" and result.get("targets_found", 0) > 0:
+            self.loot_found += result["targets_found"] # Potential loot identified
+            reward += 5
+
+        if action_name == "T1003_ROOTKIT": self.has_root = True
+        if action_name == "T1071_C2_BEACON": self.c2_active = True
+        if action_name == "T1036_MASQUERADE": self.persistence = True
+
         if self.access_level == "CORE" and impact > 0:
             reward += config.RED["REWARDS"]["CRITICAL"]
 
@@ -90,13 +109,17 @@ class RedTeamer(CyberAgent):
 
     def t1046_recon(self):
         traps = 0
+        targets = 0
         target_dir = self._get_target_dir()
         try:
             with os.scandir(target_dir) as it:
                 for entry in it:
-                    if utils.is_tar_pit(entry.path): traps += 1
+                    if utils.is_tar_pit(entry.path):
+                        traps += 1
+                    elif entry.is_file() and any(kw in entry.name.lower() for kw in ['pass', 'secret', 'config', 'db']):
+                        targets += 1
         except: pass
-        return {"impact": 1, "traps_found": traps}
+        return {"impact": 1, "traps_found": traps, "targets_found": targets}
 
     def t1027_obfuscate(self):
         target_dir = self._get_target_dir()

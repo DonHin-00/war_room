@@ -135,17 +135,40 @@ class HierarchicalQLearner:
         return (self.q_a.get(f"{state}_{action}", 0.0) + self.q_b.get(f"{state}_{action}", 0.0)) / 2.0
 
     def update_goal(self, context: Dict[str, Any]):
-        """Dynamic Goal Switching based on Campaign Progress."""
+        """Dynamic Goal Switching based on Campaign Progress (Guaranteed Kill Chain)."""
         if self.name == "RED":
-            # APT Kill Chain Logic
-            if context.get("access_level") == "CORE":
+            # APT Kill Chain Logic (Strict Sequence: RECON -> ACCESS -> PERSISTENCE -> LATERAL -> IMPACT)
+            access = context.get("access_level", "DMZ")
+            loot_found = context.get("loot_found", 0)
+
+            # Phase 1: RECON (Find targets)
+            if self.current_goal == "RECON":
+                if loot_found > 0 or context.get("targets_identified", False):
+                    self.current_goal = "ACCESS"
+
+            # Phase 2: ACCESS (Root/Injection)
+            elif self.current_goal == "ACCESS":
+                if context.get("has_root", False) or context.get("persistence_established", False):
+                    self.current_goal = "PERSISTENCE"
+
+            # Phase 3: PERSISTENCE (Hide)
+            elif self.current_goal == "PERSISTENCE":
+                if context.get("obfuscated", False) or context.get("c2_active", False):
+                    # Ready to move or strike
+                    if access != "CORE":
+                        self.current_goal = "ACCESS" # Loop back for Lateral Move logic (handled by ACCESS tools like T1021)
+                    else:
+                        self.current_goal = "IMPACT"
+
+            # Phase 4: IMPACT (Exfil/Encrypt)
+            elif self.current_goal == "IMPACT":
+                pass # Stay here until done
+
+            # Heuristic Overrides
+            if access == "CORE" and loot_found > 0:
                 self.current_goal = "IMPACT"
             elif context.get("traps_found", 0) > 0:
                 self.current_goal = "RECON" # Fallback to caution
-            elif context.get("actions_taken", 0) > 20:
-                self.current_goal = "PERSISTENCE"
-            else:
-                self.current_goal = "ACCESS"
 
         elif self.name == "BLUE":
             # Adaptive Defense Logic
