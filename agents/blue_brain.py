@@ -31,6 +31,7 @@ SIGNATURES_FILE = os.path.join(BASE_DIR, "signatures.json")
 BABY_BRAIN_FILE = os.path.join(BASE_DIR, "baby_brain.json")
 STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 LOG_FILE = os.path.join(BASE_DIR, "blue.log")
+WAF_LOG = os.path.join(BASE_DIR, "bot.log")
 WATCH_DIR = "/tmp"
 BACKUP_DIR = os.path.join(WATCH_DIR, ".blue_backups")
 
@@ -256,11 +257,34 @@ class BlueDefender:
             except queue.Empty: break
         return list(set(detected_threats)) # Dedupe
 
+    def learn_from_waf(self):
+        """Parse WAF logs to learn from blocked attacks."""
+        try:
+            if os.path.exists(WAF_LOG):
+                # Simple tail logic: read last few lines?
+                # For simulation, we assume we can read the whole file efficiently or just 'grep' it.
+                with open(WAF_LOG, 'r') as f:
+                    lines = f.readlines()[-10:] # Read last 10 lines
+                    for line in lines:
+                        if "BLOCKED MALICIOUS REQUEST" in line:
+                            # Extract path/pattern (Simulation)
+                            # "BLOCKED MALICIOUS REQUEST: /search?q=..."
+                            # We can teach BabyBrain that specific query patterns are bad,
+                            # but BabyBrain is file-extension based.
+                            # Let's up the Alert Level instead.
+                            if self.war_state.get('blue_alert_level', 1) < 5:
+                                self.war_state['blue_alert_level'] += 1
+                                self._access_memory(STATE_FILE, self.war_state)
+        except: pass
+
     def run(self):
         self.logger.info("Blue Team AI Initialized. Policy: NIST SP 800-61")
 
         while self.running:
             try:
+                # 0. INTEL FEED
+                self.learn_from_waf()
+
                 # 1. PREPARATION
                 self.war_state = self._access_memory(STATE_FILE) or {'blue_alert_level': 1}
                 current_alert = self.war_state.get('blue_alert_level', 1)
