@@ -624,5 +624,68 @@
             "SWARM"
         ],
         "last_seen": 1770251707.2693875
+    },
+    "640de18b": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252833.8972783
+    },
+    "77b01d17": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252833.9403121
+    },
+    "233597d0": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252833.9666405
+    },
+    "c80114b0": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252932.683034
+    },
+    "ce49b955": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252932.6987119
+    },
+    "cb5c2432": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770252932.7059171
+    },
+    "8c450b55": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770253028.6581798
+    },
+    "992f7ccc": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770253028.6780682
+    },
+    "8a1ecc71": {
+        "type": "BLUE",
+        "peers": [
+            "SWARM"
+        ],
+        "last_seen": 1770253028.691332
     }
 }

@@ -17,8 +17,10 @@ import signal
 import urllib.parse
 import math
 import collections
+import glob
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
+from payloads.obfuscation import deep_decode
 
 # Configuration
 SWARM_GRP = '224.2.2.2'
@@ -375,40 +377,50 @@ class BlueSwarmAgent:
                     logger.info(f"Detected Threat: {fake_hash}")
                     self.share_intel(fake_hash)
 
-            # 3. Hunt Persistence (Enhanced)
-            persistence = glob.glob(os.path.join(config.PERSISTENCE_DIR, "*.service"))
-            for p in persistence:
+            # 3. Hunt Persistence (Deep Inspection)
+            # Scan all files in simulation data, not just services
+            suspicious_files = glob.glob(os.path.join(config.SIMULATION_DATA_DIR, "*")) + \
+                               glob.glob(os.path.join(config.PERSISTENCE_DIR, "*"))
+
+            for p in suspicious_files:
+                if os.path.isdir(p): continue
                 threat = False
                 base = os.path.basename(p)
 
-                # Check 1: Masquerading (Known bad locations or suspicious content)
-                # Since we are in PERSISTENCE_DIR, everything is suspect unless whitelisted.
-                # But Red uses "legitimate" names now.
-
-                # Check 2: Timestomping Detection (Compare mtime vs ctime/creation)
-                # On Linux, we often can't get creation time easily, but ctime updates on metadata change.
-                # Timestomp updates mtime/atime but ctime usually reflects the change.
-                # If mtime < ctime by a large margin (and ctime is recent), it's suspicious.
+                # Check 1: Timestomping
                 try:
                     st = os.stat(p)
-                    # If mtime is significantly older than ctime (metadata change time)
-                    # It implies someone set mtime back in time.
                     if (st.st_ctime - st.st_mtime) > 60:
-                        logger.critical(f"TIMESTOMP DETECTED: {base} (mtime {st.st_mtime} << ctime {st.st_ctime})")
+                        logger.critical(f"TIMESTOMP DETECTED: {base}")
                         threat = True
-
-                    # Also content check
-                    with open(p, 'r') as f:
-                        if "red_mesh_node" in f.read():
-                            threat = True
                 except: pass
 
+                # Check 2: Deep Content Inspection (The "Annoyance")
+                # Try to decode every file as if it were a polyglot payload
+                try:
+                    with open(p, 'rb') as f:
+                        content = f.read(4096) # Read first 4kb
+
+                    # Expensive Deep Decode
+                    decoded = deep_decode(content)
+                    if decoded:
+                        # Found hidden JSON or string
+                        if isinstance(decoded, dict) and "cmd" in decoded:
+                            logger.critical(f"DEEP OBFUSCATION DETECTED in {base}: {decoded}")
+                            threat = True
+
+                    # Also check for loader scripts
+                    if b"payload_file =" in content and b"import time" in content:
+                         logger.critical(f"LOADER SCRIPT DETECTED: {base}")
+                         threat = True
+
+                except Exception: pass
+
                 if threat:
-                    logger.critical(f"PERSISTENCE FOUND: {base}")
+                    logger.critical(f"THREAT NEUTRALIZED: {base}")
                     try:
                         os.remove(p)
-                        logger.info("Persistence mechanism purged.")
-                        self.share_intel(f"PERSISTENCE_REMOVED_{base}")
+                        self.share_intel(f"THREAT_REMOVED_{base}")
                     except Exception: pass
 
             # Verify/Vouch logic (Simulation)

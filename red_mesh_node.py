@@ -17,8 +17,10 @@ import utils
 import urllib.parse
 import base64
 import shutil
+import zlib
 from vnet.nic import VNic
 from vnet.protocol import MSG_DATA
+from payloads.obfuscation import deep_encode
 
 # Configuration
 MCAST_GRP = '224.1.1.1'
@@ -337,34 +339,78 @@ class RedMeshNode:
         except: pass
 
     def establish_persistence(self):
-        """Simulate dropping persistence artifacts (Systemd Service)."""
-        # Lazarus Mechanism: Re-create if missing
+        """Simulate dropping persistence artifacts (Polyglot + Masquerading)."""
+        # Lazarus Mechanism
         if hasattr(self, 'persistence_file') and self.persistence_file:
             if not os.path.exists(self.persistence_file):
                 logger.info(f"🧟 LAZARUS: Persistence file {os.path.basename(self.persistence_file)} was deleted! Re-creating...")
                 self._write_persistence(self.persistence_file)
             return
 
-        # New Persistence with Masquerading
-        if random.random() < 0.3: # 30% chance to establish
-            # Masquerade as legitimate service
-            legit_names = ["dbus-daemon-helper", "systemd-journal-upload", "network-dispatcher", "cron-daily"]
-            svc_name = f"{random.choice(legit_names)}.service"
+        # New Persistence with Polyglot payload
+        if random.random() < 0.3:
+            # 1. Drop the "Image" (Encrypted Payload)
+            img_names = ["wallpaper.png", "icon_cache.png", "banner.jpg"]
+            img_name = random.choice(img_names)
+            img_path = os.path.join(config.SIMULATION_DATA_DIR, img_name)
 
+            payload_data = {"cmd": "SPAWN_AGENT", "parent": NODE_ID}
+            obfuscated = deep_encode(payload_data, "PNG")
+
+            try:
+                with open(img_path, 'wb') as f: f.write(obfuscated)
+                self.timestomp(img_path)
+            except: pass
+
+            # 2. Drop the Loader (looks like a helper script)
+            loader_name = f"display_helper_{secrets.token_hex(2)}.py"
+            loader_path = os.path.join(config.SIMULATION_DATA_DIR, loader_name)
+            self._write_loader(loader_path, img_path)
+            self.timestomp(loader_path)
+
+            # 3. Create Service pointing to Loader
+            legit_names = ["dbus-daemon-helper", "systemd-journal-upload", "network-dispatcher"]
+            svc_name = f"{random.choice(legit_names)}.service"
             target = os.path.join(config.PERSISTENCE_DIR, svc_name)
-            self._write_persistence(target)
+
+            self._write_service(target, loader_path)
             self.persistence_file = target
             self.timestomp(target)
 
-    def _write_persistence(self, target):
-        # Obfuscated Service Content
+    def _write_loader(self, path, payload_path):
+        """Create a loader script that decrypts the 'image' and 'runs' it."""
+        # In sim, we just read it to trigger EDR inspection
+        content = f"""#!/usr/bin/env python3
+import sys
+import os
+import time
+# Benign imports to look legit
+import argparse
+import logging
+
+def main():
+    # Load configuration from 'image'
+    payload_file = "{payload_path}"
+    if os.path.exists(payload_file):
+        with open(payload_file, 'rb') as f:
+            data = f.read()
+        # In real malware, this would decode and exec
+        # Here we just sleep to be a process
+        time.sleep(60)
+
+if __name__ == "__main__":
+    main()
+"""
+        with open(path, 'w') as f: f.write(content)
+
+    def _write_service(self, target, loader_path):
         content = f"""[Unit]
-Description=System Daemon Helper
+Description=System Display Helper
 Documentation=man:systemd(1)
 
 [Service]
 Type=simple
-ExecStart={sys.executable} {os.path.abspath(__file__)} --worker
+ExecStart={sys.executable} {loader_path}
 Restart=always
 """
         try:
