@@ -10,16 +10,14 @@ class AutoRecon:
     """
     Mass Scale Reconnaissance.
     Refactored for REAL Port Scanning and File Scanning.
+    ENHANCED: SUID & History Scanning.
     """
     def __init__(self, target: str):
-        self.target = target # Can be path (local) or IP (remote)
+        self.target = target
         self.findings = []
         self.critical_paths = []
 
     def scan_mass_scale(self):
-        """
-        Determines scan type based on target format.
-        """
         if os.path.exists(self.target) or self.target == ".":
             self._scan_filesystem(self.target)
         else:
@@ -27,6 +25,10 @@ class AutoRecon:
 
     def _scan_filesystem(self, root_dir):
         console.print(f"[RED CAMPAIGN] 📂 Scanning Filesystem: {root_dir}", style="bold red")
+
+        # 1. History Scraping
+        self._scrape_history()
+
         files = []
         for root, dirs, files_in_dir in os.walk(root_dir):
             if ".git" in root or "__pycache__" in root: continue
@@ -35,11 +37,29 @@ class AutoRecon:
 
         for filepath in track(files, description="Scanning Files..."):
             self._analyze_file(filepath)
+            self._check_suid(filepath)
+
+    def _scrape_history(self):
+        history_files = [os.path.expanduser("~/.bash_history"), os.path.expanduser("~/.zsh_history")]
+        for hf in history_files:
+            if os.path.exists(hf):
+                try:
+                    with open(hf, 'r', errors='ignore') as f:
+                        for line in f:
+                            if "sudo" in line and "-S" in line: # sudo with pipe password
+                                self.critical_paths.append({"type": "HistoryCreds", "file": hf, "snippet": line.strip()})
+                except: pass
+
+    def _check_suid(self, filepath):
+        try:
+            st = os.stat(filepath)
+            if st.st_mode & 0o4000:
+                self.critical_paths.append({"type": "SUID_Binary", "file": filepath})
+        except: pass
 
     def _scan_network(self, ip):
         console.print(f"[RED CAMPAIGN] 📡 Scanning Network Target: {ip}", style="bold red")
         ports = [21, 22, 80, 443, 3306, 8080]
-
         for port in track(ports, description="Scanning Ports..."):
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -49,14 +69,11 @@ class AutoRecon:
                     banner = self._grab_banner(s, ip, port)
                     console.print(f"  [green]OPEN PORT[/]: {port} ({banner})")
                     self.findings.append({"type": "open_port", "ip": ip, "port": port, "banner": banner})
-                    if port == 22 or port == 3306:
-                        self.critical_paths.append({"type": "HighValueService", "ip": ip, "port": port})
                 s.close()
             except: pass
 
     def _grab_banner(self, sock, ip, port):
         try:
-            # Reconnect to grab banner
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
             s.connect((ip, port))
