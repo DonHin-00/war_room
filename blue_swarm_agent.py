@@ -382,6 +382,8 @@ class BlueSwarmAgent:
                 try:
                     os.remove(p)
                     logger.info("Persistence mechanism purged.")
+                    # Share Intel so swarm knows Red is active here
+                    self.share_intel(f"PERSISTENCE_REMOVED_{os.path.basename(p)}")
                 except Exception: pass
 
             # Verify/Vouch logic (Simulation)

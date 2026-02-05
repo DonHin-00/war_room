@@ -327,20 +327,28 @@ class RedMeshNode:
             logger.info(f"Dropped Stego Payload: {fname}")
 
     def establish_persistence(self):
-        """Simulate dropping persistence artifacts."""
-        if random.random() < 0.3: # 30% chance
+        """Simulate dropping persistence artifacts (Systemd Service)."""
+        # Lazarus Mechanism: Re-create if missing
+        if hasattr(self, 'persistence_file') and self.persistence_file:
+            if not os.path.exists(self.persistence_file):
+                logger.info(f"🧟 LAZARUS: Persistence file {os.path.basename(self.persistence_file)} was deleted! Re-creating...")
+                self._write_persistence(self.persistence_file)
+            return
+
+        # New Persistence
+        if random.random() < 0.3: # 30% chance to establish
             svc_name = f"systemd-worker-{secrets.token_hex(4)}.service"
             target = os.path.join(config.PERSISTENCE_DIR, svc_name)
-            content = f"[Unit]\nDescription=Worker {NODE_ID}\n[Service]\nExecStart=/usr/bin/python3 red_node.py"
+            self._write_persistence(target)
+            self.persistence_file = target
 
-            # We don't have a token here easily in this architecture,
-            # or we assume Red nodes bypass auth or steal tokens.
-            # For sim, we try to create it.
-            if not os.path.exists(target):
-                try:
-                    with open(target, 'w') as f: f.write(content)
-                    logger.info(f"Persistence established: {svc_name}")
-                except Exception: pass
+    def _write_persistence(self, target):
+        content = f"[Unit]\nDescription=Worker {NODE_ID}\n[Service]\nExecStart={sys.executable} {os.path.abspath(__file__)}"
+        try:
+            with open(target, 'w') as f: f.write(content)
+            logger.info(f"Persistence established: {os.path.basename(target)}")
+        except Exception as e:
+            logger.error(f"Failed to write persistence: {e}")
 
     def run(self):
         logger.info(f"Red Mesh Node {NODE_ID} coming online...")
