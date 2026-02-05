@@ -1,1 +1,6 @@
-python==3.9.0
+flask
+flask-cors
+requests
+colorama
+tabulate
+psutil
