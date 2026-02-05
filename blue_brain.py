@@ -19,9 +19,9 @@ from typing import Dict, Any, List, Deque, Set
 import utils
 import config
 import ml_engine
+from agent_base import CyberAgent
 
-# Setup Logging
-utils.setup_logging(config.PATHS["LOG_BLUE"])
+# Setup Logging (Kept for SignatureDatabase usage if needed, though agent_base handles main log)
 logger = logging.getLogger("BlueTeam")
 
 class SignatureDatabase:
@@ -50,41 +50,49 @@ class SignatureDatabase:
         file_hash = hashlib.sha256(file_content).hexdigest()
         return file_hash in self.signatures
 
-class BlueDefender:
+class BlueDefender(CyberAgent):
     def __init__(self):
-        self.running = True
-        self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
-        self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
+        super().__init__("BLUE", config.BLUE["ACTIONS"], config.PATHS["LOG_BLUE"])
         self.signature_db = SignatureDatabase(config.PATHS["SIGNATURES"])
-
-        self.ai = ml_engine.DoubleQLearner(config.BLUE["ACTIONS"], "BLUE")
         self.backups: Dict[str, bytes] = {}
 
-        utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
+    def perceive(self) -> str:
+        war_state = self.state_manager.get_war_state()
+        current_alert = war_state.get('blue_alert_level', 1)
 
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
-
-    def load_memory(self):
-        data = self.state_manager.load_json(config.PATHS["Q_TABLE_BLUE"])
-        self.ai.load(data)
-        logger.info(f"AI Memory Loaded.")
-
-    def sync_memory(self):
-        data = self.ai.export()
-        self.state_manager.save_json(config.PATHS["Q_TABLE_BLUE"], data)
-
-    def shutdown(self, signum, frame):
-        logger.info("Shutting down... Syncing memory.")
-        self.sync_memory()
-        self.running = False
-        sys.exit(0)
-
-    def update_heartbeat(self):
-        hb_file = os.path.join(config.PATHS["DATA_DIR"], "blue.heartbeat")
+        # Simple volume estimation
         try:
-            with open(hb_file, 'w') as f: f.write(str(time.time()))
-        except: pass
+            threat_volume = len(os.listdir(config.PATHS["WAR_ZONE"]))
+        except: threat_volume = 0
+
+        return f"{current_alert}_{1 if threat_volume > 5 else 0}_{1 if self.backups else 0}"
+
+    def get_context(self) -> Dict[str, Any]:
+        try:
+            threat_volume = len(os.listdir(config.PATHS["WAR_ZONE"]))
+        except: threat_volume = 0
+
+        return {
+            "alert_level": self.state_manager.get_war_state().get('blue_alert_level', 1),
+            "threat_count": threat_volume,
+            "has_backup": len(self.backups) > 0
+        }
+
+    def calculate_reward(self, action_name: str, result: Dict[str, Any]) -> float:
+        mitigated = result.get("mitigated", 0) + result.get("killed", 0)
+        restored = result.get("restored", 0)
+        reward = 0.0
+
+        if mitigated > 0: reward += config.BLUE["REWARDS"]["MITIGATION"]
+        if restored > 0: reward += config.BLUE["REWARDS"]["RESTORE_SUCCESS"]
+        if action_name == "BACKUP_CRITICAL" and result.get("backed_up", 0) > 0: reward += 5
+
+        # Alert Update Side Effect
+        current_alert = self.state_manager.get_war_state().get('blue_alert_level', 1)
+        if mitigated > 0 and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
+             self.state_manager.update_war_state({'blue_alert_level': min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)})
+
+        return reward
 
     # --- TACTICS ---
     def signature_scan(self):
@@ -196,79 +204,8 @@ class BlueDefender:
     def isolate_zone(self):
         return {"status": "isolated"}
 
-    def engage(self):
-        logger.info("Blue Team AI Initialized. Framework: Double Q-Learning + Active Defense")
-        self.load_memory()
-
-        if not os.path.exists(config.PATHS["WAR_ZONE"]):
-            os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
-
-        threat_volume = 0
-
-        while self.running:
-            try:
-                self.update_heartbeat()
-
-                # 1. Perceive State
-                war_state = self.state_manager.get_war_state()
-                current_alert = war_state.get('blue_alert_level', 1)
-
-                # Simple volume estimation
-                try:
-                    threat_volume = len(os.listdir(config.PATHS["WAR_ZONE"]))
-                except: threat_volume = 0
-
-                state_vector = f"{current_alert}_{1 if threat_volume > 5 else 0}_{1 if self.backups else 0}"
-
-                context = {
-                    "alert_level": current_alert,
-                    "threat_count": threat_volume,
-                    "has_backup": len(self.backups) > 0
-                }
-
-                # 2. Decide
-                action_name = self.ai.choose_action(state_vector, context)
-                tactic_func = getattr(self, action_name.lower())
-
-                # 3. Act
-                result = {}
-                try:
-                    result = tactic_func()
-
-                    mitigated = result.get("mitigated", 0) + result.get("killed", 0)
-                    restored = result.get("restored", 0)
-
-                    self.audit_logger.log_event("BLUE", action_name, result)
-                    logger.info(f"Action: {action_name} | Q-Val: {self.ai.get_q(state_vector, action_name):.2f}")
-
-                except Exception as e:
-                    logger.warning(f"Failed {action_name}: {e}")
-                    mitigated = 0
-                    restored = 0
-
-                # 4. Reward
-                reward = 0
-                if mitigated > 0: reward += config.BLUE["REWARDS"]["MITIGATION"]
-                if restored > 0: reward += config.BLUE["REWARDS"]["RESTORE_SUCCESS"]
-                if action_name == "BACKUP_CRITICAL" and result.get("backed_up", 0) > 0: reward += 5
-
-                self.ai.memory.push(state_vector, action_name, reward, state_vector, False)
-                self.ai.learn()
-
-                # 5. Sync
-                self.sync_memory()
-
-                # Alert Update
-                if mitigated > 0 and current_alert < config.SYSTEM["MAX_ALERT_LEVEL"]:
-                     self.state_manager.update_war_state({'blue_alert_level': min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)})
-
-                time.sleep(random.uniform(0.5, 2.0))
-
-            except KeyboardInterrupt:
-                self.shutdown(None, None)
-            except Exception as e:
-                logger.error(f"Loop Error: {e}")
-                time.sleep(1)
+    # --- MAIN LOOP ---
+    # Inherited from CyberAgent.engage()
 
 if __name__ == "__main__":
     BlueDefender().engage()

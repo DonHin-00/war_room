@@ -18,49 +18,53 @@ from typing import Dict, Any, Optional
 import utils
 import config
 import ml_engine
+from agent_base import CyberAgent
 
-# Setup Logging
-utils.setup_logging(config.PATHS["LOG_RED"])
-logger = logging.getLogger("RedTeam")
-
-class RedTeamer:
+class RedTeamer(CyberAgent):
     def __init__(self):
-        self.running = True
-        self.iteration_count = 0
-        self.audit_logger = utils.AuditLogger(config.PATHS["AUDIT_LOG"])
-
-        utils.limit_resources(ram_mb=config.SYSTEM["RESOURCE_LIMIT_MB"])
-
-        self.state_manager = utils.StateManager(config.PATHS["WAR_STATE"])
-        self.ai = ml_engine.DoubleQLearner(config.RED["ACTIONS"], "RED")
+        super().__init__("RED", config.RED["ACTIONS"], config.PATHS["LOG_RED"])
 
         # Access Progression: Starts at DMZ
         self.access_level = "DMZ"
         self.zones = ["DMZ", "USER", "SERVER", "CORE"]
+        self.traps_found = 0
 
-        signal.signal(signal.SIGINT, self.shutdown)
-        signal.signal(signal.SIGTERM, self.shutdown)
+    def perceive(self) -> str:
+        war_state = self.state_manager.get_war_state()
+        current_alert = war_state.get('blue_alert_level', 1)
+        access_idx = self.zones.index(self.access_level)
+        return f"{current_alert}_{access_idx}_{1 if self.traps_found > 0 else 0}"
 
-    def load_memory(self):
-        data = self.state_manager.load_json(config.PATHS["Q_TABLE_RED"])
-        self.ai.load(data)
-        logger.info(f"AI Memory Loaded.")
+    def get_context(self) -> Dict[str, Any]:
+        return {
+            "alert_level": self.state_manager.get_war_state().get('blue_alert_level', 1),
+            "access_level": self.access_level,
+            "traps_found": self.traps_found,
+            "actions_taken": self.iteration_count
+        }
 
-    def sync_memory(self):
-        data = self.ai.export()
-        self.state_manager.save_json(config.PATHS["Q_TABLE_RED"], data)
+    def calculate_reward(self, action_name: str, result: Dict[str, Any]) -> float:
+        impact = result.get("impact", 0)
+        reward = float(impact)
 
-    def shutdown(self, signum, frame):
-        logger.info("Shutting down... Syncing memory.")
-        self.sync_memory()
-        self.running = False
-        sys.exit(0)
+        if "traps_found" in result:
+            self.traps_found = result["traps_found"]
 
-    def update_heartbeat(self):
-        hb_file = os.path.join(config.PATHS["DATA_DIR"], "red.heartbeat")
-        try:
-            with open(hb_file, 'w') as f: f.write(str(time.time()))
-        except: pass
+        if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
+            reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
+        if action_name == "T1041_EXFILTRATION" and result.get("status") == "exfiltrated":
+             reward += config.RED["REWARDS"]["EXFIL_SUCCESS"]
+        if self.access_level == "CORE" and impact > 0:
+            reward += config.RED["REWARDS"]["CRITICAL"]
+
+        # Trigger Alerts Side Effect (Moved from Loop)
+        if impact > 0 and random.random() > 0.5:
+            current_alert = self.state_manager.get_war_state().get('blue_alert_level', 1)
+            new_level = min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)
+            if new_level != current_alert:
+                 self.state_manager.update_war_state({'blue_alert_level': new_level})
+
+        return reward
 
     # --- TACTICS ---
     def generate_payload(self, obfuscate=False):
@@ -226,84 +230,7 @@ class RedTeamer:
         return {"impact": 0, "status": "lurking"}
 
     # --- MAIN LOOP ---
-
-    def engage(self):
-        logger.info("Red Team AI Initialized. Framework: APT / Double Q-Learning")
-        self.load_memory()
-
-        if not os.path.exists(config.PATHS["WAR_ZONE"]):
-            os.makedirs(config.PATHS["WAR_ZONE"], exist_ok=True)
-
-        last_impact = 0
-        traps_found = 0
-
-        while self.running:
-            try:
-                self.iteration_count += 1
-                self.update_heartbeat()
-
-                # Perceive
-                war_state = self.state_manager.get_war_state()
-                current_alert = war_state.get('blue_alert_level', 1)
-
-                # State Vector includes Access Level
-                access_idx = self.zones.index(self.access_level)
-                state_vector = f"{current_alert}_{access_idx}_{1 if traps_found > 0 else 0}"
-
-                context = {
-                    "alert_level": current_alert,
-                    "access_level": self.access_level,
-                    "traps_found": traps_found,
-                    "actions_taken": self.iteration_count
-                }
-
-                # Decide
-                action_name = self.ai.choose_action(state_vector, context)
-                tactic_func = getattr(self, action_name.lower())
-
-                # Act
-                try:
-                    result = tactic_func()
-                    impact = result.pop("impact", 0)
-                    if "traps_found" in result: traps_found = result["traps_found"]
-
-                    self.audit_logger.log_event("RED", action_name, result)
-                    logger.info(f"Action: {action_name} | Impact: {impact} | Zone: {self.access_level} | Q: {self.ai.get_q(state_vector, action_name):.2f}")
-                except Exception as e:
-                    logger.warning(f"Failed {action_name}: {e}")
-                    impact = 0
-
-                # Reward & Learn
-                reward = impact
-                if action_name == "T1021_LATERAL_MOVE" and result.get("status") == "escalated":
-                    reward += config.RED["REWARDS"]["LATERAL_SUCCESS"]
-                if action_name == "T1041_EXFILTRATION" and result.get("status") == "exfiltrated":
-                     reward += config.RED["REWARDS"]["EXFIL_SUCCESS"]
-                if self.access_level == "CORE" and impact > 0:
-                    reward += config.RED["REWARDS"]["CRITICAL"]
-
-                # Simple S' assumption: State stays same or changes slightly
-                next_state_vector = state_vector
-
-                self.ai.memory.push(state_vector, action_name, reward, next_state_vector, False)
-                self.ai.learn()
-
-                if self.iteration_count % config.RL["SYNC_INTERVAL"] == 0:
-                    self.sync_memory()
-
-                # Trigger Alerts
-                if impact > 0 and random.random() > 0.5:
-                    new_level = min(config.SYSTEM["MAX_ALERT_LEVEL"], current_alert + 1)
-                    if new_level != current_alert:
-                         self.state_manager.update_war_state({'blue_alert_level': new_level})
-
-                time.sleep(random.uniform(0.5, 2.0))
-
-            except KeyboardInterrupt:
-                self.shutdown(None, None)
-            except Exception as e:
-                logger.error(f"Loop Error: {e}")
-                time.sleep(1)
+    # Inherited from CyberAgent.engage()
 
 if __name__ == "__main__":
     RedTeamer().engage()
