@@ -245,6 +245,25 @@ class RedTeamer:
                             self.audit_logger.log_event("RED", "EXPLOIT", f"Exploited service on port {target}")
                         except: pass
 
+                elif action == "T1204_USER_EXECUTION":
+                    # Spearphishing Attachment / Link
+                    try:
+                        # Find potential Yellow team artifacts to "click"
+                        if os.path.exists(config.WAR_ZONE_DIR):
+                            potential_users = [f for f in os.listdir(config.WAR_ZONE_DIR) if "user" in f or "log" in f]
+                            if potential_users:
+                                target = secrets.choice(potential_users)
+                                impact = 4
+                                self.audit_logger.log_event("RED", "PHISHING", f"User clicked payload in {target}")
+                    except: pass
+
+                elif action == "T1048_EXFIL_ALT":
+                    # Exfiltration Over Alternative Protocol (Simulated DNS Tunneling)
+                    if self.active_payloads:
+                        chunk = secrets.token_hex(16)
+                        self.audit_logger.log_event("RED", "DNS_TUNNEL", f"Exfiltrated chunk: {chunk}")
+                        impact = 6
+
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
                     try:
