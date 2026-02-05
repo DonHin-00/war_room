@@ -148,16 +148,3 @@ def get_classifier():
         clf.train(INITIAL_DATASET)
         clf.save("ai_model.json")
     return clf
-
-if __name__ == "__main__":
-    # Test
-    c = get_classifier()
-    test_cases = [
-        "search=hello world",
-        "q=UNION SELECT password FROM users",
-        "id=1 OR 1=1",
-        "comment=Nice post!"
-    ]
-    for t in test_cases:
-        lbl, scores = c.predict(t)
-        print(f"Text: '{t}' -> {lbl} (Scores: {scores})")
