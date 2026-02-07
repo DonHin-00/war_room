@@ -20,11 +20,11 @@ class GeneticOptimizer:
             child_weights["paranoia"] += 0.1
             child_imps.append("Mutated: Extra Logging")
         return {
-            "variapex_name": f"Hybrid Gen{generation}",
+            "variant_name": f"Hybrid Gen{generation}",
             "traits": child_weights,
             "improvements": child_imps,
-            "parent_a": parent_a["variapex_name"],
-            "parent_b": parent_b["variapex_name"]
+            "parent_a": parent_a["variant_name"],
+            "parent_b": parent_b["variant_name"]
         }
 
 class MicroLM:
@@ -55,7 +55,7 @@ class MicroLM:
 
             child_report = self._scan_code(child_code)
             current_gen.append({
-                "variapex_name": child_params["variapex_name"],
+                "variant_name": child_params["variant_name"],
                 "code": child_code,
                 "tool_report": child_report,
                 "traits": child_params["traits"],
@@ -80,7 +80,7 @@ class MicroLM:
 
             report = self._scan_code(code)
             options.append({
-                "variapex_name": variant,
+                "variant_name": variant,
                 "code": code,
                 "tool_report": report,
                 "traits": weights,

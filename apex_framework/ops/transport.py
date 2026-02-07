@@ -9,10 +9,10 @@ console = Console()
 class StegoTunnel:
     """
     Obfuscated Exfiltration.
-    Hides loot in benign traffic patterns.
+    Hides data in benign traffic patterns.
     """
     @staticmethod
-    def encode_loot(data: str) -> str:
+    def encode_data(data: str) -> str:
         """
         Encodes data into a fake HTTP Header.
         """
@@ -28,12 +28,12 @@ class StegoTunnel:
         Sends data in bursts when noise is high.
         """
         if not data_queue: return
-        console.print("[LOOT BAG] 💓 C2 Pulse: Waiting for Noise Floor...", style="dim")
+        console.print("[TRANSPORT] 💓 C2 Pulse: Waiting for Noise Floor...", style="dim")
         # Simulate waiting
         time.sleep(0.1)
-        console.print("[LOOT BAG] 📡 Transmitting Burst...")
+        console.print("[TRANSPORT] 📡 Transmitting Burst...")
         for item in data_queue:
-            packet = StegoTunnel.encode_loot(item)
+            packet = StegoTunnel.encode_data(item)
             console.print(f"  > [dim]{packet}[/]")
         data_queue.clear()
 
@@ -47,7 +47,7 @@ class ShadowSmuggler:
         """
         Takes benign-looking text fragments and extracts the weapon.
         """
-        console.print("[LOOT BAG] 🧛 Smuggling Payload from artifacts...")
+        console.print("[TRANSPORT] 🧛 Smuggling Payload from artifacts...")
         combined = ""
         for frag in fragments:
             # Simulated stego extraction (e.g., taking the first char of each word)
@@ -73,7 +73,7 @@ class DataTransport:
         self.smuggler = ShadowSmuggler()
 
     def queue_for_exfil(self, data: str):
-        console.print(f"[LOOT BAG] 💰 Stashing Loot: {data[:15]}...")
+        console.print(f"[TRANSPORT] 💰 Stashing Data: {data[:15]}...")
         self.exfil_queue.append(data)
 
         # Auto-trigger if queue gets full

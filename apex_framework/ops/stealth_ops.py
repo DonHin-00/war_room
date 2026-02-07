@@ -16,7 +16,7 @@ class StealthOperations:
         """
         Writes a file bypassing Python's open().
         """
-        console.print(f"[WHISPER] 👻 GhostWriting to {filepath}...")
+        console.print(f"[STEALTH] 👻 GhostWriting to {filepath}...")
 
         # O_WRONLY | O_CREAT | O_TRUNC = 577 (approx) on Linux
         # Let's use 0o1 | 0o100 | 0o1000 = 577 decimal
@@ -25,13 +25,13 @@ class StealthOperations:
 
         fd = self.invoker.raw_open(filepath, flags, mode)
         if fd < 0:
-            console.print(f"[WHISPER] ❌ Syscall open failed: {fd}")
+            console.print(f"[STEALTH] ❌ Syscall open failed: {fd}")
             return False
 
         res = self.invoker.raw_write(fd, content.encode())
         self.invoker.raw_close(fd)
 
-        console.print(f"[WHISPER] ✅ Bytes Written: {res}")
+        console.print(f"[STEALTH] ✅ Bytes Written: {res}")
         return True
 
     def memfd_exec(self, payload_code: str):
@@ -39,12 +39,12 @@ class StealthOperations:
         Fileless Execution via memfd_create.
         Writes python code to RAM file, then executes it via subprocess (simulated execve).
         """
-        console.print(f"[WHISPER] 🧠 Creating MemFD (Fileless Storage)...")
+        console.print(f"[STEALTH] 🧠 Creating MemFD (Fileless Storage)...")
 
         # 1. Create RAM File
         fd = self.invoker.raw_memfd_create("anon_payload", 0)
         if fd < 0:
-            console.print("[WHISPER] ❌ MemFD Failed.")
+            console.print("[STEALTH] ❌ MemFD Failed.")
             return
 
         # 2. Write Payload
@@ -55,7 +55,7 @@ class StealthOperations:
         # we will use /proc/self/fd/FD as a path to pass to a new python instance.
         # This proves the content is readable and executable without a disk path.
         magic_path = f"/proc/self/fd/{fd}"
-        console.print(f"[WHISPER] 🚀 Executing via {magic_path}...")
+        console.print(f"[STEALTH] 🚀 Executing via {magic_path}...")
 
         import subprocess
         try:
@@ -64,6 +64,6 @@ class StealthOperations:
             # We call python3 /proc/self/fd/N
             subprocess.run(["python3", magic_path])
         except Exception as e:
-            console.print(f"[WHISPER] ⚠️ Execution Error: {e}")
+            console.print(f"[STEALTH] ⚠️ Execution Error: {e}")
 
         self.invoker.raw_close(fd)

@@ -26,7 +26,7 @@ def main():
     # But since deploy() forks itself using multiprocessing, the main script is the grandparent.
     # To demonstrate "Kill", we will let it run, then manually terminate one of the Larvae or the Overseer.
 
-    t = threading.Thread(target=agent.deploy)
+    t = threading.Thread(target=agent.deploy, daemon=True)
     t.start()
 
     time.sleep(3)

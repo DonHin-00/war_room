@@ -34,7 +34,7 @@ class RawInvoker:
             self.libc = ctypes.CDLL(None)
             self.syscall = self.libc.syscall
         except Exception as e:
-            console.print(f"[WHISPER] ❌ Failed to load libc: {e}")
+            console.print(f"[SYSCALL] ❌ Failed to load libc: {e}")
 
     def invoke(self, number: int, *args) -> int:
         """

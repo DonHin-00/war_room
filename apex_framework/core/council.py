@@ -58,7 +58,7 @@ class Council:
 
         for opt in options:
             score = 0
-            variant = opt['variapex_name']
+            variant = opt['variant_name']
             code = opt['code']
             tools = opt['tool_report']
 
@@ -96,7 +96,7 @@ class Council:
             self.hive.record_success(task, best_option, {"scores": all_scores, "mood": self.memory.mood})
             return {
                 "approved": True,
-                "selected_variant": best_option['variapex_name'],
+                "selected_variant": best_option['variant_name'],
                 "code": best_option['code'],
                 "improvements": best_option.get('improvements', [])
             }

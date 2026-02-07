@@ -32,7 +32,7 @@ class EvolutionaryMemory:
         entry = {
             "timestamp": time.time(),
             "task_type": task.split()[0] if task else "general", # simplistic taxonomy
-            "winning_variant": winner.get("variapex_name"),
+            "winning_variant": winner.get("variant_name"),
             "traits": winner.get("traits", {}), # Weights used
             "tool_scores": context.get("scores", {}),
             "hive_mood": context.get("mood", "NEUTRAL")

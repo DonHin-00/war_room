@@ -37,7 +37,7 @@ def main():
     # 3. Deploy Agent
     console.print("\n[SCENARIO] 🚀 Deploying Agent (Scanning Sandbox Environment)...")
     agent = RemoteAgent(c2_url="http://localhost:8080")
-    t = threading.Thread(target=agent.deploy)
+    t = threading.Thread(target=agent.deploy, daemon=True)
     t.start()
 
     # Monitor

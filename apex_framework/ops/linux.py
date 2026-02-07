@@ -18,5 +18,5 @@ class LinuxStrategy:
         recon.scan_mass_scale()
 
     def engage_stealth(self):
-        titan = PrivacyManager()
-        titan.deploy()
+        privacy_manager = PrivacyManager()
+        privacy_manager.deploy()
