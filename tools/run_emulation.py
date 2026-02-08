@@ -39,13 +39,13 @@ def run_emulation(duration=60):
     # 3. Start Blue Team (Defense)
     print("[*] Deploying Blue Swarm (3 Nodes)...")
     for _ in range(3):
-        p = subprocess.Popen([sys.executable, "agents/blue_swarm_agent.py"], cwd=ROOT_DIR, env=env)
+        p = subprocess.Popen([sys.executable, "agents/blue_brain.py"], cwd=ROOT_DIR, env=env)
         procs.append(p)
 
     # 4. Start Red Team (Offense)
     print("[*] Deploying Red Mesh (3 Nodes)...")
     for _ in range(3):
-        p = subprocess.Popen([sys.executable, "agents/red_mesh_node.py"], cwd=ROOT_DIR, env=env)
+        p = subprocess.Popen([sys.executable, "agents/red_brain.py"], cwd=ROOT_DIR, env=env)
         procs.append(p)
 
     # 5. Start Rainbow Teams (Support)

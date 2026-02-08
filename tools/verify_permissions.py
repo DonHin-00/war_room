@@ -12,8 +12,12 @@ def check_permissions():
 
     critical_files = {
         "config.py": 0o600,
-        "blue_swarm_agent.py": 0o700, # executable
-        "red_mesh_node.py": 0o700,  # executable
+        "agents/blue_brain.py": 0o700,
+        "agents/red_brain.py": 0o700,
+        "agents/yellow_brain.py": 0o700,
+        "agents/green_brain.py": 0o700,
+        "agents/orange_brain.py": 0o700,
+        "agents/white_brain.py": 0o700,
     }
 
     failed = False
