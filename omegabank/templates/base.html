@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OmegaBank - Secure Financial Services</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>OmegaBank</h1>
+        <nav>
+            {% if session.get('user_id') %}
+                <a href="{{ url_for('banking.dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('banking.transfer') }}">Transfer</a>
+                <a href="{{ url_for('auth.logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Login</a>
+            {% endif %}
+        </nav>
+    </header>
+    <main>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for message in messages %}
+                        <li>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+        {% block content %}
+        <div class="hero">
+            <h2>Banking for the Future</h2>
+            <p>Experience secure, fast, and reliable banking with OmegaBank.</p>
+        </div>
+        {% endblock %}
+    </main>
+    <footer>
+        <p>&copy; 2024 OmegaBank Corp. Secured by IronDome SOC.</p>
+    </footer>
+</body>
+</html>
