@@ -61,13 +61,11 @@ def manage_session(session_id, timeout=DEFAULT_SESSION_TIMEOUT):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     session_file = os.path.join(base_dir, 'sessions.json')
 
-    # Ensure file exists
-    if not os.path.exists(session_file):
-        with open(session_file, 'w') as f:
-            json.dump({}, f)
+    # Atomic create/open with locking using low-level OS flags
+    # O_CREAT | O_RDWR ensures file exists and is open for read/write without race conditions
+    fd = os.open(session_file, os.O_RDWR | os.O_CREAT, 0o644)
 
-    # Atomic Read-Modify-Write
-    with open(session_file, 'r+') as file:
+    with os.fdopen(fd, 'r+') as file:
         try:
             # Exclusive lock to prevent race conditions
             fcntl.flock(file, fcntl.LOCK_EX)
@@ -84,7 +82,6 @@ def manage_session(session_id, timeout=DEFAULT_SESSION_TIMEOUT):
             current_time = time.time()
 
             # Garbage Collection: Remove expired sessions
-            # Use stored timeout if available, otherwise default
             sessions_to_remove = []
             for sid, data in sessions.items():
                 session_timeout = data.get('timeout', DEFAULT_SESSION_TIMEOUT)
@@ -96,22 +93,12 @@ def manage_session(session_id, timeout=DEFAULT_SESSION_TIMEOUT):
 
             # Handle current session
             if session_id in sessions:
-                # If existing session, check if it's expired based on its own timeout
-                # (Double check in case GC logic above missed it or logic changes)
-                session_data = sessions[session_id]
-                session_timeout = session_data.get('timeout', DEFAULT_SESSION_TIMEOUT)
-
-                # Update last_accessed and ensure status
+                # Update existing session
                 sessions[session_id]['last_accessed'] = current_time
                 sessions[session_id]['status'] = 'active'
-
-                # If the caller provided a NEW timeout, should we update it?
-                # Usually session parameters are set on creation, but updating it allows extending/shortening on the fly.
-                # Let's update it to respect the current caller's intent.
                 sessions[session_id]['timeout'] = timeout
-
             else:
-                # Create new session (either new user or expired/cleaned up)
+                # Create new session
                 sessions[session_id] = {
                     'created_at': current_time,
                     'last_accessed': current_time,
