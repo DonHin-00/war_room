@@ -35,11 +35,14 @@ class RawInvoker:
             self.syscall = self.libc.syscall
         except Exception as e:
             console.print(f"[SYSCALL] ❌ Failed to load libc: {e}")
+            self.syscall = None
 
     def invoke(self, number: int, *args) -> int:
         """
         Executes the syscall.
         """
+        if self.syscall is None:
+            return -1
         return self.syscall(number, *args)
 
     def raw_write(self, fd: int, data: bytes) -> int:
