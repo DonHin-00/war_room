@@ -4,9 +4,24 @@
 
 # Exclude logs
 *.log
+logs/
 
 # Exclude cache
 .cache/
+__pycache__/
+*.pyc
 
 # Exclude temporary files
 temp/
+/tmp/
+
+# Simulation State
+war_state.json
+hive_state.json
+*_q_table.json
+threat_feed_cache.json
+simulation.db
+
+# Frontend
+node_modules/
+frontend/dist/

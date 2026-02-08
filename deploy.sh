@@ -4,19 +4,15 @@
 echo "[*] Cleaning up old processes..."
 pkill -f "python blue_brain.py"
 pkill -f "python red_brain.py"
+pkill -f "ant_swarm.main"
 pkill -f "python api.py"
 kill $(lsof -t -i :5173) 2>/dev/null
 kill $(lsof -t -i :3000) 2>/dev/null
 kill $(lsof -t -i :5000) 2>/dev/null
 
-# Start Sentinel (Blue Brain)
-echo "[*] Starting Sentinel (Blue Brain)..."
-nohup python blue_brain.py > logs/blue_brain.log 2>&1 &
-echo "    PID: $!"
-
-# Start Red Team
-echo "[*] Starting Red Team AI..."
-nohup python red_brain.py > logs/red_brain.log 2>&1 &
+# Start Ant Swarm Hive (Sentinel + Red Team)
+echo "[*] Starting Ant Swarm Hive (Sentinel + Red Team)..."
+nohup python -m ant_swarm.main > logs/hive.log 2>&1 &
 echo "    PID: $!"
 
 # Start Backend API
