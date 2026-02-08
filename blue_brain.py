@@ -19,20 +19,27 @@ STATE_FILE = os.path.join(BASE_DIR, "war_state.json")
 WATCH_DIR = "/tmp"
 
 # --- AI HYPERPARAMETERS ---
-ACTIONS = ["SIGNATURE_SCAN", "HEURISTIC_SCAN", "OBSERVE", "IGNORE"]
-ALPHA = 0.4             # Learning Rate (How fast we accept new info)
-ALPHA_DECAY = 0.9999    # Stability Factor (Slowly lock in knowledge)
-GAMMA = 0.9             # Discount Factor (How much we care about the future)
-EPSILON = 0.3           # Exploration Rate (Curiosity)
-EPSILON_DECAY = 0.995   # Mastery Curve (Get smarter, less random)
-MIN_EPSILON = 0.01      # Always keep 1% curiosity
+ACTIONS = [
+    "SIGNATURE_SCAN",
+    "HEURISTIC_SCAN",
+    "OBSERVE",
+    "IGNORE",
+    "WIFI_DEFENSE",  # New: Counter WiFi attacks
+    "WEB_WAF",       # New: Web App Firewall
+    "NET_IDS"        # New: Intrusion Detection
+]
+ALPHA = 0.4             # Learning Rate
+ALPHA_DECAY = 0.9999
+GAMMA = 0.9
+EPSILON = 0.3
+EPSILON_DECAY = 0.995
+MIN_EPSILON = 0.01
 
-# --- REWARD CONFIGURATION (AI PERSONALITY) ---
-# Tweak these to change how the Defender behaves!
-R_MITIGATION = 25       # Reward for killing a threat
-R_PATIENCE = 10         # Reward for waiting when safe (saves CPU)
-P_WASTE = -15           # Penalty for scanning empty air (Paranoia)
-P_NEGLIGENCE = -50      # Penalty for ignoring active malware
+# --- REWARD CONFIGURATION ---
+R_MITIGATION = 25
+R_PATIENCE = 10
+P_WASTE = -15
+P_NEGLIGENCE = -50
 MAX_ALERT = 5
 MIN_ALERT = 1
 
@@ -44,7 +51,6 @@ C_RESET = "\033[0m"
 # --- DEFENSIVE UTILITIES ---
 
 def calculate_shannon_entropy(filepath):
-    """Detects High Entropy (Encrypted/Obfuscated) files."""
     try:
         with open(filepath, 'rb') as f:
             data = f.read()
@@ -58,7 +64,6 @@ def calculate_shannon_entropy(filepath):
     except: return 0
 
 def access_memory(filepath, data=None):
-    """Atomic JSON I/O."""
     if data is not None:
         try:
             with open(filepath, 'w') as f: json.dump(data, f, indent=4)
@@ -74,6 +79,8 @@ def access_memory(filepath, data=None):
 def engage_defense():
     global EPSILON, ALPHA
     print(f"{C_CYAN}[SYSTEM] Blue Team AI Initialized. Policy: NIST SP 800-61{C_RESET}")
+    print(f"{C_CYAN}[SENTINEL] Sentinel System Updated: Integration with Cyber Muzzle Active{C_RESET}")
+    print(f"{C_CYAN}[UPDATE] Capabilities Expanded: WiFi Shield, WAF, IDS online.{C_RESET}")
     
     while True:
         try:
@@ -87,8 +94,12 @@ def engage_defense():
             # 2. DETECTION
             visible_threats = glob.glob(os.path.join(WATCH_DIR, 'malware_*'))
             hidden_threats = glob.glob(os.path.join(WATCH_DIR, '.sys_*'))
-            all_threats = visible_threats + hidden_threats
             
+            # Specialized threats
+            web_threats = [t for t in visible_threats if t.endswith('.php')]
+            wifi_threats = [t for t in visible_threats if 'handshake' in t] # Hypothetical artifact
+
+            all_threats = visible_threats + hidden_threats
             threat_count = len(all_threats)
             state_key = f"{current_alert}_{threat_count}"
             
@@ -100,29 +111,48 @@ def engage_defense():
                 action = max(known, key=known.get)
             
             EPSILON = max(MIN_EPSILON, EPSILON * EPSILON_DECAY)
-            ALPHA = max(0.1, ALPHA * ALPHA_DECAY) # Stabilize learning over time
+            ALPHA = max(0.1, ALPHA * ALPHA_DECAY)
 
             # 4. ERADICATION
             mitigated = 0
             
             if action == "SIGNATURE_SCAN":
                 for t in visible_threats:
-                    try: os.remove(t); mitigated += 1
-                    except: pass
+                    if not t.endswith('.php'): # Signature scan might miss new webshells initially? Or catch all basic ones.
+                        try: os.remove(t); mitigated += 1
+                        except: pass
                     
             elif action == "HEURISTIC_SCAN":
                 for t in all_threats:
-                    # Policy: Delete if .sys (Hidden) OR Entropy > 3.5 (Obfuscated)
                     if ".sys" in t or calculate_shannon_entropy(t) > 3.5:
                         try: os.remove(t); mitigated += 1
                         except: pass
             
+            elif action == "WEB_WAF":
+                for t in web_threats:
+                    try: os.remove(t); mitigated += 1
+                    except: pass
+
+            elif action == "WIFI_DEFENSE":
+                # Simulate preventing handshake capture or deauth
+                # For simulation, maybe remove handshake files if they existed
+                for t in wifi_threats:
+                    try: os.remove(t); mitigated += 1
+                    except: pass
+
+            elif action == "NET_IDS":
+                # Detect scans (no files to remove usually, but maybe alert)
+                if current_alert < MAX_ALERT and threat_count > 0:
+                     # Boost alert faster
+                     war_state['blue_alert_level'] = min(MAX_ALERT, current_alert + 2)
+
             elif action == "OBSERVE": pass
             elif action == "IGNORE": pass
 
             # 5. REWARD CALCULATION
             reward = 0
             if mitigated > 0: reward = R_MITIGATION
+            if action == "WEB_WAF" and len(web_threats) > 0: reward += 10 # Bonus for specialized defense
             if action == "HEURISTIC_SCAN" and threat_count == 0: reward = P_WASTE
             if current_alert >= 4 and action == "OBSERVE": reward = R_PATIENCE
             if action == "IGNORE" and threat_count > 0: reward = P_NEGLIGENCE
