@@ -316,6 +316,38 @@ class BlueDefender:
                                     print(f"{C_BLUE}[DEFENSE] Restored {orig_name} from backup.{C_RESET}")
                             except OSError: pass
 
+                elif action == "HUNT_MEMORY":
+                    # Advanced Process Hunting using /proc/PID/cmdline
+                    try:
+                        # Iterate /proc to find hidden processes that might be masquerading
+                        # This is "Lower Level" than pgrep
+                        if os.path.exists("/proc"):
+                            for pid_dir in os.listdir("/proc"):
+                                if pid_dir.isdigit():
+                                    try:
+                                        with open(f"/proc/{pid_dir}/cmdline", "rb") as f:
+                                            cmd = f.read().decode().replace('\x00', ' ')
+                                            if "malware.py" in cmd or "payloads" in cmd:
+                                                os.kill(int(pid_dir), signal.SIGKILL)
+                                                mitigated += 2 # Higher reward for advanced hunt
+                                                self.audit_logger.log_event("BLUE", "MEMORY_HUNT", f"Killed hidden process {pid_dir}")
+                                    except: pass
+                    except: pass
+
+                elif action == "DECEPTION_TRIPWIRE":
+                    # Create a high-value target that triggers immediate alert
+                    tripwire_path = os.path.join(config.WAR_ZONE_DIR, "passwords_db.sql")
+                    try:
+                        # Monitor if it was touched?
+                        # In this loop, we just plant it.
+                        # Real monitoring would need a file watcher thread.
+                        # For simulation, we check if it's missing or changed hash next time.
+                        utils.secure_create(tripwire_path, "INSERT INTO users VALUES ('admin', 'supersecret');")
+                        # We add it to FIM immediately
+                        with open(tripwire_path, 'rb') as f:
+                             self.fim_baseline[tripwire_path] = hashlib.sha256(f.read()).hexdigest()
+                    except: pass
+
                 # 4. REWARD
 
                 # 4. REWARD

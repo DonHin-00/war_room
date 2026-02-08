@@ -147,6 +147,11 @@ if __name__ == "__main__":
             # 1. Maintenance: Clean up process handles
             self.active_services = [p for p in self.active_services if p.poll() is None]
 
+        # 1.5 Auto-Scaling: If services dropped below 2, spawn immediate replacements
+        if len(self.active_services) < 2:
+            self.build_service(secure_mode=True)
+            self.build_service(secure_mode=True)
+
             # 2. Decommission oldest service if we have too many (rolling update simulation)
             if len(self.active_services) > 5:
                 target = self.active_services.pop(0)

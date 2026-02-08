@@ -275,6 +275,30 @@ with open("phishing_success.log", "a") as f:
                         self.audit_logger.log_event("RED", "DNS_TUNNEL", f"Exfiltrated chunk: {chunk}")
                         impact = 6
 
+                elif action == "T1070_INDICATOR_REMOVAL":
+                    # Indicator Removal on Host: Log Wiping
+                    # Try to find and delete non-critical log files in war_zone
+                    try:
+                        logs = [f for f in os.listdir(config.WAR_ZONE_DIR) if f.endswith(".log")]
+                        if logs:
+                            target = secrets.choice(logs)
+                            os.remove(os.path.join(config.WAR_ZONE_DIR, target))
+                            impact = 3
+                            self.audit_logger.log_event("RED", "LOG_WIPE", f"Deleted log: {target}")
+                    except: pass
+
+                elif action == "T1490_INHIBIT_RECOVERY":
+                    # Inhibit System Recovery: Delete Backups
+                    # Look for Blue Team's backup directory
+                    backup_dir = os.path.join(config.WAR_ZONE_DIR, ".blue_backups")
+                    if os.path.exists(backup_dir):
+                        try:
+                            import shutil
+                            shutil.rmtree(backup_dir)
+                            impact = 7
+                            self.audit_logger.log_event("RED", "DESTRUCTIVE", "Wiped Blue Team backups")
+                        except: pass
+
                 elif action == "T1027_OBFUSCATE":
                     fname = os.path.join(config.WAR_ZONE_DIR, f"malware_crypt_{int(time.time())}.bin")
                     try:
