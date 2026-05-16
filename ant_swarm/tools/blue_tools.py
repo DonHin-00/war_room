@@ -41,6 +41,9 @@ class ProcessAuditor:
         return suspicious
 
 class BeaconHunter:
+    # Pre-compile the network connection regex for performance
+    CONN_RE = re.compile(r'\s+(\d+\.\d+\.\d+\.\d+):(\d+)\s+users:\(\(".*?",pid=(\d+)')
+
     def __init__(self):
         self.history = collections.defaultdict(list) # IP -> [timestamps]
 
@@ -54,7 +57,7 @@ class BeaconHunter:
             output = subprocess.check_output(["ss", "-tunap"], text=True)
             for line in output.splitlines():
                 # Extract Remote IP
-                match = re.search(r'\s+(\d+\.\d+\.\d+\.\d+):(\d+)\s+users:\(\(".*?",pid=(\d+)', line)
+                match = self.CONN_RE.search(line)
                 if match:
                     remote_ip = match.group(1)
                     pid = int(match.group(3))
