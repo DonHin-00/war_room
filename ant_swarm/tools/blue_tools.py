@@ -19,23 +19,26 @@ class ProcessAuditor:
         """
         suspicious = []
         try:
-            # Iterate over all PIDs
-            for pid in os.listdir('/proc'):
-                if not pid.isdigit(): continue
-                try:
-                    exe_link = os.readlink(f'/proc/{pid}/exe')
-                    cmdline = open(f'/proc/{pid}/cmdline').read().replace('\0', ' ')
+            # Iterate over all PIDs using os.scandir for performance
+            with os.scandir('/proc') as entries:
+                for entry in entries:
+                    if not entry.name.isdigit() or not entry.is_dir():
+                        continue
 
-                    reason = None
-                    if "deleted" in exe_link:
-                        reason = "Deleted Binary"
-                    elif exe_link.startswith('/tmp') or exe_link.startswith('/dev/shm'):
-                        reason = "Suspicious Path"
+                    pid = entry.name
+                    try:
+                        exe_link = os.readlink(f'/proc/{pid}/exe')
 
-                    if reason:
-                        suspicious.append({'pid': int(pid), 'exe': exe_link, 'reason': reason})
-                except (FileNotFoundError, PermissionError):
-                    continue
+                        reason = None
+                        if "deleted" in exe_link:
+                            reason = "Deleted Binary"
+                        elif exe_link.startswith('/tmp') or exe_link.startswith('/dev/shm'):
+                            reason = "Suspicious Path"
+
+                        if reason:
+                            suspicious.append({'pid': int(pid), 'exe': exe_link, 'reason': reason})
+                    except (FileNotFoundError, PermissionError):
+                        continue
         except Exception:
             pass
         return suspicious
