@@ -24,7 +24,6 @@ class ProcessAuditor:
                 if not pid.isdigit(): continue
                 try:
                     exe_link = os.readlink(f'/proc/{pid}/exe')
-                    cmdline = open(f'/proc/{pid}/cmdline').read().replace('\0', ' ')
 
                     reason = None
                     if "deleted" in exe_link:
