@@ -65,6 +65,52 @@ def run_command(command_args, timeout=30):
 def status():
     return jsonify({"status": "active", "version": "1.0.0", "mode": "LIVE"})
 
+@app.route('/api/macro/dashboard', methods=['GET'])
+def macro_dashboard():
+    """Aggregated endpoint for the War Room Macro View."""
+    hive_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hive_state.json")
+    war_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "war_state.json")
+
+    hive_data = {
+        "defcon": 5,
+        "mood": "NEUTRAL",
+        "active_threats": [],
+        "blue_level": 1,
+        "red_level": 1,
+        "blue_alert_level": 5
+    }
+
+    try:
+        if os.path.exists(hive_file):
+            with open(hive_file, 'r') as f:
+                hive_data.update(json.load(f))
+        elif os.path.exists(war_file):
+            with open(war_file, 'r') as f:
+                hive_data.update(json.load(f))
+    except Exception as e:
+        logger.error(f"Error reading hive/war state: {e}")
+
+    red_stats = get_q_stats("red_q_table.json")
+    blue_stats = get_q_stats("blue_q_table.json")
+
+    # Mock some system metrics
+    import random
+    system_metrics = {
+        "cpu_load": random.randint(10, 45),
+        "memory_usage": random.randint(30, 60),
+        "latency_ms": random.randint(5, 25),
+        "throughput_gbps": round(random.uniform(1.2, 5.8), 2)
+    }
+
+    return jsonify({
+        "success": True,
+        "hive": hive_data,
+        "red_stats": red_stats,
+        "blue_stats": blue_stats,
+        "system": system_metrics,
+        "timestamp": time.time()
+    })
+
 def get_q_stats(filename):
     filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     if not os.path.exists(filepath):
